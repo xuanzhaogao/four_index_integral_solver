@@ -1,1 +1,1 @@
-# four_indices_integral_solver
+# Solver for four-index integral
