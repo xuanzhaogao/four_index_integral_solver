@@ -1,0 +1,164 @@
+% TeX'ing this file requires that you have AMS-LaTeX 2.0 installed
+% as well as the rest of the prerequisites for REVTeX 4.0
+%
+% See the REVTeX 4 README file
+% It also requires running BibTeX. The commands are as follows:
+%
+%  1)  latex apssamp.tex
+%  2)  bibtex apssamp
+%  3)  latex apssamp.tex
+%  4)  latex apssamp.tex
+%
+\documentclass[prb,preprintnumbers,amsmath,amssymb, 11pt]{revtex4}
+%\documentclass[preprint,showpacs,showkeys,preprintnumbers,amsmath,amssymb]{revtex4}
+
+% Some other (several out of many) possibilities
+%\documentclass[preprint,aps]{revtex4}
+%\documentclass[aps, two column, amsmath,amssymb,floatfix]{revtex4}
+%\documentclass[showkeys,showpacs,amsmath,amssymb,onecolumn,superscriptaddress,prl]{revtex4-1}% Physical Review B  
+% \documentclass[aps,prl,reprint,showpacs,floatfix,superscriptaddress, onecolumn]{revtex4-2}
+
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage{graphicx}% Include figure files
+\usepackage{dcolumn}% Align table columns on decimal point
+\usepackage{bm}% bold math
+\usepackage{color}
+\usepackage{epsfig}
+\usepackage{multirow}
+\usepackage{mathrsfs}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{epstopdf}
+\usepackage{subfigure}
+\usepackage{autobreak}
+
+%Macros for mathematical notations
+
+\newcommand{\V}[1]{\boldsymbol{#1}} %# vector
+\newcommand{\M}[1]{\boldsymbol{#1}} %# matrix
+\newcommand{\Set}[1]{\mathbb{#1}} %# set
+\newcommand{\D}[1]{\Delta#1} %# \D{t} for time step size
+\renewcommand{\d}[1]{\delta#1} %# \d{t} for small increment
+\newcommand{\norm}[1]{\left\Vert #1\right\Vert } % norm
+\newcommand{\abs}[1]{\left|#1\right|} %abs
+
+\newcommand{\grad}{\M{\nabla}} %gradient
+\newcommand{\av}[1]{\left\langle #1\right\rangle } %take average
+
+\newcommand{\sM}[1]{\M{\mathcal{#1}}} %matrix in mathcal font
+\newcommand{\dprime}{\prime\prime} % double prime
+%\global\long\def\i{\iota}
+%\renewcommand{\i}{\iota} %i for imaginary unit
+%\renewcommand{\i}{\mathsf i} %i for imaginary unit
+\newcommand{\follows}{\quad\Rightarrow\quad} %=>
+\newcommand{\eqd}{\overset{d}{=}} %=^d
+\newcommand{\spe}[1]{\mathscr{#1}}  %important quantities in mathscr font
+\newcommand{\eps}{\epsilon}
+\newcommand{\bra}[1]{\left\langle #1 \right|}
+\newcommand{\ket}[1]{\left| #1 \right\rangle}
+\newcommand{\braket}[2]{\left\langle #1 \middle| #2 \right\rangle}
+\newcommand{\bracket}[3]{\left\langle #1 \middle| #2 \middle| #3 \right\rangle}
+
+
+
+\begin{document}
+\preprint{Preprint}
+
+\title{Review of the Fock Matrix}
+\author{Xuanzhao Gao}
+% \date{}
+
+\maketitle
+
+Under the Born-Oppenheimer approximation, the Hamiltonian of the system with $N$ electrons is given by:
+\begin{equation}
+    \hat{H} = \sum_{i=1}^N \left( -\frac{1}{2} \nabla_{i}^2 - \sum_{A} \frac{Z_A}{\abs{\mathbf{r}_i - \mathbf{R}_A}} \right) + \sum_{i < j} \frac{1}{|\mathbf{r}_i - \mathbf{r}_j|},
+\end{equation}
+where~$Z_A$ is the nuclear charge of the $A$-th nucleus,~$\mathbf{R}_A$ is the position of the $A$-th nucleus.
+Then the Schrödinger equation is given by:
+\begin{equation}
+    \hat{H} \Psi(\mathbf{r}_1, \mathbf{r}_2, \cdots, \mathbf{r}_N) = E \Psi(\mathbf{r}_1, \mathbf{r}_2, \cdots, \mathbf{r}_N),
+\end{equation}
+where~$E$ is the energy of the system.
+To solve this equation, we assume that the wave function can be represented by a \textit{Slater determinant}~\cite{cramer2013essentials}:
+\begin{equation}
+    \Psi(\mathbf{r}_1, \mathbf{r}_2, \cdots, \mathbf{r}_N) = \frac{1}{\sqrt{N!}} \left| \begin{array}{cccc}
+        \psi_1(\mathbf{r}_1) \alpha(r_1) & \psi_2(\mathbf{r}_1) \alpha(r_1) & \cdots & \psi_N(\mathbf{r}_1) \alpha(r_1) \\
+        \psi_1(\mathbf{r}_2) \alpha(r_2) & \psi_2(\mathbf{r}_2) \alpha(r_2) & \cdots & \psi_N(\mathbf{r}_2) \alpha(r_2) \\
+        \vdots & \vdots & \ddots & \vdots \\
+        \psi_1(\mathbf{r}_N) \alpha(r_N) & \psi_2(\mathbf{r}_N) \alpha(r_N) & \cdots & \psi_N(\mathbf{r}_N) \alpha(r_N)
+    \end{array} \right|,
+\end{equation}
+where~$\psi_i(\mathbf{r})$ are normalized one-electron eigenfunctions, denoted as molecular orbitals (MO),~$\mathbf{r}_i$ is the position of the $i$-th electron,~$\alpha(r_i)$ is the spin function.
+Notice that the Slater determinant is antisymmetric, i.e., if two electrons are exchanged, the wave function changes its sign.
+We then have the Hatree-Fock equation:
+\begin{equation}\label{eq:hatree-fock}
+    \hat{F}(\V{r}_1) \psi_i(\V{r}_1) = \epsilon_i \psi_i(\V{r}_1),
+\end{equation}
+where~$\hat{F}$ is the Fock operator,~$\epsilon_i$ is the orbital energy of the $i$-th MO.
+The Fock operator is given by:
+\begin{equation}
+    \hat{F}(\V{r}_1) = - \frac{1}{2} \nabla^2 - \sum_{A} \frac{Z_A}{\abs{\V{r}_1 - \mathbf{R}_A}} + \sum_{j} \left[ 2 \hat{J}_j(\V{r}_1) - \hat{K}_j(\V{r}_1) \right],
+\end{equation}
+and 
+The Coulomb operator is given by:
+\begin{equation}
+    \hat{J}_j(\V{r}_1) \psi_i(\V{r}_1) = \psi_i(\V{r}_1) \int \frac{\psi_j^*(\V{r}_2) \psi_j(\V{r}_2)}{|\V{r}_1 - \V{r}_2|} \mathrm{d}\V{r}_2,
+\end{equation}
+The exchange operator is given by:
+\begin{equation}
+    \hat{K}_j(\V{r}_1) \psi_i(\V{r}_1) = \psi_j(\V{r}_1) \int \frac{\psi_j^*(\V{r}_2) \psi_i(\V{r}_2)}{|\V{r}_1 - \V{r}_2|} \mathrm{d}\V{r}_2.
+\end{equation}
+
+In actual calculation, the molecular orbitals~$\psi_i(\V{r})$ are approximated as a linear combination of atomic orbitals (basis functions):
+\begin{equation}
+    \psi_i(\mathbf{r}) = \sum_{\nu=1}^K C_{\nu i} \varphi_{\nu}(\mathbf{r})
+\end{equation}
+where~$\varphi_{\nu}$ is the atomic orbital,~$K$ is the number of atomic orbitals applied,~$C_{\nu i}$ is the coefficient of the linear combination.
+We can also regard~$\varphi$ as a basis set of the wave function.
+There can be several different choices of the basis set, such as the \textit{Slater-type Orbital} \cite{ira2000levine}:
+\begin{equation}
+    \varphi(\mathbf{r}) = r^{n - 1} e^{- \zeta r} Y_{l}^m(\theta,\phi),
+\end{equation}
+where~$n$ is the principal quantum number,~$l$ is the azimuthal quantum number,~$m$ is the magnetic quantum number; or the \textit{Gaussian-type Orbital}:
+\begin{equation}
+    \varphi(\mathbf{r}) = x^a y^b z^c e^{- \alpha r^2}.
+\end{equation}
+The Gaussian-type orbital is more preferred, since it is easier to calculate and store.
+Inserting the basis functions into the Hatree-Fock equation \eqref{eq:hatree-fock}, we have:
+\begin{equation}
+    \sum_{\nu=1}^K C_{\nu i} \left( \bracket{\psi_\mu}{\hat{F}}{\psi_\nu} - \epsilon_i \braket{\psi_\mu}{\psi_\nu} \right) = 0,
+\end{equation}
+and can be rewritten as the Roothaan equation \cite{roothaan1951new}:
+\begin{equation}\label{eq:roothaan}
+    \mathrm{det} \left( \mathbf{F} - \mathbf{S} \mathbf{\epsilon} \right) = 0,
+\end{equation}
+where~$F$ is the Fock matrix,~$S$ is the overlap matrix,~$\epsilon$ is the orbital energy.
+
+In practice, the key is to construct the Fock matrix, given by:
+\begin{equation}
+    F_{\mu \nu} = h_{\mu \nu} + \sum_{\lambda \sigma} \sum_{i} 2 C_{\lambda i} C_{\sigma i} (J_{\mu \nu \lambda \sigma} - \frac{1}{2} K_{\mu \nu \lambda \sigma}),
+\end{equation}
+where
+\begin{equation}\label{eq:core-hamiltonian}
+    h_{\mu \nu} = \int \varphi_{\mu}(\mathbf{r}) \left( -\frac{1}{2} \nabla^2 - \sum_{A} \frac{Z_A}{\abs{\mathbf{r} - \mathbf{R}_A}} \right) \varphi_{\nu}(\mathbf{r}) \mathrm{d}\mathbf{r},
+\end{equation}
+is the core Hamiltonian, representing the kinetic energy and the interaction with the nuclei,
+\begin{equation}\label{eq:coulomb-integral}
+    J_{\mu \nu \lambda \sigma} = \iint \varphi_{\mu}(\mathbf{r}_1) \varphi_{\nu}(\mathbf{r}_1) \frac{1}{|\mathbf{r}_1 - \mathbf{r}_2|} \varphi_{\lambda}(\mathbf{r}_2) \varphi_{\sigma}(\mathbf{r}_2) \mathrm{d}\mathbf{r}_1 \mathrm{d}\mathbf{r}_2,
+\end{equation}
+is the Coulomb integral, representing the Coulomb repulsion between two electrons,
+\begin{equation}\label{eq:exchange-integral}
+    K_{\mu \nu \lambda \sigma} = \iint \varphi_{\mu}(\mathbf{r}_1) \varphi_{\lambda}(\mathbf{r}_1) \frac{1}{|\mathbf{r}_1 - \mathbf{r}_2|} \varphi_{\sigma}(\mathbf{r}_2) \varphi_{\nu}(\mathbf{r}_2) \mathrm{d}\mathbf{r}_1 \mathrm{d}\mathbf{r}_2,
+\end{equation}
+is the exchange integral, representing the exchange correlation between two electrons.
+Then in actual calculations, one starts from a initial guess of the coefficients~$C_{\nu i}$, and iteratively solves the Roothaan equation Eq.~\eqref{eq:roothaan} to obtain the final coefficients.
+To construct the Fock matrix, we need to evaluate the above integrals. 
+Thus if there are $N$ orbitals, the computation cost will be $O(N^4)$.
+Considering the base functions are rapidly decaying, this number can be greatly reduced.
+
+
+\bibliography{ref}
+
+
+\end{document}

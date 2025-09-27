@@ -1,0 +1,188 @@
+% TeX'ing this file requires that you have AMS-LaTeX 2.0 installed
+% as well as the rest of the prerequisites for REVTeX 4.0
+%
+% See the REVTeX 4 README file
+% It also requires running BibTeX. The commands are as follows:
+%
+%  1)  latex apssamp.tex
+%  2)  bibtex apssamp
+%  3)  latex apssamp.tex
+%  4)  latex apssamp.tex
+%
+\documentclass[prb,preprintnumbers,amsmath,amssymb, 10pt]{revtex4}
+%\documentclass[preprint,showpacs,showkeys,preprintnumbers,amsmath,amssymb]{revtex4}
+
+% Some other (several out of many) possibilities
+%\documentclass[preprint,aps]{revtex4}
+%\documentclass[aps, two column, amsmath,amssymb,floatfix]{revtex4}
+%\documentclass[showkeys,showpacs,amsmath,amssymb,onecolumn,superscriptaddress,prl]{revtex4-1}% Physical Review B  
+% \documentclass[aps,prl,reprint,showpacs,floatfix,superscriptaddress, onecolumn]{revtex4-2}
+
+\usepackage{amsmath,amsthm,amssymb}
+\usepackage{graphicx}% Include figure files
+\usepackage{dcolumn}% Align table columns on decimal point
+\usepackage{bm}% bold math
+\usepackage{color}
+\usepackage{epsfig}
+\usepackage{multirow}
+\usepackage{mathrsfs}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{epstopdf}
+\usepackage{subfigure}
+\usepackage{autobreak}
+\usepackage{tikz}
+
+%Macros for mathematical notations
+
+\newcommand{\V}[1]{\boldsymbol{#1}} %# vector
+\newcommand{\M}[1]{\boldsymbol{#1}} %# matrix
+\newcommand{\Set}[1]{\mathbb{#1}} %# set
+\newcommand{\D}[1]{\Delta#1} %# \D{t} for time step size
+\renewcommand{\d}[1]{\delta#1} %# \d{t} for small increment
+\newcommand{\norm}[1]{\left\Vert #1\right\Vert } % norm
+\newcommand{\abs}[1]{\left|#1\right|} %abs
+
+\newcommand{\grad}{\M{\nabla}} %gradient
+\newcommand{\av}[1]{\left\langle #1\right\rangle } %take average
+
+\newcommand{\sM}[1]{\M{\mathcal{#1}}} %matrix in mathcal font
+\newcommand{\dprime}{\prime\prime} % double prime
+%\global\long\def\i{\iota}
+%\renewcommand{\i}{\iota} %i for imaginary unit
+%\renewcommand{\i}{\mathsf i} %i for imaginary unit
+\newcommand{\follows}{\quad\Rightarrow\quad} %=>
+\newcommand{\eqd}{\overset{d}{=}} %=^d
+\newcommand{\spe}[1]{\mathscr{#1}}  %important quantities in mathscr font
+\newcommand{\eps}{\epsilon}
+\newcommand{\bra}[1]{\left\langle #1 \right|}
+\newcommand{\ket}[1]{\left| #1 \right\rangle}
+\newcommand{\braket}[2]{\left\langle #1 \middle| #2 \right\rangle}
+\newcommand{\bracket}[3]{\left\langle #1 \middle| #2 \middle| #3 \right\rangle}
+
+
+
+\begin{document}
+\preprint{Preprint}
+
+\title{Problem Formulation}
+\author{Xuanzhao Gao}
+% \date{}
+
+\maketitle
+
+\section{Model}
+
+We consider the following system:
+
+\begin{figure*}[htbp]
+    \centering
+    \begin{tikzpicture}[scale=1.2, line join=round, line cap=round]
+      \def\s{3.0}
+      \def\h{0.5}
+      \def\w{2.1}
+      % Front square
+      \coordinate (A) at (0,0);
+      \coordinate (B) at (\s,0);
+      \coordinate (C) at (\s,\h);
+      \coordinate (D) at (0,\h);
+      % Back square (shifted)
+      \coordinate (E) at (0.8,0.6);
+      \coordinate (F) at (\s+0.8,0.6);
+      \coordinate (G) at (\s+0.8,0.6+\h);
+      \coordinate (H) at (0.8,0.6+\h);
+      % Fill faces (cube 1)
+      \fill[red, opacity=0.18] (A)--(B)--(C)--(D)--cycle; % front
+      \fill[red, opacity=0.12] (D)--(C)--(G)--(H)--cycle; % top
+      \fill[red, opacity=0.12] (B)--(F)--(G)--(C)--cycle; % right side
+      % Draw faces and connecting edges
+      \draw[thick] (A)--(B)--(C)--(D)--cycle;
+      \draw[thick] (E)--(F)--(G)--(H)--cycle;
+      \draw[thick] (A)--(E) (B)--(F) (C)--(G) (D)--(H);
+    
+      \coordinate (I) at (0,\h);
+      \coordinate (J) at (\s - \w,\h);
+      \coordinate (K) at (\s - \w, \h + \h);
+      \coordinate (L) at (0,\h + \h);
+      \coordinate (M) at (0.8,0.6 + \h);
+      \coordinate (N) at (\s+0.8 - \w,0.6 + \h);
+      \coordinate (O) at (\s+0.8 - \w,0.6 + \h + \h);
+      \coordinate (P) at (0.8,0.6 + \h + \h);
+      % Fill faces (cube 2)
+      \fill[green, opacity=0.18] (I)--(J)--(K)--(L)--cycle; % front
+      \fill[green, opacity=0.12] (L)--(K)--(O)--(P)--cycle; % top
+      \fill[green, opacity=0.12] (J)--(N)--(O)--(K)--cycle; % right side
+      \draw[thick] (I)--(J)--(K)--(L)--cycle;
+      \draw[thick] (M)--(N)--(O)--(P)--cycle;
+      \draw[thick] (I)--(M) (J)--(N) (K)--(O) (L)--(P);
+    
+      \coordinate (I) at (\w,\h);
+      \coordinate (J) at (\s,\h);
+      \coordinate (K) at (\s, \h + \h);
+      \coordinate (L) at (\w,\h + \h);
+      \coordinate (M) at (\w + 0.8,0.6 + \h);
+      \coordinate (N) at (\s+0.8,0.6 + \h);
+      \coordinate (O) at (\s+0.8,0.6 + \h + \h);
+      \coordinate (P) at (\w + 0.8,0.6 + \h + \h);
+      % Fill faces (cube 3)
+      \fill[green, opacity=0.18] (I)--(J)--(K)--(L)--cycle; % front
+      \fill[green, opacity=0.12] (L)--(K)--(O)--(P)--cycle; % top
+      \fill[green, opacity=0.12] (J)--(N)--(O)--(K)--cycle; % right side
+      \draw[thick] (I)--(J)--(K)--(L)--cycle;
+      \draw[thick] (M)--(N)--(O)--(P)--cycle;
+      \draw[thick] (I)--(M) (J)--(N) (K)--(O) (L)--(P);
+    
+    \end{tikzpicture}
+    \caption{Illustration of the system: red substrate region \(\Omega_s\), green metal regions \(\Omega_m\), and exterior vacuum \(\Omega_0\).}
+    \label{fig:system}
+    \end{figure*}
+\noindent where the red cube is the substrate region denoted as~$\Omega_s$, the green cubes are metal regions denoted as~$\Omega_m$, and the exterior is vacuum denoted as~$\Omega_0$.
+The dielectric permittivity is then defined as a function of position:
+\begin{equation}
+    \epsilon(\mathbf{r}) = \begin{cases}
+        \epsilon_s, & \mathbf{r} \in \Omega_s \\
+        \epsilon_m, & \mathbf{r} \in \Omega_m \\
+        \epsilon_0, & \mathbf{r} \in \Omega_0
+    \end{cases}
+\end{equation}
+
+% We formulate the problem as calculating the four-index integral~\cite{cramer2013essentials} of the form:
+Our goal is to compute the following four-index integral~\cite{cramer2013essentials}:
+\begin{equation}
+    V_{ijkl} = \iint \varphi_i(\mathbf{r}_1) \varphi_j(\mathbf{r}_1) K(\mathbf{r}_1, \mathbf{r}_2) \varphi_k(\mathbf{r}_2) \varphi_l(\mathbf{r}_2) \mathrm{d}\mathbf{r}_1 \mathrm{d}\mathbf{r}_2,
+\end{equation}
+where~$\varphi_i(\mathbf{r})$ are the basis functions (orbitals), and $K(\cdot, \cdot)$ is the Green's function of the Poisson equation given by:
+\begin{equation}\label{eq:poisson-origin}
+    \grad_{\mathbf{r}} \cdot \left( \epsilon(\mathbf{r}) \grad_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0) \right) = - \delta(\mathbf{r} - \mathbf{r}_0),
+\end{equation}
+where~$\delta(\cdot)$ is the Dirac delta function.
+We further assume that all density distributions are located inside the red cube, so that $\mathbf{r}_0 \in \Omega_s$.
+Then Eq.~\eqref{eq:poisson-origin} can be rewritten as the following system of equations:
+\begin{equation}
+    \begin{cases}
+        \epsilon_s \grad^2_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0) = - \delta(\mathbf{r} - \mathbf{r}_0)~, & \mathbf{r} \in \Omega_s \\
+        \epsilon_m \grad^2_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0) = 0~, & \mathbf{r} \in \Omega_m \\
+        \epsilon_0 \grad^2_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0) = 0~, & \mathbf{r} \in \Omega_0 \\
+        K(\mathbf{r}, \mathbf{r}_0)\mid_{\partial \Omega_i} = K(\mathbf{r}, \mathbf{r}_0)\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
+        \epsilon_i \mathbf{n} \cdot \grad_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0)\mid_{\partial \Omega_i} = \epsilon_j \mathbf{n} \cdot \grad_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0)\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
+        K(\mathbf{r}, \mathbf{r}_0) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
+    \end{cases}
+\end{equation}
+where the first three equations are the Poisson equations in each region, the fourth is the continuity of potential at the interfaces between different regions, the fifth is the continuity of the normal component of the electric flux at the interfaces, and the last one is the infinite boundary condition.
+Here, $\mathbf{n}$ denotes the unit outward normal on the interface.
+By solving the above system, we can obtain the Green's function $K(\mathbf{r}, \mathbf{r}_0)$.
+
+\section{Question}
+
+I have a few questions about the model:
+\begin{itemize}
+    \item[1.] What device are we modeling? What are its dimensions, and how many orbitals are included in the calculation?
+    \item[2.] Should the metals be treated as perfect conductors, i.e., may we assume~$\epsilon_m \to \infty$?
+    \item[3.] Where are the orbitals located? Are they confined to the center of the red cube, or can they be placed at the cube corners?
+\end{itemize}
+
+
+% \bibliographystyle{apsrev}
+\bibliography{ref}
+
+\end{document}
