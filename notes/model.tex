@@ -175,7 +175,7 @@ where the first three equations are the Poisson equations in each region, the fo
 Here, $\mathbf{n}$ denotes the unit outward normal on the interface.
 By solving the above system, we can obtain the potential $\phi_{kl}(\mathbf{r})$, and then by integrating over the density distribution~$\rho_{ij}(\mathbf{r})$, we can obtain the four-index integral $V_{ijkl}$.
 
-Specially, if~$\Omega_m$ is a perfect conductor, we have $\epsilon_m \to \infty$, and the equations becomes:
+Specially, if the metal can be treated as a perfect conductor, we have $\epsilon_m \to \infty$, and the equations becomes:
 \begin{equation}\label{eq:poisson-perfect-conductor}
     \begin{cases}
         \epsilon_s \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_s \\
@@ -187,14 +187,14 @@ Specially, if~$\Omega_m$ is a perfect conductor, we have $\epsilon_m \to \infty$
         \phi(\mathbf{r}) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
     \end{cases}
 \end{equation}
-where the third and fourth equations are from the perfect conductor boundary condition, with constant potential and zero electric flux.
+where the third and fourth equations enforce the perfect‑conductor conditions: the potential is zero inside the metal, and the field is normal to the surface.
 
 \section{Question}
 
 I have a few questions about the model:
 \begin{itemize}
     \item[1.] What device are we modeling? What are its dimensions, and how many orbitals are included in the calculation?
-    \item[2.] Should the metals be treated as perfect conductors, i.e., may we assume~$\epsilon_m \to \infty$ and use Eq.~\eqref{eq:poisson-perfect-conductor}?
+    \item[2.] Can the metals be treated as perfect conductors? Will there be any voltage applied to the metal?
     \item[3.] Where are the orbitals located? Are they confined to the center of the red cube, or can they be placed at the cube corners?
 \end{itemize}
 
