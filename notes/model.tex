@@ -149,35 +149,52 @@ The dielectric permittivity is then defined as a function of position:
 % We formulate the problem as calculating the four-index integral~\cite{cramer2013essentials} of the form:
 Our goal is to compute the following four-index integral~\cite{cramer2013essentials}:
 \begin{equation}
-    V_{ijkl} = \iint \varphi_i(\mathbf{r}_1) \varphi_j(\mathbf{r}_1) K(\mathbf{r}_1, \mathbf{r}_2) \varphi_k(\mathbf{r}_2) \varphi_l(\mathbf{r}_2) \mathrm{d}\mathbf{r}_1 \mathrm{d}\mathbf{r}_2,
+    \begin{split}
+    V_{ijkl} &= \iint \varphi_i(\mathbf{r}_1) \varphi_j(\mathbf{r}_1) K(\mathbf{r}_1, \mathbf{r}_2) \varphi_k(\mathbf{r}_2) \varphi_l(\mathbf{r}_2) \mathrm{d}\mathbf{r}_1 \mathrm{d}\mathbf{r}_2\\
+    % & = \int \rho_{ij}(\mathbf{r}_1) \left( \int K(\mathbf{r}_1, \mathbf{r}_2) \rho_{kl}(\mathbf{r}_2) \mathrm{d}\mathbf{r}_2 \right) \mathrm{d}\mathbf{r}_1, \\
+    & = \int \rho_{ij}(\mathbf{r}_1) \phi_{kl}(\mathbf{r}_1) \mathrm{d}\mathbf{r}_1,
+    \end{split}
 \end{equation}
-where~$\varphi_i(\mathbf{r})$ are the basis functions (orbitals), and $K(\cdot, \cdot)$ is the Green's function of the Poisson equation given by:
+where~$\varphi_i(\mathbf{r})$ are the basis functions (orbitals),~$\rho_{ij}(\mathbf{r}) = \varphi_i(\mathbf{r}) \varphi_j(\mathbf{r})$ is the density distribution, and $\phi_{kl}(\mathbf{r})$ is the solution to the Poisson equation:
 \begin{equation}\label{eq:poisson-origin}
-    \grad_{\mathbf{r}} \cdot \left( \epsilon(\mathbf{r}) \grad_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0) \right) = - \delta(\mathbf{r} - \mathbf{r}_0),
+    \grad_{\mathbf{r}} \cdot \left( \epsilon(\mathbf{r}) \grad_{\mathbf{r}} \phi_{kl}(\mathbf{r}) \right) = - \rho_{kl}(\mathbf{r}).
 \end{equation}
-where~$\delta(\cdot)$ is the Dirac delta function.
 We further assume that all density distributions are located inside the red cube, so that $\mathbf{r}_0 \in \Omega_s$.
-Then Eq.~\eqref{eq:poisson-origin} can be rewritten as the following system of equations:
+Then Eq.~\eqref{eq:poisson-origin} can be rewritten as the following boundary value problem (indices omitted for simplicity):
 \begin{equation}
     \begin{cases}
-        \epsilon_s \grad^2_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0) = - \delta(\mathbf{r} - \mathbf{r}_0)~, & \mathbf{r} \in \Omega_s \\
-        \epsilon_m \grad^2_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0) = 0~, & \mathbf{r} \in \Omega_m \\
-        \epsilon_0 \grad^2_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0) = 0~, & \mathbf{r} \in \Omega_0 \\
-        K(\mathbf{r}, \mathbf{r}_0)\mid_{\partial \Omega_i} = K(\mathbf{r}, \mathbf{r}_0)\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
-        \epsilon_i \mathbf{n} \cdot \grad_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0)\mid_{\partial \Omega_i} = \epsilon_j \mathbf{n} \cdot \grad_{\mathbf{r}} K(\mathbf{r}, \mathbf{r}_0)\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
-        K(\mathbf{r}, \mathbf{r}_0) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
+        \epsilon_s \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_s \\
+        \epsilon_m \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_m \\
+        \epsilon_0 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_0 \\
+        \phi(\mathbf{r})\mid_{\partial \Omega_i} = \phi(\mathbf{r})\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
+        \epsilon_i \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_i} = \epsilon_j \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
+        \phi(\mathbf{r}) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
     \end{cases}
 \end{equation}
 where the first three equations are the Poisson equations in each region, the fourth is the continuity of potential at the interfaces between different regions, the fifth is the continuity of the normal component of the electric flux at the interfaces, and the last one is the infinite boundary condition.
 Here, $\mathbf{n}$ denotes the unit outward normal on the interface.
-By solving the above system, we can obtain the Green's function $K(\mathbf{r}, \mathbf{r}_0)$.
+By solving the above system, we can obtain the potential $\phi_{kl}(\mathbf{r})$, and then by integrating over the density distribution~$\rho_{ij}(\mathbf{r})$, we can obtain the four-index integral $V_{ijkl}$.
+
+Specially, if~$\Omega_m$ is a perfect conductor, we have $\epsilon_m \to \infty$, and the equations becomes:
+\begin{equation}\label{eq:poisson-perfect-conductor}
+    \begin{cases}
+        \epsilon_s \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_s \\
+        \epsilon_0 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_0 \\
+        \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_m \\
+        \mathbf{n} \times \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_m} = 0~, & \mathbf{r} \in \partial \Omega_m \\
+        \phi(\mathbf{r})\mid_{\partial \Omega_s} = \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_s \cap \partial \Omega_0 \\
+        \epsilon_s \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_s} = \epsilon_0 \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_s \cap \partial \Omega_0 \\
+        \phi(\mathbf{r}) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
+    \end{cases}
+\end{equation}
+where the third and fourth equations are from the perfect conductor boundary condition, with constant potential and zero electric flux.
 
 \section{Question}
 
 I have a few questions about the model:
 \begin{itemize}
     \item[1.] What device are we modeling? What are its dimensions, and how many orbitals are included in the calculation?
-    \item[2.] Should the metals be treated as perfect conductors, i.e., may we assume~$\epsilon_m \to \infty$?
+    \item[2.] Should the metals be treated as perfect conductors, i.e., may we assume~$\epsilon_m \to \infty$ and use Eq.~\eqref{eq:poisson-perfect-conductor}?
     \item[3.] Where are the orbitals located? Are they confined to the center of the red cube, or can they be placed at the cube corners?
 \end{itemize}
 
