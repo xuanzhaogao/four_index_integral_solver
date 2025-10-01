@@ -136,7 +136,7 @@ We consider the following system:
     \caption{Illustration of the system: red substrate region \(\Omega_s\), green metal regions \(\Omega_m\), and exterior vacuum \(\Omega_0\).}
     \label{fig:system}
     \end{figure*}
-\noindent where the red cube is the substrate region denoted as~$\Omega_s$, the green cubes are metal regions denoted as~$\Omega_m$, and the exterior is vacuum denoted as~$\Omega_0$.
+\noindent where the red cube is the substrate region denoted as~$\Omega_s$, the green cubes are dielectric materials denoted as~$\Omega_m$, and the exterior is vacuum denoted as~$\Omega_0$.
 The dielectric permittivity is then defined as a function of position:
 \begin{equation}
     \epsilon(\mathbf{r}) = \begin{cases}
@@ -175,13 +175,13 @@ where the first three equations are the Poisson equations in each region, the fo
 Here, $\mathbf{n}$ denotes the unit outward normal on the interface.
 By solving the above system, we can obtain the potential $\phi_{kl}(\mathbf{r})$, and then by integrating over the density distribution~$\rho_{ij}(\mathbf{r})$, we can obtain the four-index integral $V_{ijkl}$.
 
-Specially, if the metal can be treated as a perfect conductor, we have $\epsilon_m \to \infty$, and the equations becomes:
+Specially, if the dielectric material can be treated as a perfect conductor, we have $\epsilon_m \to \infty$, and the equations becomes:
 \begin{equation}\label{eq:poisson-perfect-conductor}
     \begin{cases}
         \epsilon_s \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_s \\
-        \epsilon_0 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_0 \\
         \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_m \\
-        \mathbf{n} \times \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_m} = 0~, & \mathbf{r} \in \partial \Omega_m \\
+        \epsilon_0 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_0 \\
+        % \mathbf{n} \times \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_m} = 0~, & \mathbf{r} \in \partial \Omega_m \\
         \phi(\mathbf{r})\mid_{\partial \Omega_s} = \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_s \cap \partial \Omega_0 \\
         \epsilon_s \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_s} = \epsilon_0 \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_s \cap \partial \Omega_0 \\
         \phi(\mathbf{r}) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
@@ -194,7 +194,7 @@ where the third and fourth equations enforce the perfect‑conductor conditions:
 I have a few questions about the model:
 \begin{itemize}
     \item[1.] What device are we modeling? What are its dimensions, and how many orbitals are included in the calculation?
-    \item[2.] Can the metals be treated as perfect conductors? Will there be any voltage applied to the metal?
+    \item[2.] Can the dielectric materials be treated as perfect conductors? Will there be any voltage applied to them?
     \item[3.] Where are the orbitals located? Are they confined to the center of the red cube, or can they be placed at the cube corners?
 \end{itemize}
 
