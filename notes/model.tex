@@ -73,14 +73,47 @@
 
 \section{Model}
 
-We consider the following system:
+We consider the following simplified system:
 
 \begin{figure*}[htbp]
     \centering
     \begin{tikzpicture}[scale=1.2, line join=round, line cap=round]
       \def\s{3.0}
       \def\h{0.5}
-      \def\w{2.1}
+      \def\w{1.5}
+
+      \coordinate (I) at (0,-\h - 0.1);
+      \coordinate (J) at (\s - \w,-\h - 0.1);
+      \coordinate (K) at (\s - \w, -\h + \h - 0.1);
+      \coordinate (L) at (0,-\h + \h - 0.1);
+      \coordinate (M) at (0.8,0.6 -\h - 0.1);
+      \coordinate (N) at (\s+0.8 - \w,0.6 -\h - 0.1);
+      \coordinate (O) at (\s+0.8 - \w,0.6 -\h + \h - 0.1);
+      \coordinate (P) at (0.8,0.6 -\h + \h - 0.1);
+      % Fill faces (cube 2)
+      \fill[yellow, opacity=0.8] (I)--(J)--(K)--(L)--cycle; % front
+      \fill[yellow, opacity=0.8] (L)--(K)--(O)--(P)--cycle; % top
+      \fill[yellow, opacity=0.8] (J)--(N)--(O)--(K)--cycle; % right side
+      \draw[thick] (I)--(J)--(K)--(L)--cycle;
+      \draw[thick] (M)--(N)--(O)--(P)--cycle;
+      \draw[thick] (I)--(M) (J)--(N) (K)--(O) (L)--(P);
+
+      \coordinate (I) at (\w, - \h - 0.1);
+      \coordinate (J) at (\s, - \h - 0.1);
+      \coordinate (K) at (\s, -0.1);
+      \coordinate (L) at (\w, - 0.1);
+      \coordinate (M) at (\w + 0.8,0.6 - \h - 0.1);
+      \coordinate (N) at (\s+0.8,0.6 - \h - 0.1);
+      \coordinate (O) at (\s+0.8,0.6 - \h + \h - 0.1);
+      \coordinate (P) at (\w + 0.8,0.6 - \h + \h - 0.1);
+      % Fill faces (cube 3)
+      \fill[gray, opacity=0.4] (I)--(J)--(K)--(L)--cycle; % front
+      \fill[gray, opacity=0.4] (L)--(K)--(O)--(P)--cycle; % top
+      \fill[gray, opacity=0.4] (J)--(N)--(O)--(K)--cycle; % right side
+      \draw[thick] (I)--(J)--(K)--(L)--cycle;
+      \draw[thick] (M)--(N)--(O)--(P)--cycle;
+      \draw[thick] (I)--(M) (J)--(N) (K)--(O) (L)--(P);
+
       % Front square
       \coordinate (A) at (0,0);
       \coordinate (B) at (\s,0);
@@ -92,56 +125,24 @@ We consider the following system:
       \coordinate (G) at (\s+0.8,0.6+\h);
       \coordinate (H) at (0.8,0.6+\h);
       % Fill faces (cube 1)
-      \fill[red, opacity=0.18] (A)--(B)--(C)--(D)--cycle; % front
-      \fill[red, opacity=0.12] (D)--(C)--(G)--(H)--cycle; % top
-      \fill[red, opacity=0.12] (B)--(F)--(G)--(C)--cycle; % right side
+      \fill[blue, opacity=0.4] (A)--(B)--(C)--(D)--cycle; % front
+      \fill[blue, opacity=0.4] (D)--(C)--(G)--(H)--cycle; % top
+      \fill[blue, opacity=0.4] (B)--(F)--(G)--(C)--cycle; % right side
       % Draw faces and connecting edges
       \draw[thick] (A)--(B)--(C)--(D)--cycle;
       \draw[thick] (E)--(F)--(G)--(H)--cycle;
       \draw[thick] (A)--(E) (B)--(F) (C)--(G) (D)--(H);
     
-      \coordinate (I) at (0,\h);
-      \coordinate (J) at (\s - \w,\h);
-      \coordinate (K) at (\s - \w, \h + \h);
-      \coordinate (L) at (0,\h + \h);
-      \coordinate (M) at (0.8,0.6 + \h);
-      \coordinate (N) at (\s+0.8 - \w,0.6 + \h);
-      \coordinate (O) at (\s+0.8 - \w,0.6 + \h + \h);
-      \coordinate (P) at (0.8,0.6 + \h + \h);
-      % Fill faces (cube 2)
-      \fill[green, opacity=0.18] (I)--(J)--(K)--(L)--cycle; % front
-      \fill[green, opacity=0.12] (L)--(K)--(O)--(P)--cycle; % top
-      \fill[green, opacity=0.12] (J)--(N)--(O)--(K)--cycle; % right side
-      \draw[thick] (I)--(J)--(K)--(L)--cycle;
-      \draw[thick] (M)--(N)--(O)--(P)--cycle;
-      \draw[thick] (I)--(M) (J)--(N) (K)--(O) (L)--(P);
-    
-      \coordinate (I) at (\w,\h);
-      \coordinate (J) at (\s,\h);
-      \coordinate (K) at (\s, \h + \h);
-      \coordinate (L) at (\w,\h + \h);
-      \coordinate (M) at (\w + 0.8,0.6 + \h);
-      \coordinate (N) at (\s+0.8,0.6 + \h);
-      \coordinate (O) at (\s+0.8,0.6 + \h + \h);
-      \coordinate (P) at (\w + 0.8,0.6 + \h + \h);
-      % Fill faces (cube 3)
-      \fill[green, opacity=0.18] (I)--(J)--(K)--(L)--cycle; % front
-      \fill[green, opacity=0.12] (L)--(K)--(O)--(P)--cycle; % top
-      \fill[green, opacity=0.12] (J)--(N)--(O)--(K)--cycle; % right side
-      \draw[thick] (I)--(J)--(K)--(L)--cycle;
-      \draw[thick] (M)--(N)--(O)--(P)--cycle;
-      \draw[thick] (I)--(M) (J)--(N) (K)--(O) (L)--(P);
-    
     \end{tikzpicture}
-    \caption{Illustration of the system: red substrate region \(\Omega_s\), green metal regions \(\Omega_m\), and exterior vacuum \(\Omega_0\).}
+    \caption{Illustration of the system: the bule and not filled region are vacuum denoted as~$\Omega_0$, the yellow and gray regions are dielectric materials:~$\Omega_1$ and~$\Omega_2$, respectively.}
     \label{fig:system}
-    \end{figure*}
-\noindent where the red cube is the substrate region denoted as~$\Omega_s$, the green cubes are dielectric materials denoted as~$\Omega_m$, and the exterior is vacuum denoted as~$\Omega_0$.
+\end{figure*}
+\noindent where the system we are interested in is the blue region, and the yellow and gray regions are dielectric materials with different permittivities.
 The dielectric permittivity is then defined as a function of position:
 \begin{equation}
     \epsilon(\mathbf{r}) = \begin{cases}
-        \epsilon_s, & \mathbf{r} \in \Omega_s \\
-        \epsilon_m, & \mathbf{r} \in \Omega_m \\
+        \epsilon_1, & \mathbf{r} \in \Omega_1 \\
+        \epsilon_2, & \mathbf{r} \in \Omega_2 \\
         \epsilon_0, & \mathbf{r} \in \Omega_0
     \end{cases}
 \end{equation}
@@ -150,22 +151,22 @@ The dielectric permittivity is then defined as a function of position:
 Our goal is to compute the following four-index integral~\cite{cramer2013essentials}:
 \begin{equation}
     \begin{split}
-    V_{ijkl} &= \iint \varphi_i(\mathbf{r}_1) \varphi_j(\mathbf{r}_1) K(\mathbf{r}_1, \mathbf{r}_2) \varphi_k(\mathbf{r}_2) \varphi_l(\mathbf{r}_2) \mathrm{d}\mathbf{r}_1 \mathrm{d}\mathbf{r}_2\\
+    V_{ijkl} &= \iint \varphi_i(\mathbf{r}_1) \varphi_j^*(\mathbf{r}_1) K(\mathbf{r}_1, \mathbf{r}_2) \varphi_k(\mathbf{r}_2) \varphi_l^*(\mathbf{r}_2) \mathrm{d}\mathbf{r}_1 \mathrm{d}\mathbf{r}_2\\
     % & = \int \rho_{ij}(\mathbf{r}_1) \left( \int K(\mathbf{r}_1, \mathbf{r}_2) \rho_{kl}(\mathbf{r}_2) \mathrm{d}\mathbf{r}_2 \right) \mathrm{d}\mathbf{r}_1, \\
     & = \int \rho_{ij}(\mathbf{r}_1) \phi_{kl}(\mathbf{r}_1) \mathrm{d}\mathbf{r}_1,
     \end{split}
 \end{equation}
-where~$\varphi_i(\mathbf{r})$ are the basis functions (orbitals),~$\rho_{ij}(\mathbf{r}) = \varphi_i(\mathbf{r}) \varphi_j(\mathbf{r})$ is the density distribution, and $\phi_{kl}(\mathbf{r})$ is the solution to the Poisson equation:
+where~$\varphi_i(\mathbf{r})$ are the basis functions (orbitals), with a typical number of 20000,~$\rho_{ij}(\mathbf{r}) = \varphi_i(\mathbf{r}) \varphi_j^*(\mathbf{r})$ is the density distribution (may further be simplified as delta-like functions), and $\phi_{kl}(\mathbf{r})$ is the solution to the Poisson equation:
 \begin{equation}\label{eq:poisson-origin}
     \grad_{\mathbf{r}} \cdot \left( \epsilon(\mathbf{r}) \grad_{\mathbf{r}} \phi_{kl}(\mathbf{r}) \right) = - \rho_{kl}(\mathbf{r}).
 \end{equation}
-We further assume that all density distributions are located inside the red cube, so that $\mathbf{r}_0 \in \Omega_s$.
+We further assume that all density distributions are located inside the interested blue region, so that $\mathbf{r}_0 \in \Omega_0$.
 Then Eq.~\eqref{eq:poisson-origin} can be rewritten as the following boundary value problem (indices omitted for simplicity):
 \begin{equation}
     \begin{cases}
-        \epsilon_s \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_s \\
-        \epsilon_m \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_m \\
-        \epsilon_0 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_0 \\
+        \epsilon_0 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_0 \\
+        \epsilon_1 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_1 \\
+        \epsilon_2 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_2 \\
         \phi(\mathbf{r})\mid_{\partial \Omega_i} = \phi(\mathbf{r})\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
         \epsilon_i \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_i} = \epsilon_j \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
         \phi(\mathbf{r}) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
@@ -175,28 +176,112 @@ where the first three equations are the Poisson equations in each region, the fo
 Here, $\mathbf{n}$ denotes the unit outward normal on the interface.
 By solving the above system, we can obtain the potential $\phi_{kl}(\mathbf{r})$, and then by integrating over the density distribution~$\rho_{ij}(\mathbf{r})$, we can obtain the four-index integral $V_{ijkl}$.
 
-Specially, if the dielectric material can be treated as a perfect conductor, we have $\epsilon_m \to \infty$, and the equations becomes:
+Specially, if the dielectric material in~$\Omega_1$ or~$\Omega_2$ can be treated as a perfect conductor, we have $\epsilon_m \to \infty$, and the equations becomes:
 \begin{equation}\label{eq:poisson-perfect-conductor}
     \begin{cases}
-        \epsilon_s \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_s \\
-        \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_m \\
-        \epsilon_0 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_0 \\
+        \epsilon_0 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_0 \\
+        \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_1 \\
+        \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_2 \\
         % \mathbf{n} \times \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_m} = 0~, & \mathbf{r} \in \partial \Omega_m \\
-        \phi(\mathbf{r})\mid_{\partial \Omega_s} = \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_s \cap \partial \Omega_0 \\
-        \epsilon_s \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_s} = \epsilon_0 \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_s \cap \partial \Omega_0 \\
+        \phi(\mathbf{r})\mid_{\partial \Omega_i} = \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_0 \\
+        \epsilon_i \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_i} = \epsilon_0 \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_0 \\
         \phi(\mathbf{r}) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
     \end{cases}
 \end{equation}
 where the third and fourth equations enforce the perfect‑conductor conditions: the potential is zero inside the metal, and the field is normal to the surface.
 
+\section{Solver}
+
+In this section, we describe a boundary integral equation for the potential~$\phi(\mathbf{r})$ with a single layer potential~$\mathbf{\sigma}(\mathbf{r})$ on the boundaries.
+The model is illustrated as follows:
+\begin{figure*}[htbp]
+    \centering
+    \begin{tikzpicture}[scale=1.2, line join=round, line cap=round]
+      \def\s{2.0}
+      \def\h{1.5}
+
+      % Front square
+      \coordinate (A) at (0,0);
+      \coordinate (B) at (\s,0);
+      \coordinate (C) at (\s,\h);
+      \coordinate (D) at (0,\h);
+      % Back square (shifted)
+      \coordinate (E) at (\s, 0);
+      \coordinate (F) at (2 * \s, 0);
+      \coordinate (G) at (2 * \s, \h);
+      \coordinate (H) at (\s, \h);
+      % Fill faces (cube 1)
+      % Draw faces and connecting edges
+      \draw[thick] (A)--(B)--(C)--(D)--cycle;
+      \draw[thick] (E)--(F)--(G)--(H)--cycle;
+
+      \coordinate (R0) at (2.2*\s, 1.2*\h);
+      \coordinate (R1) at (\s / 2, \h / 2);
+      \coordinate (R2) at (1.5 * \s, \h / 2);
+      \node at (R1) {$\Omega_1$};
+      \node at (R2) {$\Omega_2$};
+      \node at (R0) {$\Omega_0$};
+
+      \coordinate (S) at (0.8*\s, 1.5*\h);
+      \fill[gray, opacity=0.4] (S) circle (0.5cm);
+      \node at (S) {$\rho(\mathbf{r})$};
+
+      \draw[->, thick] (\s / 4, \h) -- (\s / 4, \h + 0.5) node[right, above] {$\mathbf{n}$};
+      \draw[->, thick] (\s, \h / 2) -- (\s +0.5, \h / 2) node[midway, above] {$\mathbf{n}$};
+    
+    \end{tikzpicture}
+    % \caption{Illustration of the system: the bule and not filled region are vacuum denoted as~$\Omega_0$, the yellow and gray regions are dielectric materials:~$\Omega_1$ and~$\Omega_2$, respectively.}
+    % \label{fig:2d-system}
+\end{figure*}
+
+\noindent where the gray region represents the density distribution~$\rho(\mathbf{r})$, and the arrows represent the normal direction of the boundaries.
+The potential~$\phi(\mathbf{r})$ is separated into two parts:
+\begin{equation}
+    \phi(\mathbf{r}) = u(\mathbf{r}) + u_{\text{inc}}(\mathbf{r}),
+\end{equation}
+where~$u(\mathbf{r})$ is the scattered potential, and~$u_{\text{inc}}(\mathbf{r})$ is the incident potential, which are given by
+\begin{equation}
+    u_{\text{inc}}(\mathbf{r}) = \int \frac{\rho(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|} \mathrm{d}\mathbf{r}'~,
+    u(\mathbf{r}) = \int \frac{\mathbf{\sigma}(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|} \mathrm{d}S(\mathbf{r}'),
+\end{equation}
+so that the continuity of the potential at the boundaries is automatically satisfied, and the continuity of the normal component of the electric flux requires that
+\begin{equation}\label{eq:flux-continuity}
+    \epsilon_i \partial_{\mathbf{n}} \left( u(\mathbf{r^+}) + u_{\text{inc}}(\mathbf{r^+}) \right) = \epsilon_j \partial_{\mathbf{n}} \left( u(\mathbf{r^-}) + u_{\text{inc}}(\mathbf{r^-}) \right),~\mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j,
+\end{equation}
+where $\mathbf{r^+}$ and $\mathbf{r^-}$ denote the limit from two sides of the boundary.
+Due to the existence of the single layer potential, the normal component of the scattered potential is given by
+\begin{equation}\label{eq:scattered-potential}
+    \begin{split}
+    \partial_{\mathbf{n}} u(\mathbf{r^+}) &= \mathbf{n} \cdot \int \grad_{\mathbf{r}} \frac{\mathbf{\sigma}(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|} \mathrm{d}S(\mathbf{r}') - \frac{\sigma(\mathbf{r})}{2}, = D \mathbf{\sigma}(\mathbf{r}) - \frac{\sigma(\mathbf{r})}{2} \\
+    \partial_{\mathbf{n}} u(\mathbf{r^-}) &= \mathbf{n} \cdot \int \grad_{\mathbf{r}} \frac{\mathbf{\sigma}(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|} \mathrm{d}S(\mathbf{r}') + \frac{\sigma(\mathbf{r})}{2} = D \mathbf{\sigma}(\mathbf{r}) + \frac{\sigma(\mathbf{r})}{2},
+    \end{split}
+\end{equation}
+where $D$ represents the integral operator $\int \grad_{\mathbf{r}} \frac{\mathrm{d}S(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|}$.
+Then Eq.~\eqref{eq:flux-continuity} can be rewritten as
+\begin{equation}
+    \epsilon_i \left( D \mathbf{\sigma}(\mathbf{r}) - \frac{\sigma(\mathbf{r})}{2} + \partial_{\mathbf{n}} u_{\text{inc}}(\mathbf{r}) \right) = \epsilon_j \left( D \mathbf{\sigma}(\mathbf{r}) + \frac{\sigma(\mathbf{r})}{2} + \partial_{\mathbf{n}} u_{\text{inc}}(\mathbf{r}) \right),
+\end{equation}
+or equivalently,
+\begin{equation}
+    \frac{1}{2} \frac{\epsilon_i + \epsilon_j}{\epsilon_i - \epsilon_j} \sigma(\mathbf{r}) + D \sigma(\mathbf{r}) = - \partial_{\mathbf{n}} u_{\text{inc}}(\mathbf{r}),~\mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j.
+\end{equation}
+By discretizing the three boundaries, the above equation can be written as a linear system of equations and solved iteratively.
+
 \section{Question}
 
-I have a few questions about the model:
+A few further questions to discuss:
 \begin{itemize}
-    \item[1.] What device are we modeling? What are its dimensions, and how many orbitals are included in the calculation?
-    \item[2.] Can the dielectric materials be treated as perfect conductors? Will there be any voltage applied to them?
-    \item[3.] Where are the orbitals located? Are they confined to the center of the red cube, or can they be placed at the cube corners?
+    \item[1.] Current model leads to edge and corner singularities. Consider that the system is at an atomic scale, is sharp edges and corners realistic?
+    % \item[2.] It seems to be more natural to consider~$\Omega_1$ and~$\Omega_2$ are semi-infinite half-spaces.
+    \item[2.] How energy band is defined in this model, if it is finite size and non-transparent in some directions?
 \end{itemize}
+
+% I have a few questions about the model:
+% \begin{itemize}
+%     \item[1.] What device are we modeling? What are its dimensions, and how many orbitals are included in the calculation?
+%     \item[2.] Can the dielectric materials be treated as perfect conductors? Will there be any voltage applied to them?
+%     \item[3.] Where are the orbitals located? Are they confined to the center of the red cube, or can they be placed at the cube corners?
+% \end{itemize}
 
 
 % \bibliographystyle{apsrev}
