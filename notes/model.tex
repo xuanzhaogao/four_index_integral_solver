@@ -150,17 +150,17 @@ We consider the following simplified system:
       \draw[thick] (A)--(E) (B)--(F) (C)--(G) (D)--(H);
     
     \end{tikzpicture}
-    \caption{Illustration of the system: the bule is the interested region~$\Omega_I$, the yellow and gray regions are dielectric materials:~$\Omega_1$ and~$\Omega_2$, respectively, non-filled regions are vacuum denoted as~$\Omega_0$.}
+    \caption{Illustration of the system: the bule is the material region~$\Omega_m$, the yellow and gray regions are dielectric materials:~$\Omega_1$ and~$\Omega_2$, respectively, non-filled regions are vacuum denoted as~$\Omega_0$.}
     \label{fig:system}
 \end{figure*}
 \noindent where the system we are interested in is the blue region, and the yellow and gray regions are dielectric materials with different permittivities.
 The dielectric permittivity is then defined as a function of position:
 \begin{equation}
-    \epsilon(\mathbf{r}) = \begin{cases}
-        \epsilon_I, & \mathbf{r} \in \Omega_I \\
-        \epsilon_1, & \mathbf{r} \in \Omega_1 \\
-        \epsilon_2, & \mathbf{r} \in \Omega_2 \\
-        \epsilon_0, & \mathbf{r} \in \Omega_0
+    \epsilon(\mathbf{x}) = \begin{cases}
+        \epsilon_m, & \mathbf{x} \in \Omega_m \\
+        \epsilon_1, & \mathbf{x} \in \Omega_1 \\
+        \epsilon_2, & \mathbf{x} \in \Omega_2 \\
+        \epsilon_0 = 1, & \mathbf{x} \in \Omega_0
     \end{cases}
 \end{equation}
 
@@ -168,47 +168,46 @@ The dielectric permittivity is then defined as a function of position:
 Our goal is to compute the following four-index integral~\cite{cramer2013essentials}:
 \begin{equation}
     \begin{split}
-    V_{ijkl} &= \iint \varphi_i(\mathbf{r}_1) \varphi_j^*(\mathbf{r}_1) K(\mathbf{r}_1, \mathbf{r}_2) \varphi_k(\mathbf{r}_2) \varphi_l^*(\mathbf{r}_2) \mathrm{d}\mathbf{r}_1 \mathrm{d}\mathbf{r}_2\\
-    % & = \int \rho_{ij}(\mathbf{r}_1) \left( \int K(\mathbf{r}_1, \mathbf{r}_2) \rho_{kl}(\mathbf{r}_2) \mathrm{d}\mathbf{r}_2 \right) \mathrm{d}\mathbf{r}_1, \\
-    & = \int \rho_{ij}(\mathbf{r}_1) \phi_{kl}(\mathbf{r}_1) \mathrm{d}\mathbf{r}_1,
+    V_{ijkl} &= \iint \varphi_i(\mathbf{x}_1) \varphi_j^*(\mathbf{x}_1) K(\mathbf{x}_1, \mathbf{x}_2) \varphi_k(\mathbf{x}_2) \varphi_l^*(\mathbf{x}_2) \mathrm{d}\mathbf{x}_1 \mathrm{d}\mathbf{x}_2\\
+    & = \int \rho_{ij}(\mathbf{x}_1) \phi_{kl}(\mathbf{x}_1) \mathrm{d}\mathbf{x}_1,
     \end{split}
 \end{equation}
-where~$\varphi_i(\mathbf{r})$ are the basis functions (orbitals), with a typical number of 20000,~$\rho_{ij}(\mathbf{r}) = \varphi_i(\mathbf{r}) \varphi_j^*(\mathbf{r})$ is the density distribution (may further be simplified as delta-like functions), and $\phi_{kl}(\mathbf{r})$ is the solution to the Poisson equation:
+where~$\varphi_i(\mathbf{x})$ are the basis functions (orbitals), with a typical number of 20000,~$\rho_{ij}(\mathbf{x}) = \varphi_i(\mathbf{x}) \varphi_j^*(\mathbf{x})$ is the density distribution (may further be simplified as delta-like functions), and $\phi_{kl}(\mathbf{x})$ is the solution to the Poisson equation:
 \begin{equation}\label{eq:poisson-origin}
-    \grad_{\mathbf{r}} \cdot \left( \epsilon(\mathbf{r}) \grad_{\mathbf{r}} \phi_{kl}(\mathbf{r}) \right) = - \rho_{kl}(\mathbf{r}).
+    \grad_{\mathbf{x}} \cdot \left( \epsilon(\mathbf{x}) \grad_{\mathbf{x}} \phi_{kl}(\mathbf{x}) \right) = - \rho_{kl}(\mathbf{x}).
 \end{equation}
-We further assume that all density distributions are located inside the interested blue region, so that $\mathbf{r}_0 \in \Omega_I$.
+We further assume that all density distributions are located inside the interested blue region, so that $\mathbf{x}_0 \in \Omega_I$.
 Then Eq.~\eqref{eq:poisson-origin} can be rewritten as the following boundary value problem (indices omitted for simplicity):
 \begin{equation}
     \begin{cases}
-        \epsilon_I \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_I \\
-        \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_0 \cup \Omega_1 \cup \Omega_2 \\
-        \phi(\mathbf{r})\mid_{\partial \Omega_i} = \phi(\mathbf{r})\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
-        \epsilon_i \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_i} = \epsilon_j \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_j}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j \\
-        \phi(\mathbf{r}) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
+        \epsilon_I \Delta_{\mathbf{x}} \phi(\mathbf{x}) = - \rho(\mathbf{x})~, & \mathbf{x} \in \Omega_m \\
+        \Delta_{\mathbf{x}} \phi(\mathbf{x}) = 0~, & \mathbf{x} \in \Omega_0 \cup \Omega_1 \cup \Omega_2 \\
+        \phi(\mathbf{x})\mid_{\partial \Omega_i} = \phi(\mathbf{x})\mid_{\partial \Omega_j}~, & \mathbf{x} \in \partial \Omega_i \cap \partial \Omega_j \\
+        \epsilon_i \mathbf{n} \cdot \grad_{\mathbf{x}} \phi(\mathbf{x})\mid_{\partial \Omega_i} = \epsilon_j \mathbf{n} \cdot \grad_{\mathbf{x}} \phi(\mathbf{x})\mid_{\partial \Omega_j}~, & \mathbf{x} \in \partial \Omega_i \cap \partial \Omega_j \\
+        \phi(\mathbf{x}) \to 0~, & \abs{\mathbf{x}} \to + \infty \\
     \end{cases}
 \end{equation}
 where the first and second equations are for the region with or without source, the third and fifth are the boundary conditions at the interfaces between different regions, and the last one is the infinite boundary condition.
 Here, $\mathbf{n}$ denotes the unit outward normal on the interface.
-By solving the above system, we can obtain the potential $\phi_{kl}(\mathbf{r})$, and then by integrating over the density distribution~$\rho_{ij}(\mathbf{r})$, we can obtain the four-index integral $V_{ijkl}$.
+By solving the above system, we can obtain the potential $\phi_{kl}(\mathbf{x})$, and then by integrating over the density distribution~$\rho_{ij}(\mathbf{x})$, we can obtain the four-index integral $V_{ijkl}$.
 
 % Specially, if the dielectric material in~$\Omega_1$ or~$\Omega_2$ can be treated as a perfect conductor, we have $\epsilon_m \to \infty$, and the equations becomes:
 % \begin{equation}\label{eq:poisson-perfect-conductor}
 %     \begin{cases}
-%         \epsilon_0 \grad^2_{\mathbf{r}} \phi(\mathbf{r}) = - \rho(\mathbf{r})~, & \mathbf{r} \in \Omega_0 \\
-%         \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_1 \\
-%         \phi(\mathbf{r}) = 0~, & \mathbf{r} \in \Omega_2 \\
-%         % \mathbf{n} \times \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_m} = 0~, & \mathbf{r} \in \partial \Omega_m \\
-%         \phi(\mathbf{r})\mid_{\partial \Omega_i} = \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_0 \\
-%         \epsilon_i \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_i} = \epsilon_0 \mathbf{n} \cdot \grad_{\mathbf{r}} \phi(\mathbf{r})\mid_{\partial \Omega_0}~, & \mathbf{r} \in \partial \Omega_i \cap \partial \Omega_0 \\
-%         \phi(\mathbf{r}) \to 0~, & \abs{\mathbf{r}} \to + \infty \\
+%         \epsilon_0 \grad^2_{\mathbf{x}} \phi(\mathbf{x}) = - \rho(\mathbf{x})~, & \mathbf{x} \in \Omega_0 \\
+%         \phi(\mathbf{x}) = 0~, & \mathbf{x} \in \Omega_1 \\
+%         \phi(\mathbf{x}) = 0~, & \mathbf{x} \in \Omega_2 \\
+%         % \mathbf{n} \times \grad_{\mathbf{x}} \phi(\mathbf{x})\mid_{\partial \Omega_m} = 0~, & \mathbf{x} \in \partial \Omega_m \\
+%         \phi(\mathbf{x})\mid_{\partial \Omega_i} = \phi(\mathbf{x})\mid_{\partial \Omega_0}~, & \mathbf{x} \in \partial \Omega_i \cap \partial \Omega_0 \\
+%         \epsilon_i \mathbf{n} \cdot \grad_{\mathbf{x}} \phi(\mathbf{x})\mid_{\partial \Omega_i} = \epsilon_0 \mathbf{n} \cdot \grad_{\mathbf{x}} \phi(\mathbf{x})\mid_{\partial \Omega_0}~, & \mathbf{x} \in \partial \Omega_i \cap \partial \Omega_0 \\
+%         \phi(\mathbf{x}) \to 0~, & \abs{\mathbf{x}} \to + \infty \\
 %     \end{cases}
 % \end{equation}
 % where the third and fourth equations enforce the perfect‑conductor conditions: the potential is zero inside the metal, and the field is normal to the surface.
 
 \section{Solver}
 
-In this section, we describe a boundary integral equation for the potential~$\phi(\mathbf{r})$ with a single layer potential~$\mathbf{\sigma}(\mathbf{r})$ on the boundaries.
+In this section, we describe a boundary integral equation for the potential~$\phi(\mathbf{x})$ with a single layer potential~$\mathbf{\sigma}(\mathbf{x})$ on the boundaries.
 The model is illustrated as follows:
 \begin{figure*}[htbp]
     \centering
@@ -242,53 +241,71 @@ The model is illustrated as follows:
       \coordinate (R1) at (\s / 2, \h / 2);
       \coordinate (R2) at (1.5 * \s, \h / 2);
 
-      \node at (RI) {$\Omega_I$};
+      \node at (RI) {$\Omega_m$};
       \node at (R1) {$\Omega_1$};
       \node at (R2) {$\Omega_2$};
       \node at (R0) {$\Omega_0$};
 
       \coordinate (S) at (0.8*\s, 1.25*\h);
       \fill[gray, opacity=0.4] (S) circle (0.2 * \h);
-      \node at (S) {$\rho(\mathbf{r})$};
+      \node at (S) {$\rho(\mathbf{x})$};
 
       \draw[->, thick] (\s / 4, \h) -- (\s / 4, \h + 0.5) node[right, above] {$\mathbf{n}$};
-      \draw[->, thick] (\s, \h / 2) -- (\s +0.5, \h / 2) node[midway, above] {$\mathbf{n}$};
+      \draw[->, thick] (\s, \h / 2) -- (\s - 0.5, \h / 2) node[midway, above] {$\mathbf{n}$};
+      \draw[->, thick] (\s * 3 / 4, \h) -- (\s * 3 / 4, \h - 0.5) node[right, below] {$\mathbf{n}$};
     
     \end{tikzpicture}
     % \caption{Illustration of the system: the bule and not filled region are vacuum denoted as~$\Omega_0$, the yellow and gray regions are dielectric materials:~$\Omega_1$ and~$\Omega_2$, respectively.}
     % \label{fig:2d-system}
 \end{figure*}
 
-\noindent where the gray region represents the density distribution~$\rho(\mathbf{r})$, and the arrows represent the normal direction of the boundaries.
-The potential~$\phi(\mathbf{r})$ is separated into two parts:
+\noindent where the gray region represents the density distribution~$\rho(\mathbf{x})$, and the arrows represent the normal direction of the boundaries (pointing from region with higher index to that with lower index).
+The potential~$\phi(\mathbf{x})$ is separated into two parts:
 \begin{equation}
-    \phi(\mathbf{r}) = u(\mathbf{r}) + u_{\text{inc}}(\mathbf{r}),
+    \phi(\mathbf{x}) = u(\mathbf{x}) + u_{\text{inc}}(\mathbf{x}),
 \end{equation}
-where~$u(\mathbf{r})$ is the scattered potential, and~$u_{\text{inc}}(\mathbf{r})$ is the incident potential, which are given by
+where~$u(\mathbf{x})$ is the scattered potential, and~$u_{\text{inc}}(\mathbf{x})$ is the incident potential.
+The incident potential satisfies:
 \begin{equation}
-    u_{\text{inc}}(\mathbf{r}) = \int \frac{\rho(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|} \mathrm{d}\mathbf{r}'~,
-    u(\mathbf{r}) = \int \frac{\mathbf{\sigma}(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|} \mathrm{d}S(\mathbf{r}'),
+    \begin{cases}
+    \epsilon_m \Delta u_{\text{inc}}(\mathbf{x}) = - \rho(\mathbf{x}), & \mathbf{x} \in \mathbb{R}^3 \\
+    u_{\text{inc}}(\mathbf{x}) \to 0, & \abs{\mathbf{x}} \to + \infty 
+    \end{cases}
 \end{equation}
-so that the continuity of the potential at the boundaries is automatically satisfied, and the continuity of the normal component of the electric flux requires that
-\begin{equation}\label{eq:flux-continuity}
-    \epsilon_i \partial_{\mathbf{n}} \left( u(\mathbf{r^+}) + u_{\text{inc}}(\mathbf{r^+}) \right) = \epsilon_j \partial_{\mathbf{n}} \left( u(\mathbf{r^-}) + u_{\text{inc}}(\mathbf{r^-}) \right),~\mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j,
+which is given by the following integral:
+\begin{equation}
+    u_{\text{inc}}(\mathbf{x}) = \frac{1}{4 \pi \epsilon_m} \int \frac{\rho(\mathbf{x}')}{|\mathbf{x} - \mathbf{x}'|} \mathrm{d}\mathbf{x}'\;.
 \end{equation}
-where $\mathbf{r^+}$ and $\mathbf{r^-}$ denote the limit from two sides of the boundary.
+Then the scattered potential satisfies:
+\begin{equation}\label{eq:scattered-potential-boundary}
+    \begin{cases}
+    \Delta u(\mathbf{x}) = 0, & \mathbf{x} \in \Omega_i \\
+    \epsilon_i \partial_{\mathbf{n}} \left( u^+(\mathbf{x}) + u_{\text{inc}}(\mathbf{x}) \right) = \epsilon_j \partial_{\mathbf{n}} \left( u^-(\mathbf{x}) + u_{\text{inc}}(\mathbf{x}) \right), & \mathbf{x} \in \partial \Omega_i \cap \partial \Omega_j \\
+    u(\mathbf{x}) \to 0, & \abs{\mathbf{x}} \to + \infty 
+    \end{cases}
+\end{equation}
+which is a piecewise continuous function in each region.
+
+Under the single layer potential representation, the scattered potential is given by
+\begin{equation}
+    u(\mathbf{x}) = \frac{1}{4 \pi} \int_{\Gamma} \frac{\mathbf{\sigma}(\mathbf{x}')}{|\mathbf{x} - \mathbf{x}'|} \mathrm{d}S(\mathbf{x}'),
+\end{equation}
+where~$\Gamma$ is all boundaries in the system.
 Due to the existence of the single layer potential, the normal component of the scattered potential is given by
 \begin{equation}\label{eq:scattered-potential}
     \begin{split}
-    \partial_{\mathbf{n}} u(\mathbf{r^+}) &= \mathbf{n} \cdot \int \grad_{\mathbf{r}} \frac{\mathbf{\sigma}(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|} \mathrm{d}S(\mathbf{r}') - \frac{\sigma(\mathbf{r})}{2}, = D \mathbf{\sigma}(\mathbf{r}) - \frac{\sigma(\mathbf{r})}{2} \\
-    \partial_{\mathbf{n}} u(\mathbf{r^-}) &= \mathbf{n} \cdot \int \grad_{\mathbf{r}} \frac{\mathbf{\sigma}(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|} \mathrm{d}S(\mathbf{r}') + \frac{\sigma(\mathbf{r})}{2} = D \mathbf{\sigma}(\mathbf{r}) + \frac{\sigma(\mathbf{r})}{2},
+    \partial_{\mathbf{n}} u(\mathbf{r^+}) &= \frac{1}{4 \pi} \mathbf{n} \cdot \int \grad_{\mathbf{x}} \frac{\mathbf{\sigma}(\mathbf{x}')}{|\mathbf{x} - \mathbf{x}'|} \mathrm{d}S(\mathbf{x}') - \frac{\sigma(\mathbf{x})}{2}, = D^T \mathbf{\sigma}(\mathbf{x}) - \frac{\sigma(\mathbf{x})}{2} \\
+    \partial_{\mathbf{n}} u(\mathbf{r^-}) &= \frac{1}{4 \pi} \mathbf{n} \cdot \int \grad_{\mathbf{x}} \frac{\mathbf{\sigma}(\mathbf{x}')}{|\mathbf{x} - \mathbf{x}'|} \mathrm{d}S(\mathbf{x}') + \frac{\sigma(\mathbf{x})}{2} = D^T \mathbf{\sigma}(\mathbf{x}) + \frac{\sigma(\mathbf{x})}{2},
     \end{split}
 \end{equation}
-where $D$ represents the integral operator $\int \grad_{\mathbf{r}} \frac{\mathrm{d}S(\mathbf{r}')}{|\mathbf{r} - \mathbf{r}'|}$.
-Then Eq.~\eqref{eq:flux-continuity} can be rewritten as
+where $D^T$ represents the integral operator $\int_{\Gamma} \grad_{\mathbf{x}} \frac{\mathrm{d}S(\mathbf{x}')}{|\mathbf{x} - \mathbf{x}'|}$.
+Then the first and third equations of Eq.~\eqref{eq:scattered-potential-boundary} are automatically satisfied, and the second equation can be rewritten as
 \begin{equation}
-    \epsilon_i \left( D \mathbf{\sigma}(\mathbf{r}) - \frac{\sigma(\mathbf{r})}{2} + \partial_{\mathbf{n}} u_{\text{inc}}(\mathbf{r}) \right) = \epsilon_j \left( D \mathbf{\sigma}(\mathbf{r}) + \frac{\sigma(\mathbf{r})}{2} + \partial_{\mathbf{n}} u_{\text{inc}}(\mathbf{r}) \right),
+    \epsilon_i \left( D^T \mathbf{\sigma}(\mathbf{x}) - \frac{\sigma(\mathbf{x})}{2} + \partial_{\mathbf{n}} u_{\text{inc}}(\mathbf{x}) \right) = \epsilon_j \left( D^T \mathbf{\sigma}(\mathbf{x}) + \frac{\sigma(\mathbf{x})}{2} + \partial_{\mathbf{n}} u_{\text{inc}}(\mathbf{x}) \right),~\mathbf{x} \in \partial \Omega_i \cap \partial \Omega_j.
 \end{equation}
 or equivalently,
 \begin{equation}
-    \frac{1}{2} \frac{\epsilon_i + \epsilon_j}{\epsilon_i - \epsilon_j} \sigma(\mathbf{r}) + D \sigma(\mathbf{r}) = - \partial_{\mathbf{n}} u_{\text{inc}}(\mathbf{r}),~\mathbf{r} \in \partial \Omega_i \cap \partial \Omega_j.
+    \frac{1}{2} \frac{\epsilon_i + \epsilon_j}{\epsilon_i - \epsilon_j} \sigma(\mathbf{x}) + D^T \sigma(\mathbf{x}) = - \partial_{\mathbf{n}} u_{\text{inc}}(\mathbf{x}),~\mathbf{x} \in \partial \Omega_i \cap \partial \Omega_j.
 \end{equation}
 By discretizing the three boundaries, the above equation can be written as a linear system of equations and solved iteratively.
 
