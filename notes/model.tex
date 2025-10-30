@@ -29,9 +29,10 @@
 \usepackage{hyperref}
 \usepackage{cleveref}
 \usepackage{epstopdf}
-\usepackage{subfigure}
+\usepackage{subcaption}
 \usepackage{autobreak}
 \usepackage{tikz}
+\usepackage{svg}
 
 %Macros for mathematical notations
 
@@ -59,6 +60,10 @@
 \newcommand{\ket}[1]{\left| #1 \right\rangle}
 \newcommand{\braket}[2]{\left\langle #1 \middle| #2 \right\rangle}
 \newcommand{\bracket}[3]{\left\langle #1 \middle| #2 \middle| #3 \right\rangle}
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{definition}[theorem]{Definition}
 
 
 
@@ -304,7 +309,7 @@ Then the first and third equations of Eq.~\eqref{eq:scattered-potential-boundary
     \epsilon_i \left( D^T \mathbf{\sigma}(x) - \frac{\sigma(x)}{2} + \partial_{\mathbf{n}} u_{\text{inc}}(x) \right) = \epsilon_j \left( D^T \mathbf{\sigma}(x) + \frac{\sigma(x)}{2} + \partial_{\mathbf{n}} u_{\text{inc}}(x) \right),~x \in \partial \Omega_i \cap \partial \Omega_j.
 \end{equation}
 or equivalently,
-\begin{equation}
+\begin{equation}\label{eq:sl_equation}
     \frac{1}{2} \frac{\epsilon_i + \epsilon_j}{\epsilon_i - \epsilon_j} \sigma(x) + D^T \sigma(x) = - \partial_{\mathbf{n}} u_{\text{inc}}(x),~x \in \partial \Omega_i \cap \partial \Omega_j.
 \end{equation}
 By discretizing the three boundaries, the above equation can be written as a linear system of equations and solved iteratively.
@@ -325,6 +330,110 @@ By discretizing the three boundaries, the above equation can be written as a lin
 %     \item[3.] Where are the orbitals located? Are they confined to the center of the red cube, or can they be placed at the cube corners?
 % \end{itemize}
 
+\section{Box in 2D Space}
+
+We first consider a toy model in 2D space, with only one dielectric box and a point charge inside, as illustrated in Fig.~\ref{fig:2d-box}.
+
+\begin{figure*}[htbp]
+    \centering
+    \begin{tikzpicture}[scale=1.2, line join=round, line cap=round]
+      \def\s{4.0}
+      \def\h{2.0}
+
+      \coordinate (A) at (0,0);
+      \coordinate (B) at (\s,0);
+      \coordinate (C) at (\s,\h);
+      \coordinate (D) at (0,\h);
+
+      \draw[thick] (A)--(B)--(C)--(D)--cycle;
+
+      \coordinate (E) at (\s / 2, \h / 2);
+      \node at (E) {$\Omega_m$};
+
+      \coordinate (F) at (1.2 * \s, 0.8 * \h);
+      \node at (F) {$\Omega_0$};
+
+      \coordinate (G) at (0.8 * \s, 0.8 * \h);
+      \fill[red] (G) circle (0.03 * \h);
+
+      \coordinate (H) at (0.85 * \s, 0.8 * \h);
+      \node at (H) {$q$};
+      
+      \draw[->, thick] (\s, 0.5 * \h) -- (1.1 * \s, 0.5 * \h) node[right, above] {$\mathbf{n}$};
+    \end{tikzpicture}
+    \caption{Illustration of the 2D box model.}
+    \label{fig:2d-box}
+\end{figure*}
+
+Before discussing the discretization of the boundaries and the numerical results, we first consider the Gauss's law in 2D.
+
+\begin{theorem}
+    For systems shown in Fig.~\ref{fig:2d-box}, let~$\Omega_m \subset D \subset \Omega_0$, the following identity holds:
+    \begin{equation}\label{eq:gauss-law-2d}
+        \int_{\partial D} \partial_{\mathbf{n}} \phi(x) \mathrm{d}S(x) = q\;.
+    \end{equation}
+\end{theorem}
+
+\begin{proof}
+    Outside the box we have:
+    \begin{equation}
+        \int_{\partial D} \partial_{\mathbf{n}} \phi(x) \mathrm{d}S(x) = \int_{\partial \Omega_m} \partial_{\mathbf{n}} \phi^+(x) \mathrm{d}S(x)\;,
+    \end{equation}
+    inside the box we have:
+    \begin{equation}
+        \int_{\partial \Omega_m} \partial_{\mathbf{n}} \phi^-(x) \mathrm{d}S(x) = \frac{q}{\epsilon_m}\;.
+    \end{equation}
+    These identities are combined with the boundary condition that~$\epsilon_m \partial_{\mathbf{n}} \phi^-(x) = \partial_{\mathbf{n}} \phi^+(x)$ on the interface, we get Eq.~\eqref{eq:gauss-law-2d}.
+\end{proof}
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.9\linewidth]{../codes/box2d/convergence.svg}
+    \caption{Convergence of the single layer potential on the boundaries.}
+    \label{fig:2d-box-convergence}
+\end{figure}
+
+The single layer potential satisfies Eq.~\eqref{eq:sl_equation} on the boundaries, which needed to be discretized.
+The simplest way is to discretize each edge into equal sized segments, and then use a Gauss-Legendre quadrature to evaluate the integral.
+The results are shown in the right panel of Fig.~\ref{fig:2d-box}, where Eq.~\eqref{eq:gauss-law-2d} is used to validate the results.
+I take~$\epsilon_m = 2.0$, fixed number of quadrature points to 16 in each panel and $d$ are the distances between the point charge and the boundaries.
+A very bad convergence is observed especially when the point charge is close to the boundaries.
+
+To properly handle the corner singularities, we adaptively discretize the corners.
+In each adaptation, we divide the panel near the corner into two panels, and then apply the Gauss-Legendre quadrature to the new panels.
+The results are shown in the left panel of Fig.~\ref{fig:2d-box-convergence}, where the error decay exponentially to machine precision with the number of adaptations.
+
+The contour plots of the potential is shown in Fig.~\ref{fig:2d-box-contourf}, where~$\epsilon_m = 2.0$ and the charge is located at~(0.5, 0.5) and~(0.9, 0.9), respectively.
+
+% show two contour plots in the same figure
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includesvg[width=\linewidth]{../codes/box2d/contourf_1.svg}
+        \label{fig:2d-box-contourf-1}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \includesvg[width=\linewidth]{../codes/box2d/contourf_2.svg}
+        \label{fig:2d-box-contourf-2}
+    \end{subfigure}
+    \caption{Contour plots of the potential~$\phi(x)$ for different charge locations.}
+    \label{fig:2d-box-contourf}
+\end{figure}
+
+The value of the single layer density near the corner is shown in Fig.~\ref{fig:2d-box-blowup}, for values of~$\epsilon_m$ and distances~$d$.
+In general, the single layer density near the corner is divergent in speed of
+\begin{equation}
+    \sigma(x) = O \left( \frac{1}{x^{k}} \right)\;,
+\end{equation}
+where~$k$ is dependent on the value of~$\abs{\frac{1 - \epsilon_m}{1 + \epsilon_m}}$, and is smaller than 1.
+Interestingly, the value of~$k$ is independent of the distance~$d$.
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.9\linewidth]{../codes/box2d/blowup.svg}
+    \caption{Blowup of the single layer density near the corner for different values of~$\epsilon_m$ and distances~$d$.}
+    \label{fig:2d-box-blowup}
+\end{figure}
 
 % \bibliographystyle{apsrev}
 \bibliography{ref}
