@@ -15,8 +15,8 @@ function res_nonadaptive(n_panels::Int, eps_box::Float64, src::Tuple{Float64, Fl
     return (box, sigma)
 end
 
-function res_adaptive(n_panels::Int, eps_box::Float64, n_adapt::Int, src::Tuple{Float64, Float64})
-    box = BI.dielectric_box2d(n_panels, 16, adapt = true, n_adapt = n_adapt)
+function res_adaptive(n_panels::Int, eps_box::Float64, n_adapt::Int, src::Tuple{Float64, Float64}; n_quad::Int = 16)
+    box = BI.dielectric_box2d(n_panels, n_quad, adapt = true, n_adapt = n_adapt)
     lhs = BI.Lhs_dielectric_box2d(eps_box, box)
     rhs = BI.Rhs_dielectric_box2d(eps_box, box, src)
     sigma = BI.solve_lu(lhs, rhs)

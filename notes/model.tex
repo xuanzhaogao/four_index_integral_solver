@@ -389,20 +389,27 @@ Before discussing the discretization of the boundaries and the numerical results
 
 \begin{figure}[htbp]
     \centering
-    \includesvg[width=0.9\linewidth]{../codes/box2d/convergence.svg}
-    \caption{Convergence of the single layer potential on the boundaries.}
-    \label{fig:2d-box-convergence}
+    \includesvg[width=0.45\linewidth]{../codes/box2d/convergence_nonadaptive.svg}
+    \caption{Convergence of the single layer potential on the boundaries with non-adaptive discretization.}
+    \label{fig:2d-box-convergence-nonadaptive}
 \end{figure}
 
 The single layer potential satisfies Eq.~\eqref{eq:sl_equation} on the boundaries, which needed to be discretized.
 The simplest way is to discretize each edge into equal sized segments, and then use a Gauss-Legendre quadrature to evaluate the integral.
 The results are shown in the right panel of Fig.~\ref{fig:2d-box}, where Eq.~\eqref{eq:gauss-law-2d} is used to validate the results.
 I take~$\epsilon_m = 2.0$, fixed number of quadrature points to 16 in each panel and $d$ are the distances between the point charge and the boundaries.
-A very bad convergence is observed especially when the point charge is close to the boundaries.
+A very bad convergence is observed especially when the point charge is close to the boundaries, as shown in Fig.~\ref{fig:2d-box-convergence-nonadaptive}.
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.9\linewidth]{../codes/box2d/convergence_adaptive.svg}
+    \caption{Convergence of the single layer potential on the boundaries with adaptive discretization. Left: error decay for different values of quadrature points in each panel, with number of adaptations fixed to 30. Right: error decay for different values of number of adaptations, with quadrature points fixed to 16 in each panel.}
+    \label{fig:2d-box-convergence-adaptive}
+\end{figure}
 
 To properly handle the corner singularities, we adaptively discretize the corners.
 In each adaptation, we divide the panel near the corner into two panels, and then apply the Gauss-Legendre quadrature to the new panels.
-The results are shown in the left panel of Fig.~\ref{fig:2d-box-convergence}, where the error decay exponentially to machine precision with the number of adaptations.
+The results are shown in Fig.~\ref{fig:2d-box-convergence-adaptive}, where the error decay exponentially to machine precision with the number of adaptations.
 
 The contour plots of the potential is shown in Fig.~\ref{fig:2d-box-contourf}, for different values of~$\gamma = \frac{1 - \epsilon_m}{1 + \epsilon_m}$, where~$\epsilon_m \in (0, \infty)$.
 A drop of accuracy is observed when $\gamma \to 1$, i.e., $\epsilon_m \to \infty$, corresponding to a perfect conductor.
