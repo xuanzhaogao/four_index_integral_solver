@@ -25,19 +25,16 @@ function catch_rt_corner(box, sigma, n_points)
     return (1.0 .- xs_top[end - n_points:end], sigmas_top[end - n_points:end])
 end
 
-# begin
-#     gamma = -0.99
-#     eps_box = - (gamma + 1.0) / (gamma - 1.0)
-
-#     box, sigma = res_adaptive(n_panels, eps_box, n_adapt, src)
-#     xs, sigmas = catch_rt_corner(box, sigma, 16 * 5)
-
-#     fig = Figure(size = (500, 400), fontsize = 20)
-#     ax = Axis(fig[1, 1], xlabel = "1-x", ylabel = "sigma")
-#     scatter!(ax, xs, sigmas)
-#     save("blowup/0.99_$(n_adapt).svg", fig)
-#     fig
-# end
+gammas1 = [-0.9, -0.6, -0.3, 0.3, 0.6, 0.9]
+xss = []
+sigmas_s = []
+for gamma in gammas1
+    eps_box = - (gamma + 1.0) / (gamma - 1.0)
+    box, sigma = res_adaptive(n_panels, eps_box, n_adapt, src)
+    xs, sigmas = catch_rt_corner(box, sigma, 16 * 5)
+    push!(xss, xs)
+    push!(sigmas_s, sigmas)
+end
 
 gammas = [-0.99:0.02:0.99...]
 k_fits = Float64[]
@@ -54,6 +51,25 @@ for gamma in gammas
     @show gamma, fit.param[1]
 
     push!(k_fits, fit.param[1])
+end
+
+begin
+    fig = Figure(size = (1000, 400), fontsize = 20)
+    ax1 = Axis(fig[1, 1], xlabel = "x", ylabel = L"\sigma")
+    ax2 = Axis(fig[1, 2], xlabel = "x", ylabel = L"\sigma")
+    scatter!(ax1, xss[1], sigmas_s[1], label = L"\gamma = -0.9")
+    scatter!(ax1, xss[2], sigmas_s[2], label = L"\gamma = -0.6")
+    scatter!(ax1, xss[3], sigmas_s[3], label = L"\gamma = -0.3")
+    axislegend(ax1, position = :rt)
+    ylims!(ax1, -0.025, 0.01)
+
+    scatter!(ax2, xss[6], sigmas_s[6], label = L"\gamma = 0.9")
+    scatter!(ax2, xss[5], sigmas_s[5], label = L"\gamma = 0.6")
+    scatter!(ax2, xss[4], sigmas_s[4], label = L"\gamma = 0.3")
+    ylims!(ax2, -10.0, 100.0)
+    axislegend(ax2, position = :rt)
+    save("density.svg", fig)
+    fig
 end
 
 begin
