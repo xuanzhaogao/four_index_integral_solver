@@ -1,33 +1,47 @@
 include("utils.jl")
 
-eps_box = 2.0
+function plot_contourf_error(src, gamma, n_panels, n_adapt)
+    eps_box = - (gamma + 1.0) / (gamma - 1.0)
 
-src_1 = (0.5, 0.5)
-n_panels = 8
-n_adapt = 20
+    xs = range(0.0, 1.5, 500)
+    ys = range(0.0, 1.5, 500)
+    zs_ref = zeros(length(xs), length(ys))
+    zs = zeros(length(xs), length(ys))
+    
+    @info "Computing reference solution"
+    box_ref, sigma_ref = res_adaptive(n_panels, eps_box, 30, src)
+    @info "Reference solution computed"
 
-box, sigma = res_adaptive(n_panels, eps_box, n_adapt, src_1)
-
-xs = [0.0:0.005:1.5...]
-ys = [0.0:0.005:1.5...]
-zs = zeros(length(xs), length(ys))
-for i in eachindex(xs)
-    for j in eachindex(ys)
-        xs[i] < 1.0 && ys[j] < 1.0 && continue
-        zs[i, j] = BI.laplace2d_singlelayer_surface(box, sigma, (xs[i], ys[j]))
+    @info "Computing reference potential"
+    Threads.@threads for i in eachindex(xs)
+        for j in eachindex(ys)
+            zs_ref[i, j] = BI.laplace2d_singlelayer_interface(box_ref, sigma_ref, (xs[i], ys[j]))
+        end
     end
-end
-fig1 = plot_contourf(xs, ys, zs, src_1, "single layer d = 0.5")
-save("contourf_1.svg", fig1)
+    @info "Reference potential computed"
 
-src_2 = (0.9, 0.9)
-box2, sigma2 = res_adaptive(n_panels, eps_box, n_adapt, src_2)
-zs2 = zeros(length(xs), length(ys))
-for i in eachindex(xs)
-    for j in eachindex(ys)
-        xs[i] < 1.0 && ys[j] < 1.0 && continue
-        zs2[i, j] = BI.laplace2d_singlelayer_surface(box2, sigma2, (xs[i], ys[j]))
+    @info "Computing solution"
+    box, sigma = res_adaptive(n_panels, eps_box, n_adapt, src)
+    @info "Solution computed"
+
+    @info "Computing solution potential"
+    Threads.@threads for i in eachindex(xs)
+        for j in eachindex(ys)
+            zs[i, j] = BI.laplace2d_singlelayer_interface(box, sigma, (xs[i], ys[j]))
+        end
     end
+    @info "Solution potential computed"
+
+    fig1 = plot_contourf_error(xs, ys, zs, zs_ref, src, "gamma = $(gamma), n_adapt = $(n_adapt)")
+
+    save("contourf/contourf_$(gamma)_$(n_adapt).svg", fig1)
+
+    return fig1
 end
-fig2 = plot_contourf(xs, ys, zs2, src_2, "single layer d = 0.9")
-save("contourf_2.svg", fig2)
+
+for gamma in -0.95:0.1:0.95
+    plot_contourf_error((0.9, 0.9), gamma, 8, 20)
+end
+
+plot_contourf_error((0.9, 0.9), 0.999, 8, 20)
+# plot_contourf_error((0.9, 0.9), -0.999, 8, 20)
