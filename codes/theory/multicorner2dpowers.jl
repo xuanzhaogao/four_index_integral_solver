@@ -1,15 +1,15 @@
 # Predict corner singularity power sequence for multijunction 2D dielectric
 # generalized wedge, using idea as in van Bladel's EM book, Sec 4.13.
-# Barnett 11/7/25
+# Barnett 11/7/25, generalizing cornervanbladel2d.jl to use 2x2 det of ODE
+# transmission matrix (or one element of such matrix when PEC).
 #
-# There are nm materials including vacuum (nm=2 is a plain diel corner).
-# The relative permittivities are in length-nm vector e, and angles in
-# length
-# The "interior" material with relative permittivity epsilon
-# occupies angle alpha. Exterior epsilon=1. Matching is
-#     epsilon phi_n^- = phi_n^+
-# where + denotes exterior and - interior side.
-#
+# There are nm>=2 materials including vacuum (nm=2 is a plain diel corner).
+# The last material is optionally PEC (eps=Inf).
+# The relative permittivities are length-nm vector e, and angles a length nm-1
+# vector (the last angle defined implicitly).
+# Matching at each junction is
+#     eps_j phi_n^- = eps_{j+1} phi_n^+
+# where -(+) denotes  theta just below (above).
 # For our SLP representation, the density power is the jump in normal
 # derivative.
 
@@ -119,6 +119,47 @@ end
 for n=1:ne lines!(lams,gg[:,n] .- 1.0, color=:black) end   # show all powers
 display(fig)
 save("dielrightangle_powers_vs_lam.svg",fig)
+# redo using log det to check:
+gg = 0:0.01:3  # powers
+fig = Figure(size=(300,1000))
+ax = Axis(fig[1,1],xlabel=L"ratio param. $\lambda_3$",ylabel=L"power $\gamma$",
+		title=L"$$pot powers (log det) for right-ang triple junc")
+dd = [theta_ODE_det([2pi-al], [1.0,eps], g) for eps in epsfunc.(lams), g in gg]
+p = heatmap!(lams,gg,-log.(abs.(dd).+1e-10))    # log highlights the zeros
+p.colormap=:jet; p.colorrange=(-10,10)
+display(fig)
 end
 
-# *** could do Boyd rootfiniding on the analytic func of g to get lowest few powers
+# *** could do Boyd rootfinding on the analytic func of g to get lowest few (real) powers
+
+# multijunction test with halfspace of vacuum meeting fixed eps_2 and variable eps_3:
+fig = Figure(size=(300,1000))
+al = [pi, pi/2]       # corner angs: materials 1=vacuum,2=fixed, 3=variable eps
+e2 = 2.0   # fixed 
+nl = 100; lams3 = range(0.0,1.0,length=nl)   # for eps3
+ne = 5    # nonzero powers (eigenvalues) to find in even or odd class; 1 for now
+ax = Axis(fig[1,1],xlabel=L"ratio param. $\lambda_3$",ylabel=L"power $\gamma$",
+		title=L"pot powers-1 (=density powers) for right-ang triple junc")
+gg = zeros(nl,ne)
+for (i,lam3) in enumerate(lams3)
+	e3 = epsfunc(lam3)
+	gguess = [0.8,1.2,1.8,2.9,3.2]    # kinda just above and below odd integers... hack
+	for n=1:ne
+		gg[i,n] = fzero(g -> theta_ODE_det(al, [1.0,e2,e3], g), gguess[n])  # allows PEC case
+	end
+end
+for n=1:ne lines!(lams,gg[:,n] .- 1.0, color=:black) end   # show all powers
+display(fig)
+save("dieltripjunc_powers_vs_lam.svg",fig)
+# redo using log det to check:
+gg = 0:0.01:3  # powers
+fig = Figure(size=(300,1000))
+ax = Axis(fig[1,1],xlabel=L"ratio param. $\lambda_3$",ylabel=L"power $\gamma$",
+		title=L"$$pot powers (log det) for right-ang triple junc")
+dd = [theta_ODE_det(al, [1.0,e2,eps3], g) for eps3 in epsfunc.(lams3), g in gg]
+p = heatmap!(lams3,gg,-log.(abs.(dd).+1e-10))    # log highlights the zeros
+p.colormap=:jet; p.colorrange=(-10,10)
+display(fig)
+save("dieltripjunc_det_vs_lam.svg",fig)
+end
+
