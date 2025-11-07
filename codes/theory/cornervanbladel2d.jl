@@ -75,3 +75,5 @@ end
 lines!(lams,gg[:,1] .- 1.0, color=:black)
 display(fig)
 save("powervslam.svg",fig)
+# *** todo: include higher ne (since could design custom quadr for family of powers)
+#           odd parity
