@@ -1,4 +1,5 @@
 include("utils.jl")
+using Roots
 
 src = (0.5, 0.5)
 n_panels = 8
@@ -25,6 +26,14 @@ function catch_rt_corner(box, sigma, n_points)
     return (1.0 .- xs_top[end - n_points:end], sigmas_top[end - n_points:end])
 end
 
+function theta_shooting_even(al, e, g)
+	return sin(g * al / 2) * cos(g * (π - al / 2)) + cos(g * al / 2) * sin(g * (π - al/2)) / e
+end
+
+function first_root_even(al, e)
+    return fzero(g -> theta_shooting_even(al, e, g), 1.0)
+end
+
 gammas1 = [-0.9, -0.6, -0.3, 0.3, 0.6, 0.9]
 xss = []
 sigmas_s = []
@@ -38,6 +47,7 @@ end
 
 gammas = [-0.99:0.02:0.99...]
 k_fits = Float64[]
+k_theory = [first_root_even(pi / 2,  - (gamma + 1.0) / (gamma - 1.0)) for gamma in gammas]
 
 for gamma in gammas
     eps_box = - (gamma + 1.0) / (gamma - 1.0)
@@ -76,8 +86,11 @@ begin
     fig = Figure(size = (500, 400), fontsize = 20)
     ax = Axis(fig[1, 1], xlabel = "(eps - 1) / (eps + 1)", ylabel = "k")
     scatter!(ax, gammas, k_fits, label = "fitted k")
-    hlines!(ax, [1/3], color = :red, label = L"+1/3")
-    hlines!(ax, [-1/3], color = :red, label = L"-1/3")
+
+    lines!(ax, gammas, k_theory .- 1.0, label = "theory (even parity)", color = :red, linewidth = 2)
+
+    hlines!(ax, [1/3], color = :black, label = L"+1/3")
+    hlines!(ax, [-1/3], color = :black, label = L"-1/3")
     axislegend(ax, position = :rt)
     save("blowup_rate.svg", fig)
     fig
