@@ -18,9 +18,9 @@ function potential_mbox_fmm2d(src, n_panels, n_adapt, n_quads, rects, eps_boxes,
     lhs = BI.Lhs_dielectric_mbox2d_fmm2d(mbox)
     rhs = BI.Rhs_dielectric_mbox2d(mbox, src, eps_src)
 
-    sigma, history = gmres(lhs, rhs, reltol = 1e-10, log = true, verbose = true, restart = 100)
+    sigma, history = gmres(lhs, rhs, reltol = 1e-8, log = true, verbose = true, restart = 100)
 
-    poteval = BI.laplace2d_pottarg_fmm2d(mbox, targets, 1e-10)
+    poteval = BI.laplace2d_pottarg_fmm2d(mbox, targets, 1e-8)
     potentials = poteval * sigma
 
     return transpose(reshape(potentials, length(xs), length(ys)))
@@ -33,18 +33,18 @@ zs = potential_mbox_fmm2d((0.4, 0.9), 8, 20, 16, rects, [2.0, 3.0, 4.0], eps_src
 zs_ref = potential_mbox_fmm2d((0.4, 0.9), 8, 30, 16, rects, [2.0, 3.0, 4.0], eps_src)
 
 fig = heatmap_mbox_error(xs, ys, zs, zs_ref, (0.4, 0.9), mbox)
-save("heatmap_1.svg", fig)
+save("figs/mbox_fmm2d_1.png", fig)
 
 
 zs = potential_mbox_fmm2d((0.4, 0.9), 8, 20, 16, rects, [20.0, 3.0, 4.0], eps_src)
 zs_ref = potential_mbox_fmm2d((0.4, 0.9), 8, 30, 16, rects, [20.0, 3.0, 4.0], eps_src)
 
 fig = heatmap_mbox_error(xs, ys, zs, zs_ref, (0.4, 0.9), mbox)
-save("heatmap_2.svg", fig)
+save("figs/mbox_fmm2d_2.png", fig)
 
 
 zs = potential_mbox_fmm2d((0.4, 0.9), 8, 20, 16, rects, [100.0, 3.0, 4.0], eps_src)
 zs_ref = potential_mbox_fmm2d((0.4, 0.9), 8, 30, 16, rects, [100.0, 3.0, 4.0], eps_src)
 
 fig = heatmap_mbox_error(xs, ys, zs, zs_ref, (0.4, 0.9), mbox)
-save("heatmap_3.svg", fig)
+save("figs/mbox_fmm2d_3.png", fig)

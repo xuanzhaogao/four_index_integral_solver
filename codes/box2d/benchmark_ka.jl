@@ -31,13 +31,15 @@ for n_panel in 4:4:32
     x = CUDA.ones(n_points)
     time_map = @belapsed $(lhs) * $(x)
 
+    @show time_map
+
     x, status = Krylov.gmres(lhs, rhs)
     n_iter = status.niter
 
     time_alliter = @belapsed Krylov.gmres($(lhs), $(rhs))
     time_singleiter = time_alliter / n_iter
 
-    @show time_map, time_singleiter, time_alliter
+    @show time_singleiter, time_alliter
 
     CSV.write("data/benchmark_ka.csv", DataFrame(n_adapt = n_adapt, n_panel = n_panel, n_quad = n_quad, n_points = n_points, time_map = time_map, time_singleiter = time_singleiter, time_alliter = time_alliter), append = true)
 end
