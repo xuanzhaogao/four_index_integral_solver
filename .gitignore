@@ -16,3 +16,6 @@ box2d.pdf
 /notes/svg-inkscape
 
 Manifest.toml
+
+*.out
+*.err

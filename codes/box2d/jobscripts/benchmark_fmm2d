@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# set name of job
+#SBATCH --job-name=fmm2d_benchmark
+#SBATCH --output=job.%J.out
+#SBATCH --error=job.%J.err
+
+#SBATCH -p ccm
+#SBATCH -N1
+
+cd /mnt/home/xgao1/work/four_index_integral_solver/codes/box2d
+julia -t auto --project=/mnt/home/xgao1/work/four_index_integral_solver/codes/box2d benchmark_fmm2d.jl
