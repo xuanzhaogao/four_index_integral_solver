@@ -26,6 +26,8 @@ function potential_mbox_fmm2d(src, n_panels, n_adapt, n_quads, rects, eps_boxes,
     return transpose(reshape(potentials, length(xs), length(ys)))
 end
 
+xs = range(-1.5, 1.5, 500)
+ys = range(-1.5, 1.5, 500)
 rects = [BI.square(-1.0, -1.0), BI.square(0.0, -1.0), BI.square(-0.5, 0.0)]
 eps_src = 4.0
 
