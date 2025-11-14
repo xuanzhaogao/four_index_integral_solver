@@ -1,7 +1,7 @@
 include("utils.jl")
 using Roots
 
-src = (0.5, 0.5)
+src = (0.4, 0.6)
 n_panels = 8
 n_adapt = 30
 
@@ -78,7 +78,7 @@ begin
     scatter!(ax2, xss[4], sigmas_s[4], label = L"\gamma = 0.3")
     ylims!(ax2, -10.0, 100.0)
     axislegend(ax2, position = :rt)
-    save("density.svg", fig)
+    save("figs/density.svg", fig)
     fig
 end
 
@@ -92,6 +92,6 @@ begin
     hlines!(ax, [1/3], color = :black, label = L"+1/3")
     hlines!(ax, [-1/3], color = :black, label = L"-1/3")
     axislegend(ax, position = :rt)
-    save("blowup_rate.svg", fig)
+    save("figs/blowup_rate.svg", fig)
     fig
 end

@@ -12,8 +12,8 @@ eps_boxes = [2.0, 3.0, 4.0, 5.0]
 r_src = (0.1, 0.2)
 eps_src = 1.0
 
-df = "data/benchmark_fmm2d_singlethreas.csv"
-CSV.write(df, DataFrame(n_adapt = [], n_panels = [], n_quad = [], n_points = [], time_map = [], time_singleiter = [], time_alliter = []))
+df = "data/benchmark_fmm2d.csv"
+CSV.write(df, DataFrame(n_adapt = [], n_panels = [], n_quad = [], n_points = [], time_mapD = [], time_map = [], time_singleiter = [], time_alliter = []))
 
 n_adapt = 20
 
@@ -23,6 +23,9 @@ for n_panel in 4:4:32
 
     n_points = BI.num_points(mbox)
     @show n_panel, n_quad, n_points
+
+    D = BI.laplace2d_DT_fmm2d(mbox, 1e-4)
+    time_mapD = @belapsed $(D) * $(ones(n_points))
 
     lhs = BI.Lhs_dielectric_mbox2d_fmm2d(mbox, 1e-4)
     rhs = BI.Rhs_dielectric_mbox2d(mbox, r_src, eps_src)
@@ -37,5 +40,5 @@ for n_panel in 4:4:32
 
     @show time_map, time_singleiter, time_alliter
 
-    CSV.write(df, DataFrame(n_adapt = n_adapt, n_panel = n_panel, n_quad = n_quad, n_points = n_points, time_map = time_map, time_singleiter = time_singleiter, time_alliter = time_alliter), append = true)
+    CSV.write(df, DataFrame(n_adapt = n_adapt, n_panel = n_panel, n_quad = n_quad, n_points = n_points, time_mapD = time_mapD, time_map = time_map, time_singleiter = time_singleiter, time_alliter = time_alliter), append = true)
 end
