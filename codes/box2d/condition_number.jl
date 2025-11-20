@@ -9,22 +9,23 @@ rects = [BI.square(-1.0, -0.5), BI.square(0.0, -0.5)]
 n_panel = 8
 n_quad = 16
 
-n_adapts = 5:5:40
-gammas = range(-0.99, 0.99, length = 50)
+n_adapts = 10:5:20
+epses = range(1.1, 300.0, length = 100)
 
 df = CSV.write("data/condition_number_threaded.csv", DataFrame(n_adapt = [], gamma = [], eps = [], cond = [], niter = [], res = []))
 
 for n_adapt in n_adapts
 
-    epses = zeros(length(gammas))
-    conds = zeros(length(gammas))
-    niters = zeros(length(gammas)) 
-    reses = zeros(length(gammas))
+    gammas = zeros(length(epses))
+    conds = zeros(length(epses))
+    niters = zeros(length(epses)) 
+    reses = zeros(length(epses))
 
-    Threads.@threads for i in eachindex(gammas)
-        gamma = gammas[i]
+    Threads.@threads for i in eachindex(epses)
+        eps_box = epses[i]
+        gamma = (eps_box - 1.0) / (eps_box + 1.0)
+        gammas[i] = gamma
 
-        eps_box = (1 + gamma) / (1 - gamma)
         eps_boxes = [2.0, eps_box]
         eps_src = 2.0
         r_src = (-0.1, 0.4)
@@ -40,7 +41,6 @@ for n_adapt in n_adapts
 
         println("n_adapt = $(n_adapt), gamma = $(gamma), eps = $(eps_box), cond = $(cond_number), niter = $(length(history.data[:resnorm])), res = $(history.data[:resnorm][end])")
 
-        epses[i] = eps_box
         conds[i] = cond_number
         niters[i] = length(history.data[:resnorm])
         reses[i] = history.data[:resnorm][end]
