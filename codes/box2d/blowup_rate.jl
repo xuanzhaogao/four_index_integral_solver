@@ -26,12 +26,13 @@ function catch_rt_corner(box, sigma, n_points)
     return (1.0 .- xs_top[end - n_points:end], sigmas_top[end - n_points:end])
 end
 
-function theta_shooting_even(al, e, g)
-	return sin(g * al / 2) * cos(g * (π - al / 2)) + cos(g * al / 2) * sin(g * (π - al/2)) / e
-end
 
 function first_root_even(al, e)
-    return fzero(g -> theta_shooting_even(al, e, g), 1.0)
+    return fzero(g -> BI.theta_shooting_even(al, e, g), 1.0)
+end
+
+function first_root_odd(al, e)
+    return fzero(g -> BI.theta_shooting_odd(al, e, g), 1.0)
 end
 
 gammas1 = [-0.9, -0.6, -0.3, 0.3, 0.6, 0.9]
@@ -47,7 +48,8 @@ end
 
 gammas = [-0.99:0.02:0.99...]
 k_fits = Float64[]
-k_theory = [first_root_even(pi / 2,  - (gamma + 1.0) / (gamma - 1.0)) for gamma in gammas]
+k_theory_even = [first_root_even(pi / 2,  - (gamma + 1.0) / (gamma - 1.0)) for gamma in gammas]
+k_theory_odd = [first_root_odd(pi / 2,  - (gamma + 1.0) / (gamma - 1.0)) for gamma in gammas]
 
 for gamma in gammas
     eps_box = - (gamma + 1.0) / (gamma - 1.0)
@@ -83,15 +85,19 @@ begin
 end
 
 begin
-    fig = Figure(size = (500, 400), fontsize = 20)
+    fig = Figure(size = (700, 400), fontsize = 20)
     ax = Axis(fig[1, 1], xlabel = "(eps - 1) / (eps + 1)", ylabel = "k")
-    scatter!(ax, gammas, k_fits, label = "fitted k")
 
-    lines!(ax, gammas, k_theory .- 1.0, label = "theory (even parity)", color = :red, linewidth = 2)
+    scatter!(ax, gammas, k_fits, label = "fitted k", color = :green)
+
+    lines!(ax, gammas, k_theory_even .- 1.0, label = "theory (even parity)", color = :red, linewidth = 2)
+    lines!(ax, gammas, k_theory_odd .- 1.0, label = "theory (odd parity)", color = :blue, linewidth = 2)
 
     hlines!(ax, [1/3], color = :black, label = L"+1/3")
     hlines!(ax, [-1/3], color = :black, label = L"-1/3")
-    axislegend(ax, position = :rt)
+
+    Legend(fig[1, 2], ax, nbanks = 1, labelsize = 15)
+
     save("figs/blowup_rate.svg", fig)
     fig
 end

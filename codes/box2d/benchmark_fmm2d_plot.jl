@@ -9,12 +9,12 @@ time_singleiter = df.time_singleiter
 time_alliter = df.time_alliter
 
 begin
-    fig = Figure(size = (500, 400), fontsize = 20)
+    fig = Figure(size = (700, 400), fontsize = 20)
     ax = Axis(fig[1, 1], xlabel = "Number of points", ylabel = "Time (s)", title = "FMM2D Run Time", xscale = log10, yscale = log10)
     scatter!(ax, n_points, time_map, color = :blue, marker = :diamond, markersize = 10, label = "Linear operator")
-    # scatter!(ax, n_points, time_singleiter, color = :red, marker = :diamond, markersize = 10, label = "Single GMRES iteration")
-    # scatter!(ax, n_points, time_alliter, color = :green, marker = :triangle, markersize = 10, label = "All GMRES iterations")
-    axislegend(ax, position = :lt)
+    scatter!(ax, n_points, time_singleiter, color = :red, marker = :circle, markersize = 10, label = "Single GMRES iteration")
+    scatter!(ax, n_points, time_alliter, color = :green, marker = :utriangle, markersize = 10, label = "All GMRES iterations")
+    Legend(fig[1, 2], ax, nbanks = 1, labelsize = 15)
     save("figs/benchmark_fmm2d_plot.svg", fig)
     fig
 end
