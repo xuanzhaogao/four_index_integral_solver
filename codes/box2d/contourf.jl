@@ -34,7 +34,7 @@ function plot_contourf_error(src, gamma, n_panels, n_adapt)
 
     fig1 = plot_contourf_error(xs, ys, zs, zs_ref, src, "gamma = $(gamma), n_adapt = $(n_adapt)")
 
-    save("contourf/contourf_$(gamma)_$(n_adapt).svg", fig1)
+    save("figs/contourf/contourf_$(gamma)_$(n_adapt).svg", fig1)
 
     return fig1
 end
@@ -106,15 +106,17 @@ function plot_contourf_error!(sf_s, sf_bar1, sf_e, sf_bar2, src, gamma, n_panels
     return nothing
 end
 
-fig_solution = Figure(size = (1500, 800), fontsize = 20)
-fig_error = Figure(size = (1500, 800), fontsize = 20)
+begin
+    fig_solution = Figure(size = (1500, 800), fontsize = 20)
+    fig_error = Figure(size = (1500, 800), fontsize = 20)
 
-plot_contourf_error!(fig_solution[1, 1], fig_solution[1, 2], fig_error[1, 1], fig_error[1, 2], (0.9, 0.9), -0.9, 8, 20, L"\gamma = -0.9, n_{adapt} = 20")
-plot_contourf_error!(fig_solution[1, 3], fig_solution[1, 4], fig_error[1, 3], fig_error[1, 4], (0.9, 0.9), -0.6, 8, 20, L"\gamma = -0.6, n_{adapt} = 20")
-plot_contourf_error!(fig_solution[1, 5], fig_solution[1, 6], fig_error[1, 5], fig_error[1, 6], (0.9, 0.9), -0.3, 8, 20, L"\gamma = -0.3, n_{adapt} = 20")
-plot_contourf_error!(fig_solution[2, 1], fig_solution[2, 2], fig_error[2, 1], fig_error[2, 2], (0.9, 0.9), 0.3, 8, 20, L"\gamma = 0.3, n_{adapt} = 20")
-plot_contourf_error!(fig_solution[2, 3], fig_solution[2, 4], fig_error[2, 3], fig_error[2, 4], (0.9, 0.9), 0.6, 8, 20, L"\gamma = 0.6, n_{adapt} = 20")
-plot_contourf_error!(fig_solution[2, 5], fig_solution[2, 6], fig_error[2, 5], fig_error[2, 6], (0.9, 0.9), 0.9, 8, 20, L"\gamma = 0.9, n_{adapt} = 20")
+    plot_contourf_error!(fig_solution[1, 1], fig_solution[1, 2], fig_error[1, 1], fig_error[1, 2], (0.7, 0.8), -0.9, 8, 20, L"\gamma = -0.9, n_{adapt} = 20")
+    plot_contourf_error!(fig_solution[1, 3], fig_solution[1, 4], fig_error[1, 3], fig_error[1, 4], (0.7, 0.8), -0.6, 8, 20, L"\gamma = -0.6, n_{adapt} = 20")
+    plot_contourf_error!(fig_solution[1, 5], fig_solution[1, 6], fig_error[1, 5], fig_error[1, 6], (0.7, 0.8), -0.3, 8, 20, L"\gamma = -0.3, n_{adapt} = 20")
+    plot_contourf_error!(fig_solution[2, 1], fig_solution[2, 2], fig_error[2, 1], fig_error[2, 2], (0.7, 0.8), 0.3, 8, 20, L"\gamma = 0.3, n_{adapt} = 20")
+    plot_contourf_error!(fig_solution[2, 3], fig_solution[2, 4], fig_error[2, 3], fig_error[2, 4], (0.7, 0.8), 0.6, 8, 20, L"\gamma = 0.6, n_{adapt} = 20")
+    plot_contourf_error!(fig_solution[2, 5], fig_solution[2, 6], fig_error[2, 5], fig_error[2, 6], (0.7, 0.8), 0.9, 8, 20, L"\gamma = 0.9, n_{adapt} = 20")
+end
 
-save("contourf/contourf_solution.svg", fig_solution)
-save("contourf/contourf_error.svg", fig_error)
+save("figs/contourf/contourf_solution.png", fig_solution, px_per_unit = 2)
+save("figs/contourf/contourf_error.png", fig_error, px_per_unit = 2)
