@@ -19,22 +19,31 @@ begin
     fig
 end
 
-df_fortran = CSV.read("data/rfmm2d_fortran_benchmark.csv", DataFrame)
-df_julia = CSV.read("data/rfmm2d_julia_benchmark.csv", DataFrame)
+df_fortran_1 = CSV.read("data/rfmm2d_fortran_benchmark_1.csv", DataFrame)
+df_fortran_2 = CSV.read("data/rfmm2d_fortran_benchmark_2.csv", DataFrame)
+df_fortran_4 = CSV.read("data/rfmm2d_fortran_benchmark_4.csv", DataFrame)
+df_fortran_8 = CSV.read("data/rfmm2d_fortran_benchmark_8.csv", DataFrame)
+df_fortran_16 = CSV.read("data/rfmm2d_fortran_benchmark_16.csv", DataFrame)
+df_julia_1 = CSV.read("data/rfmm2d_julia_benchmark_1.csv", DataFrame)
+df_julia_2 = CSV.read("data/rfmm2d_julia_benchmark_2.csv", DataFrame)
+df_julia_4 = CSV.read("data/rfmm2d_julia_benchmark_4.csv", DataFrame)
+df_julia_8 = CSV.read("data/rfmm2d_julia_benchmark_8.csv", DataFrame)
+df_julia_16 = CSV.read("data/rfmm2d_julia_benchmark_16.csv", DataFrame)
 
 begin
     fig = Figure(size = (650, 400), fontsize = 20)
     ax = Axis(fig[1, 1], xlabel = "Number of points", ylabel = "Time (s)", title = "FMM2D Run Time", xscale = log10, yscale = log10)
 
-    for n_threads in unique(df_fortran.num_thread)
-        ns = df_fortran[df_fortran.num_thread .== n_threads, :ns]
-        time = df_fortran[df_fortran.num_thread .== n_threads, :elapsed]
-        scatterlines!(ax, ns, time, label = "Fortran $(n_threads) threads", linewidth = 2)
-    end
-
-    ns = df_julia.ns
-    time = df_julia.time
-    scatterlines!(ax, ns, time, label = "Julia -t auto", color = :red, linewidth = 2)
+    scatterlines!(ax, df_fortran_1.ns, df_fortran_1.elapsed, label = "Fortran 1 thread", linewidth = 2, color = :blue)
+    scatterlines!(ax, df_fortran_2.ns, df_fortran_2.elapsed, label = "Fortran 2 threads", linewidth = 2, color = :red)
+    scatterlines!(ax, df_fortran_4.ns, df_fortran_4.elapsed, label = "Fortran 4 threads", linewidth = 2, color = :green)
+    scatterlines!(ax, df_fortran_8.ns, df_fortran_8.elapsed, label = "Fortran 8 threads", linewidth = 2, color = :orange)
+    scatterlines!(ax, df_fortran_16.ns, df_fortran_16.elapsed, label = "Fortran 16 threads", linewidth = 2, color = :purple)
+    scatterlines!(ax, df_julia_1.ns, df_julia_1.time, label = "Julia 1 thread", linewidth = 2, marker = :diamond, color = :blue)
+    scatterlines!(ax, df_julia_2.ns, df_julia_2.time, label = "Julia 2 threads", linewidth = 2, marker = :diamond, color = :red)
+    scatterlines!(ax, df_julia_4.ns, df_julia_4.time, label = "Julia 4 threads", linewidth = 2, marker = :diamond, color = :green)
+    scatterlines!(ax, df_julia_8.ns, df_julia_8.time, label = "Julia 8 threads", linewidth = 2, marker = :diamond, color = :orange)
+    scatterlines!(ax, df_julia_16.ns, df_julia_16.time, label = "Julia 16 threads", linewidth = 2, marker = :diamond, color = :purple)
 
     Legend(fig[1, 2], ax, position = :lt, labelsize = 12, nbanks = 1)
     save("figs/benchmark_fmm2d_comparison.svg", fig)

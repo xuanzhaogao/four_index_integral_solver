@@ -33,7 +33,7 @@ function benchmark()
 
         time_map = @belapsed $(lhs) * $(ones(n_points))
 
-        x, status = Krylov.gmres(lhs, rhs)
+        x, status = Krylov.gmres(lhs, rhs, atol = 1e-4)
         n_iter = status.niter
 
         time_alliter = @belapsed Krylov.gmres($(lhs), $(rhs), atol = 1e-4)
