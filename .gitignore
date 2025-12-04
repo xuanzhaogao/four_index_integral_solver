@@ -1,3 +1,5 @@
+*.jld
+
 .vscode
 .DS_Store
 
