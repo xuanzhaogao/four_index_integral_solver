@@ -1,23 +1,10 @@
 # test the convergence of a single box in 3d space
-using BoundaryIntegral
-import BoundaryIntegral as BI
-using LinearAlgebra, Krylov
-using CSV, DataFrames, JLD2
-
-function solve_single_box3d(eps, n_box, n_quad, n_edge, n_corner, src)
-    dbox = BI.dielectric_box3d(eps, 1.0, n_box, n_quad, n_edge, n_corner)
-    lhs = BI.Lhs_dielectric_mbox3d_fmm3d(dbox, 1e-6)
-    rhs =  BI.Rhs_dielectric_mbox3d(dbox, src, eps)
-    sigma, _ = Krylov.gmres(lhs, rhs, rtol=1e-6, verbose = 1)
-    gi = dot(sigma, BI.all_weights(dbox)) + 1 / eps
-    println("gi = $gi")
-    return dbox, sigma, gi
-end
+include(joinpath(@__DIR__, "single_box3d_utils.jl"))
 
 trgs = load(joinpath(@__DIR__, "data/sphere_trgs.jld"))["trgs"]
 
 # res_ref = solve_single_box3d(4.0, 6, 12, 8, 10, (0.2, 0.3, 0.4)), gi = 1.0005676883216563
-res_ref = load(joinpath(@__DIR__, "data/single_box3d_ref.jld"))["res"]
+res_ref = load(joinpath(@__DIR__, "data/single_box3d_ref.jld"))["res_ref"]
 
 df = joinpath(@__DIR__, "data/single_box3d.csv")
 CSV.write(df, DataFrame(n_boxes = [], n_quad = [], n_edge = [], n_corner = [], gi = [], pot_abserr = [], pot_relerr = []))
