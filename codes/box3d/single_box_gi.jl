@@ -16,8 +16,10 @@ function main()
                 o = ones(size(D, 1))
                 gi = abs.(D * o .+ 0.5)
 
-                L1_err = norm(gi, 1)
-                L2_err = norm(gi, 2)
+                w = BI.all_weights(dbox)
+
+                L1_err = sum(w .* (gi .+ 0.5))
+                L2_err = sqrt(sum(w .* (gi .+ 0.5).^2))
                 Linf_err = norm(gi, Inf)
 
                 @show n_quad, reduce_quad, n_edge, n_val, L1_err, L2_err, Linf_err
