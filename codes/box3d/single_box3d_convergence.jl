@@ -7,12 +7,22 @@ trgs = load(joinpath(@__DIR__, "data/sphere_trgs.jld"))["trgs"]
 df = joinpath(@__DIR__, "data/single_box3d_convergence.csv")
 # CSV.write(df, DataFrame(n_quad = [], n_edge = [], gi = [], n_val = [], n_iter = [], pot_abserr = [], pot_relerr = []))
 
-# n_quads = [2, 4, 6, 8]
-# n_edges = 0:1:10
 src = (0.2, 0.3, 0.4)
 
-n_quads = [10:2:24...]
-n_edges = [2, 4]
+# n_quads = [2, 4, 6, 8]
+# n_edges = 0:1:10
+
+# n_quads = [10:2:24...]
+# n_edges = [3, 4]
+
+# n_quads = [2]
+# n_edges = 11:1:16
+
+# n_quads = [3]
+# n_edges = 0:1:16
+
+n_quads = [26:2:32...]
+n_edges = [3]
 
 for n_quad in n_quads
     for n_edge in n_edges
