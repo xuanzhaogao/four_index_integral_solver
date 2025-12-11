@@ -70,7 +70,7 @@
 \begin{document}
 \preprint{Preprint}
 
-\title{Problem Formulation}
+\title{A Poisson Solver for Dielectric Mismatches and Edge/Corner Singularities}
 \author{Xuanzhao Gao}
 % \date{}
 
@@ -518,8 +518,82 @@ Eigenvalues of the integral operator $D^T$ are shown in Fig.~\ref{fig:2d-multipl
     \label{fig:2d-multiple-boxes-eigen-D}
 \end{figure}
 
+\newpage
+
+\section{Single Box in 3D space}
+
+We then study a single cubic box with dielectric constant~$\epsilon_m$ in 3D space, assuming that a point charge~$q$ is located inside the box.
+The equation is again given by Eq.~\ref{eq:sl_equation}.
+
+The very first task is to do discretization for the surfaces of the cubic box, where we adaptively refine the edges and corners of the surfaces and apply tensor product Gauss-Legendre quadrature to the refined panels.
+Two different strategies are considered: fixing the number of quadrature points on each panel or gradually reduce the number of points when the panel is close to the edges and corners.
+The Resulting discretization is shown in Fig.~\ref{fig:3d-box-discretization}.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\linewidth]{figs/squares.png}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\linewidth]{figs/discretization.png}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\linewidth]{figs/reduced_discretization.png}
+    \end{subfigure}
+    \caption{Discretization of the surfaces in 3D: (a) the panels, (b) the quadrature points is fixed on the panels, (c) the quadrature points is gradually reduced when the panel is close to the edges and corners.}
+    \label{fig:3d-box-discretization}
+\end{figure}
+
+To validate the discretization, we make use of the Green's identity of the double layer operator:
+\begin{equation}
+    D 1 = - \frac{1}{2}\;,
+\end{equation}
+where $1$ represents a uniform density distribution.
+We compared the results with different discretization strategies with the reference solution, as shown in Fig.~\ref{fig:3d-box-green-identity}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\linewidth]{../codes/box3d/figs/single_box3d_gi_heatmap.png}
+    \caption{Error of the Green's identity for different discretization strategies. The first row are non-adaptive discretization (notice that the lines are because FMM3D is used for evaluation), the second row are adaptive discretization with fixed number of quadrature points, the third row are adaptive discretization with gradually reduced number of quadrature points. $p$ is the order of the quadrature, $r$ is number of adaptations.}
+    \label{fig:3d-box-green-identity}
+\end{figure}
 
 \newpage
+
+We first checked the convergence of non-adaptive discretization with a large number of $p$.
+Two tests are performed: the potential of the single layer density on a sphere with radius $2$ against a self converged reference solution and the total flux against~$1 - {\epsilon_m}^{-1}$.
+In all tests, we set~$\epsilon_m = 4$ and the source charge is located at $(0.2, 0.3, 0.4)$.
+The results are shown in Fig.~\ref{fig:3d-box-nonadapt-convergence}, indicating that order of the Gauss-Legendre quadrature has to be larger that~$16$ to start converging to the reference solution.
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.8\linewidth]{../codes/box3d/figs/single_box3d_nonadapt.svg}
+    \caption{Convergence of the potential and flux for non-adaptive discretization. $p$ is the order of the quadrature, $r$ is number of adaptations.}
+    \label{fig:3d-box-nonadapt-convergence}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.8\linewidth]{../codes/box3d/figs/single_box3d_convergence.svg}
+    \caption{Convergence of the potential and flux for adaptive discretization with fixed number of quadrature points. $p$ is the order of the quadrature, $r$ is number of adaptations.}
+    \label{fig:3d-box-adapt-convergence}
+\end{figure}
+
+
+We then checked the convergence of adaptive discretization with fixed number of quadrature points, as shown in Fig.~\ref{fig:3d-box-adapt-convergence}.
+In general, the error decays exponentially with the number of adaptations.
+However, when~$p$ is not large enough, a growth of error is observed first and then decays exponentially.
+However, although larger~$p$ can always gives a more accurate result when~$r$ is large enough.
+
+Finally, the results with gradually reduced number of quadrature points are shown in Fig.~\ref{fig:3d-box-reduced-adapt-convergence}.
+In all cases, the error is dominated by the panels near the edges.
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.8\linewidth]{../codes/box3d/figs/single_box3d_reduce_convergence.svg}
+    \caption{Convergence of the potential and flux for adaptive discretization with gradually reduced number of quadrature points. $p$ is the order of the quadrature, $r$ is number of adaptations.}
+    \label{fig:3d-box-reduced-adapt-convergence}
+\end{figure}
 
 % \bibliographystyle{apsrev}
 \bibliography{ref}

@@ -22,3 +22,19 @@ Manifest.toml
 
 *.out
 *.err
+
+*.nav
+slides.pdf
+*.snm
+*.nav
+*.toc
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.bbl
+*.blg
+*.brf
+*.fls
+*.fdb_latexmk
+*.vrb
