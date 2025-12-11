@@ -11,7 +11,7 @@ function main()
     for reduce_quad in [false]
         for n_edge in 0:2:12
             for n_quad in [1, 4, 8, 12, 16]
-                dbox = BI.dielectric_box3d(eps, 1.0, 1, n_quad, reduce_quad, n_edge, n_edge)
+                dbox = BI.dielectric_box3d(eps, 1.0, 1, n_quad, n_quad, n_edge, n_edge)
                 D = BI.laplace3d_D_fmm3d(dbox, 1e-6)
                 o = ones(size(D, 1))
                 gi = abs.(D * o .+ 0.5)
