@@ -21,8 +21,11 @@ src = (0.2, 0.3, 0.4)
 # n_quads = [3]
 # n_edges = 0:1:16
 
-n_quads = [26:2:32...]
-n_edges = [3]
+# n_quads = [26:2:32...]
+# n_edges = [3]
+
+n_quads = [1]
+n_edges = 0:1:16
 
 for n_quad in n_quads
     for n_edge in n_edges

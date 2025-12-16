@@ -7,7 +7,7 @@ begin
     ax = Axis(fig[1, 1], xlabel = L"r", ylabel = "Relative Error", yscale = log10, title = "Potential")
     ax_flux = Axis(fig[1, 2], xlabel = L"r", ylabel = "Relative Error", yscale = log10, title = "Flux")
 
-    n_quads = [2, 3, 4, 6, 8]
+    n_quads = [1, 2, 3, 4, 6, 8]
     for n_quad in n_quads
         df_nquad = filter(row -> row.n_quad == n_quad, df)
         n_edges = sort(unique(df_nquad.n_edge))
