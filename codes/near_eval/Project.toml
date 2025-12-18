@@ -1,4 +1,5 @@
 [deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
 LegendrePolynomials = "3db4a2ba-fc88-11e8-3e01-49c72059a882"
