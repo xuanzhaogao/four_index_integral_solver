@@ -22,10 +22,12 @@ begin
 
     for (i, trg_z) in enumerate(trg_zs)
         df_trg_z = df[df.trg_z .== trg_z, :]
+        rho = BI.bernstein_rho_2d(0.0, 0.0, trg_z)
         for (j, n) in enumerate(ns)
             df_n = df_trg_z[df_trg_z.n .== n, :]
             scatter!(axs[i], df_n.n_up, df_n.err, label = "n = $n", color = colors[j], marker = markers[j])
         end
+        lines!(axs[i], df_trg_z.n_up, rho .^ (-2 .* df_trg_z.n_up), color = :black, linestyle = :dot)
     end
 
     axislegend(axs[1], position = :lb)

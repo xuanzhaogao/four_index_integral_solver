@@ -38,7 +38,7 @@ for trg_z in [0.1, 0.2, 0.5, 1.0]
     ref_val = reshape(ref_val, length(trg_x) * length(trg_y))
 
     for n in [4, 8, 12, 16, 20]
-        for n_up in n:2:48
+        for n_up in 2:2:48
             x, w = gausslegendre(n)
 
             upsampled_x, upsampled_w = gausslegendre(n_up)
