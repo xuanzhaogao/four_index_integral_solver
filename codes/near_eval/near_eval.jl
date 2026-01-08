@@ -1,5 +1,5 @@
 include("transform.jl")
-include("laplace2d.jl")
+include("laplace.jl")
 
 using FastGaussQuadrature
 using LegendrePolynomials
