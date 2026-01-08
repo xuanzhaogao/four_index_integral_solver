@@ -520,7 +520,7 @@ Eigenvalues of the integral operator $D^T$ are shown in Fig.~\ref{fig:2d-multipl
 
 \newpage
 
-\section{Single Box in 3D space}
+\section{Boxes in 3D space}
 
 We then study a single cubic box with dielectric constant~$\epsilon_m$ in 3D space, assuming that a point charge~$q$ is located inside the box.
 The equation is again given by Eq.~\ref{eq:sl_equation}.
@@ -594,6 +594,123 @@ In all cases, the error is dominated by the panels near the edges.
     \caption{Convergence of the potential and flux for adaptive discretization with gradually reduced number of quadrature points. $p$ is the order of the quadrature, $r$ is number of adaptations.}
     \label{fig:3d-box-reduced-adapt-convergence}
 \end{figure}
+
+Results with two cubic boxes placed together gives similar results, where the error decay as number of adaptations increases until reaching an lower bound dominated by~$p$, the order of the quadrature.
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.8\linewidth]{../codes/box3d/figs/double_box3d_convergence.svg}
+    \caption{Convergence of the potential and flux for two cubic boxes placed together. $p$ is the order of the quadrature, $r$ is number of adaptations.}
+    \label{fig:3d-double-box-convergence}
+\end{figure}
+
+We then consider boxes with high aspect ratio, where~$L_{xy}$ is larger than~$L_z$, the results are shown in Fig.~\ref{fig:3d-high-aspect-ratio-box-convergence}.
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.9\linewidth]{../codes/box3d/figs/single_thin_box_convergence.svg}
+    \caption{Convergence of the potential and flux for boxes with high aspect ratio. $p$ is the order of the quadrature, $r$ is number of adaptations. $L$ is the side length of the box, and $L_z$ the height of the box is fixed to $1$.}
+    \label{fig:3d-high-aspect-ratio-box-convergence}
+\end{figure}
+
+\newpage
+
+\section{Error Estimation and Near Evaluation}
+
+Clearly in the high aspect ratio case simple tensor product Gauss-Legendre quadrature is not enough to achieve a good accuracy, thus near field evaluation is needed.
+This problem is then two-fold: (1) how great the density/RHS is represented by the quadrature points, and (2) how to evaluate the near field integral more accurately.
+
+A rough estimate of the error can be obtained by the Bernstein ellipses~\cite{trefethen2019approximation}, Chapter 8, which describes the convergence speed of the approximation error of analytic functions by polynomials.
+Briefly, if a function $f(x)$ be analytically continuable to a open Bernstein ellipse $E_\rho$ and be bounded by $M$, then for any~$n > 0$, its Chebyshev projections and interpolations satisfies the following inequality:
+\begin{equation}
+    \| f - T_n f \| \leq \frac{2 M \rho^{-n}}{\rho - 1} \quad \text{and} \quad \| f - P_n f \| \leq \frac{4 M \rho^{-n}}{\rho - 1}\;.
+\end{equation}
+where $T_n f$ is the Chebyshev projection of $f$ and $P_n f$ is the Chebyshev interpolation of $f$, and $\rho$ is the radius of the Bernstein ellipse.
+These relations also hold for other orthogonal polynomials, such as Legendre polynomials.
+Further, for integration over~$f$ on the interval $[-1, 1]$ with the Gauss-Legendre quadrature of order $p$, the error decays as $O(\rho^{- 2p})$ since the quadrature is accurate up to $2p -1$ order of the polynomial.
+
+For a 2D function such as
+\begin{equation}
+    f(x, y) = \frac{\sigma(x)}{\sqrt{(x - x_0)^2 + (y_0)^2}},~ x \in [-1, 1]\;,
+\end{equation}
+a pole at $z = x_0 + i y_0$ exists.
+Radius of the largest Bernstein ellipse that does not contain the pole is given by
+\begin{equation}
+    \rho(z) = \max\left(\left|z+\sqrt{z^{2}-1}\right|,\ \left|z-\sqrt{z^{2}-1}\right|\right).
+\end{equation}
+A simple numerical result of integration error in 2D is shown as follows:
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\linewidth]{../codes/bernstein_ellipses/ellipes2d_n16.png}
+    \caption{Integration error in 2D, lines are predicted by Bernstein ellipses.}
+    \label{fig:2d-integration-error}
+\end{figure}
+
+
+However, for a 3D function such as
+\begin{equation}
+    f(x, y, z) = \frac{\sigma(x, y)}{\sqrt{(x - x_0)^2 + (y - y_0)^2 + z^2}},~ x, y \in [-1, 1]\;,
+\end{equation}
+the pole can not be simply represented by a complex number.
+As an approximation, we can fix $x$ and $y$, and consider it a 2D function
+\begin{equation}
+    \rho_x = \min_{y \in [-1, 1]} \rho \left(x_0 + i \sqrt{(y - y_0)^2 + z_0^2}\right) \quad \text{and} \quad \rho_y = \min_{x \in [-1, 1]} \rho \left(y_0 + i \sqrt{(x - x_0)^2 + z_0^2}\right)\;.
+\end{equation}
+which gives
+\begin{equation}
+    \rho_{3D} = \min\left(\rho_x, \rho_y\right)\;.
+\end{equation}
+We then consider the integration error over a 2D plane in $x$-$y$ plane, the following figures show different slices in~$z$ direction.
+
+% six panels of subfigures
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\linewidth]{../codes/bernstein_ellipses/3d_figs/ellipes3d_overlay_n16_yt0.0.png}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\linewidth]{../codes/bernstein_ellipses/3d_figs/ellipes3d_overlay_n16_yt0.2.png}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\linewidth]{../codes/bernstein_ellipses/3d_figs/ellipes3d_overlay_n16_yt0.4.png}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\linewidth]{../codes/bernstein_ellipses/3d_figs/ellipes3d_overlay_n16_yt0.6.png}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\linewidth]{../codes/bernstein_ellipses/3d_figs/ellipes3d_overlay_n16_yt1.0.png}
+    \end{subfigure}
+    \begin{subfigure}[b]{0.3\textwidth}
+        \includegraphics[width=\linewidth]{../codes/bernstein_ellipses/3d_figs/ellipes3d_overlay_n16_yt2.0.png}
+    \end{subfigure}
+    \caption{Integration error in 3D, lines are predicted by Bernstein ellipses.}
+    \label{fig:3d-integration-error}
+\end{figure}
+
+With the error estimations, we can then answer the second question.
+We first check the approximation error of the field by a nearby point charge.
+The field is first evaluated on tensor product Gauss-Legendre quadrature points, and then interpolated on to the same uniform girds and compared against the exact field, as shown in Fig.~\ref{fig:3d-near-field-error}.
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.5\linewidth]{../codes/near_eval/figs/doublelayer_represent_error.svg}
+    \caption{Approximation error of the double layer representation of the field by a nearby point charge at (0.2, 0.3, z). Lines are $\rho^{-n}$, where $\rho$ is the radius of the Bernstein ellipse.}
+    \label{fig:3d-near-field-error}
+\end{figure}
+
+Then we consider the integration error of the density on an opposite plane, as shown in Fig.~\ref{fig:3d-near-field-error-density}.
+The density is generated by a nearby point charge at (0.2, 0.3, 0.5).
+We first apply an upsampling on the plane to generate finer Gauss-Legendre points, and then integrate on the upsampled points and compare against the exact integral.
+The black dotted lines are predicted as $\rho^{-2 n_{up}}$, where $n_{up}$ is the number of upsampled points.
+
+\begin{figure}[htbp]
+    \centering
+    \includesvg[width=0.9\linewidth]{../codes/near_eval/figs/doublelayer_upsampling_error.svg}
+    \caption{Approximation error of the density representation on an opposite plane. Lines are $\rho^{-n}$, where $\rho$ is the radius of the Bernstein ellipse.}
+    \label{fig:3d-near-field-error-density}
+\end{figure}
+
+\newpage 
 
 % \bibliographystyle{apsrev}
 \bibliography{ref}
