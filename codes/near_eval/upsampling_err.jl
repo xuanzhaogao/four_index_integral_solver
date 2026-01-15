@@ -11,25 +11,24 @@ function laplace3d_doublelayer(x, y, z, ptx, pty, ptz)
     return (z - ptz) / (r2 * sqrt(r2))
 end
 
-CSV.write("data/doublelayer_upsampling_error.csv", DataFrame(pt_z = Float64[], trg_z = Float64[], n = Int[], n_up = Int[], err = Float64[]))
+density = (x, y) -> exp(-x^2 - y^2)
 
-pt_x = 0.2
-pt_y = 0.3
-pt_z = 0.5
+CSV.write("data/doublelayer_upsampling_error.csv", DataFrame(trg_z = Float64[], n = Int[], n_up = Int[], err = Float64[]))
 
 n_trg = 20
 trg_x = range(-1.0, 1.0, length = n_trg)
 trg_y = range(-1.0, 1.0, length = n_trg)
 
-for trg_z in [0.1, 0.2, 0.5, 1.0]
-    ref_val = zeros(n_trg, n_trg)
-    n_ref = 64
-    x_ref, w_ref = gausslegendre(n_ref)
-    f_ref = zeros(n_ref, n_ref)
-    for k in 1:n_ref, l in 1:n_ref
-        f_ref[k, l] = laplace3d_doublelayer(x_ref[k], x_ref[l], 0.0, pt_x, pt_y, pt_z)
-    end
+n_ref = 128
+x_ref, w_ref = gausslegendre(n_ref)
+f_ref = zeros(n_ref, n_ref)
+for k in 1:n_ref, l in 1:n_ref
+    f_ref[k, l] = density(x_ref[k], x_ref[l])
+end
 
+for trg_z in [0.1, 0.2, 0.5, 1.0]
+
+    ref_val = zeros(n_trg, n_trg)
     for i in 1:length(trg_x), j in 1:length(trg_y)
         for k in 1:n_ref, l in 1:n_ref
             ref_val[i, j] += f_ref[k, l] * w_ref[k] * w_ref[l] * laplace3d_doublelayer(x_ref[k], x_ref[l], 0.0, trg_x[i], trg_y[j], trg_z)
@@ -38,21 +37,45 @@ for trg_z in [0.1, 0.2, 0.5, 1.0]
     ref_val = reshape(ref_val, length(trg_x) * length(trg_y))
 
     for n in [4, 8, 12, 16, 20]
-        for n_up in 2:2:48
-            x, w = gausslegendre(n)
 
+        x, w = gausslegendre(n)
+        val = zeros(n, n)
+        for i in 1:n, j in 1:n
+            val[i, j] = density(x[i], x[j])
+        end
+        vec_val = reshape(val, n^2)
+
+        # upsample to n = 128, calculate the residual and see how its contribution of the error to the integral is
+        # upsampled_x, upsampled_w = gausslegendre(128)
+        # M_up = BI.interp_matrix_2d_gl_tensor(x, w, x, w, upsampled_x, upsampled_x)
+        # upsampled_val = M_up * vec_val
+        # upsampled_val = reshape(upsampled_val, 128, 128)
+        # exact_val_upsampled_points = zeros(128, 128)
+        # for i in 1:128, j in 1:128
+        #     exact_val_upsampled_points[i, j] = density(upsampled_x[i], upsampled_x[j])
+        # end
+        # residual_val = exact_val_upsampled_points .- upsampled_val
+        # residual_int = zeros(n_trg, n_trg)
+        # for i in 1:n_trg, j in 1:n_trg
+        #     for k in 1:128, l in 1:128
+        #         residual_int[i, j] += residual_val[k, l] * upsampled_w[k] * upsampled_w[l] * laplace3d_doublelayer(upsampled_x[k], upsampled_x[l], 0.0, trg_x[i], trg_y[j], trg_z)
+        #     end
+        # end
+        # residual_int = reshape(residual_int, n_trg^2)
+        # println("trg_z: $trg_z, n: $n, residual_int: ", norm(residual_int))
+
+        for n_up in 4:4:64
             upsampled_x, upsampled_w = gausslegendre(n_up)
-
-            val = zeros(n, n)
-            for i in 1:n, j in 1:n
-                val[i, j] = laplace3d_doublelayer(x[i], x[j], 0.0, pt_x, pt_y, pt_z)
-            end
-            vec_val = reshape(val, n^2)
-
             M_up = BI.interp_matrix_2d_gl_tensor(x, w, x, w, upsampled_x, upsampled_x)
 
             upsampled_val = M_up * vec_val
             upsampled_val = reshape(upsampled_val, n_up, n_up)
+
+            exact_val_upsampled_points = zeros(n_up, n_up)
+            for i in 1:n_up, j in 1:n_up
+                exact_val_upsampled_points[i, j] = density(upsampled_x[i], upsampled_x[j])
+            end
+            err_upsample = norm((upsampled_val .- exact_val_upsampled_points), Inf)
 
             upsampled_int = zeros(n_trg, n_trg)
             for i in 1:n_trg, j in 1:n_trg
@@ -62,8 +85,18 @@ for trg_z in [0.1, 0.2, 0.5, 1.0]
             end
             upsampled_int = reshape(upsampled_int, n_trg^2)
 
+            # residual_val = exact_val_upsampled_points .- upsampled_val
+            # residual_int = zeros(n_trg, n_trg)
+            # for i in 1:n_trg, j in 1:n_trg
+            #     for k in 1:n_up, l in 1:n_up
+            #         residual_int[i, j] += residual_val[k, l] * upsampled_w[k] * upsampled_w[l] * laplace3d_doublelayer(upsampled_x[k], upsampled_x[l], 0.0, trg_x[i], trg_y[j], trg_z)
+            #     end
+            # end
+            # residual_int = reshape(residual_int, n_trg^2)
+            # println("n: $n, n_up: $n_up, residual_int: ", norm(residual_int, Inf))
+
             err = norm((upsampled_int .- ref_val), Inf)
-            CSV.write("data/doublelayer_upsampling_error.csv", append=true, DataFrame(pt_z = pt_z, trg_z = trg_z, n = n, n_up = n_up, err = err))
+            CSV.write("data/doublelayer_upsampling_error.csv", append=true, DataFrame(trg_z = trg_z, n = n, n_up = n_up, err = err))
         end
     end
 end

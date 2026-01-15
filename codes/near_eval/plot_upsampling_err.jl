@@ -4,7 +4,6 @@ import BoundaryIntegral as BI
 
 df = CSV.read("data/doublelayer_upsampling_error.csv", DataFrame)
 
-pt_zs = unique(df.pt_z)
 trg_zs = unique(df.trg_z)
 ns = unique(df.n)
 
@@ -33,7 +32,7 @@ begin
     axislegend(axs[1], position = :lb)
 
     for ax in axs
-        ylims!(ax, 1e-8, 1e3)
+        ylims!(ax, 1e-18, 1e1)
     end
 
     fig
