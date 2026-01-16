@@ -3,23 +3,37 @@ using CairoMakie
 
 df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected.csv"), DataFrame)
 
-ps = unique(df.p)
+Ls = sort(unique(df.L))
+ps = sort(filter(p -> p in (2, 4, 6), unique(df.p)))
 
 begin
-    fig = Figure(size = (1000, 450), fontsize = 20)
-    ax_1 = Axis(fig[1, 1], xlabel = "r", ylabel = "Error Flux", yscale = log10, title = "Uncorrected")
-    ax_2 = Axis(fig[1, 2], xlabel = "r", ylabel = "Error Flux", yscale = log10, title = "Corrected")
+    fig = Figure(size = (900, 900), fontsize = 16)
 
-    for p in ps
-        df_p = df[df.p .== p, :]
-        scatter!(ax_1, df_p.r, abs.(df_p.total_flux_u .- 1.0), label = "p = $p", markersize = 10)
-        scatter!(ax_2, df_p.r, abs.(df_p.total_flux_c .- 1.0), label = "p = $p", markersize = 10)
+    for (i, L) in enumerate(Ls)
+        for (j, p) in enumerate(ps)
+            ax = Axis(
+                fig[i, j],
+                xlabel = "l_min",
+                ylabel = "Error total flux",
+                xscale = log10,
+                xreversed = true,
+                yscale = log10,
+                title = "L = $L, p = $p",
+            )
+
+            df_lp = df[(df.L .== L) .& (df.p .== p), :]
+            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_u .- 1), label = "uncorrected", markersize = 8)
+            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_c .- 1), label = "corrected", markersize = 8)
+
+            if i == 1 && j == 1
+                axislegend(ax, position = :lb)
+            end
+
+            ylims!(ax, 1e-6, 1e0)
+        end
     end
-    
-    axislegend(ax_1, position = :lb)
-
-   ylims!(ax_1, 1e-6, 1e-0)
-   ylims!(ax_2, 1e-6, 1e-0)
 
     fig
 end
+
+save(joinpath(@__DIR__, "figs/convergence_corrected.svg"), fig)
