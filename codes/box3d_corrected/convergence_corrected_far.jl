@@ -10,9 +10,9 @@ function solve_single_thin_box3d(Lx, Ly, Lz, n_quad, l_panel, l_ec, eps_in, eps_
 
     lhs = BI.Lhs_dielectric_box3d_fmm3d(tbox, fmm_tol)
 
-    rhs =  BI.Rhs_dielectric_box3d(tbox, PointSource((0.2, 0.3, 0.1), 1.0), eps_in)
+    rhs =  BI.Rhs_dielectric_box3d(tbox, PointSource((0.3, 0.4, 10.0), 1.0), eps_in)
     sigma, status = Krylov.gmres(lhs, rhs, rtol=fmm_tol, verbose = 1)
-    total_flux = dot(sigma, BI.all_weights(tbox)) + 1 / eps_in
+    total_flux = dot(sigma, BI.all_weights(tbox))
 
     n_val = length(sigma)
     n_iter = status.niter
@@ -25,10 +25,10 @@ function solve_single_thin_box3d_corrected(Lx, Ly, Lz, n_quad, l_panel, l_ec, ep
     tbox = BI.single_dielectric_box3d(Lx, Ly, Lz, n_quad, l_panel, l_ec, eps_in, eps_out)
 
     lhs = BI.Lhs_dielectric_box3d_fmm3d_corrected(tbox, fmm_tol, up_tol, max_order, l_min)
-    rhs =  BI.Rhs_dielectric_box3d(tbox, PointSource((0.2, 0.3, 0.1), 1.0), eps_in)
+    rhs =  BI.Rhs_dielectric_box3d(tbox, PointSource((0.3, 0.4, 10.0), 1.0), eps_out)
 
     sigma, status = Krylov.gmres(lhs, rhs, rtol=fmm_tol, verbose = 1)
-    total_flux = dot(sigma, BI.all_weights(tbox)) + 1 / eps_in
+    total_flux = dot(sigma, BI.all_weights(tbox))
 
     n_val = length(sigma)
     n_iter = status.niter
@@ -37,7 +37,7 @@ function solve_single_thin_box3d_corrected(Lx, Ly, Lz, n_quad, l_panel, l_ec, ep
     return tbox, sigma, total_flux, n_val, n_iter
 end
 
-df = joinpath(@__DIR__, "data/convergence_corrected.csv")
+df = joinpath(@__DIR__, "data/convergence_corrected_far.csv")
 CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], total_flux_u = Float64[], total_flux_c = Float64[], n_val_u = Int[], n_val_c = Int[], n_iter_u = Int[], n_iter_c = Int[]))
 
 begin
@@ -70,7 +70,7 @@ begin
 
                 res = Dict("tbox_u" => tbox_u, "sigma_u" => sigma_u, "tbox_c" => tbox_c, "sigma_c" => sigma_c)
 
-                save(joinpath(@__DIR__, "cache/convergence_corrected_L$(L)_p$(p)_r$(r).jld2"), "res", res)
+                save(joinpath(@__DIR__, "cache/convergence_corrected_far_L$(L)_p$(p)_r$(r).jld2"), "res", res)
 
                 CSV.write(df, DataFrame(p = p, r = r, L = L, l_ec = l_ec, total_flux_u = total_flux_u, total_flux_c = total_flux_c, n_val_u = n_val_u, n_val_c = n_val_c, n_iter_u = n_iter_u, n_iter_c = n_iter_c), append = true)
             end
