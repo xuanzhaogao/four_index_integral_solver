@@ -4,7 +4,7 @@ using CairoMakie
 df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_far.csv"), DataFrame)
 
 Ls = sort(unique(df.L))
-ps = sort(filter(p -> p in (2, 4, 6), unique(df.p)))
+ps = sort(filter(p -> p in (2, 4, 6, 8), unique(df.p)))
 
 begin
     fig = Figure(size = (900, 900), fontsize = 16)
@@ -23,7 +23,8 @@ begin
 
             df_lp = df[(df.L .== L) .& (df.p .== p), :]
             scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_u), label = "uncorrected", markersize = 8)
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_c), label = "corrected", markersize = 8)
+            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_cf), label = "corrected (edge excluded)", markersize = 8)
+            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_ct), label = "corrected (edge included)", markersize = 8)
 
             if i == 1 && j == 1
                 axislegend(ax, position = :lb)
