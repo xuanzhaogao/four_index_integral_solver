@@ -5,8 +5,8 @@ using LinearAlgebra, Krylov
 using CSV, DataFrames, JLD2
 using Random
 
-function solve_single_thin_box3d(Lx, Ly, Lz, n_quad, l_panel, l_ec, eps_in, eps_out, fmm_tol)
-    tbox = BI.single_dielectric_box3d(Lx, Ly, Lz, n_quad, l_panel, l_ec, eps_in, eps_out)
+function solve_single_thin_box3d(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps_out, fmm_tol)
+    tbox = BI.single_dielectric_box3d(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps_out)
 
     lhs = BI.Lhs_dielectric_box3d_fmm3d(tbox, fmm_tol)
 
@@ -21,8 +21,8 @@ function solve_single_thin_box3d(Lx, Ly, Lz, n_quad, l_panel, l_ec, eps_in, eps_
     return tbox, sigma, total_flux, n_val, n_iter
 end
 
-function solve_single_thin_box3d_corrected(Lx, Ly, Lz, n_quad, l_panel, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, include_edges)
-    tbox = BI.single_dielectric_box3d(Lx, Ly, Lz, n_quad, l_panel, l_ec, eps_in, eps_out)
+function solve_single_thin_box3d_corrected(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, include_edges)
+    tbox = BI.single_dielectric_box3d(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps_out)
 
     lhs = BI.Lhs_dielectric_box3d_fmm3d_corrected(tbox, fmm_tol, up_tol, max_order, include_edges = include_edges)
     rhs =  100.0 .* BI.Rhs_dielectric_box3d(tbox, PointSource((21.0, 22.0, 11.0), 1.0), eps_out)
@@ -38,10 +38,11 @@ function solve_single_thin_box3d_corrected(Lx, Ly, Lz, n_quad, l_panel, l_ec, ep
 end
 
 df = joinpath(@__DIR__, "data/convergence_corrected_far.csv")
-CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], total_flux_u = Float64[], total_flux_cf = Float64[], total_flux_ct = Float64[], n_val_u = Int[], n_val_cf = Int[], n_val_ct = Int[], n_iter_u = Int[], n_iter_cf = Int[], n_iter_ct = Int[]))
+# CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], total_flux_u = Float64[], total_flux_cf = Float64[], total_flux_ct = Float64[], n_val_u = Int[], n_val_cf = Int[], n_val_ct = Int[], n_iter_u = Int[], n_iter_cf = Int[], n_iter_ct = Int[]))
 
 begin
-    for L in [5.0, 10.0, 20.0]
+    # for L in [5.0, 10.0, 20.0]
+    for L in [20.0]
         Lx = L
         Ly = L
         Lz = 1.0
@@ -53,7 +54,7 @@ begin
         eps_out = 1.0
 
         fmm_tol = 1e-4
-        up_tol = 1e-4
+        up_tol = 1e-5
         max_order = 12
 
         for p in ps
@@ -61,13 +62,13 @@ begin
                 l_ec = l_panel / 2^r * 1.01
 
                 # uncorrected case
-                tbox_u, sigma_u, total_flux_u, n_val_u, n_iter_u = solve_single_thin_box3d(Lx, Ly, Lz, p, l_panel, l_ec, eps_in, eps_out, fmm_tol)
+                tbox_u, sigma_u, total_flux_u, n_val_u, n_iter_u = solve_single_thin_box3d(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol)
 
                 # corrected case, edge excluded
-                tbox_cf, sigma_cf, total_flux_cf, n_val_cf, n_iter_cf = solve_single_thin_box3d_corrected(Lx, Ly, Lz, p, l_panel, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, false)
+                tbox_cf, sigma_cf, total_flux_cf, n_val_cf, n_iter_cf = solve_single_thin_box3d_corrected(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, false)
 
                 # corrected case, edge included
-                tbox_ct, sigma_ct, total_flux_ct, n_val_ct, n_iter_ct = solve_single_thin_box3d_corrected(Lx, Ly, Lz, p, l_panel, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, true)
+                tbox_ct, sigma_ct, total_flux_ct, n_val_ct, n_iter_ct = solve_single_thin_box3d_corrected(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, true)
 
                 @show p, r, L, l_ec, total_flux_u, total_flux_cf, total_flux_ct
 
