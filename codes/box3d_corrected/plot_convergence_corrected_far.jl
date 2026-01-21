@@ -1,40 +1,52 @@
-using CSV, DataFrames
-using CairoMakie
+    using CSV, DataFrames
+    using CairoMakie
 
-df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_far.csv"), DataFrame)
+    df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_far.csv"), DataFrame)
 
-Ls = sort(unique(df.L))
-ps = sort(filter(p -> p in (2, 4, 6, 8), unique(df.p)))
+    Ls = sort(unique(df.L))
+    ps = sort(filter(p -> p in (2, 4, 6, 8), unique(df.p)))
 
-begin
-    fig = Figure(size = (900, 900), fontsize = 16)
+    begin
+        fig = Figure(size = (900, 700), fontsize = 16)
 
-    for (i, L) in enumerate(Ls)
-        for (j, p) in enumerate(ps)
-            ax = Axis(
-                fig[i, j],
-                xlabel = "l_min",
-                ylabel = "Error total flux",
-                xscale = log10,
-                xreversed = true,
-                yscale = log10,
-                title = "L = $L, p = $p",
-            )
+        axs = []
 
-            df_lp = df[(df.L .== L) .& (df.p .== p), :]
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_u), label = "uncorrected", markersize = 8)
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_cf), label = "corrected (edge excluded)", markersize = 8)
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_ct), label = "corrected (edge included)", markersize = 8)
+        markers = [:xcross, :circle, :rect, :star, :diamond]
+        colors = [:black, :red, :blue, :green, :purple]
+        ms = 10
 
-            if i == 1 && j == 1
-                axislegend(ax, position = :lb)
+        for (i, L) in enumerate(Ls)
+            for (j, p) in enumerate(ps)
+                ax = Axis(
+                    fig[i, j],
+                    xlabel = "l_min",
+                    ylabel = "Error total flux",
+                    xscale = log2,
+                    xreversed = true,
+                    yscale = log10,
+                    title = "L = $L, p = $p",
+                )
+
+                df_lp = df[(df.L .== L) .& (df.p .== p), :]
+                scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_u), label = "uncorrected", markersize = ms, marker = markers[1], color = colors[1])
+                scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_cff), label = "corrected (ff)", markersize = ms, marker = markers[2], color = colors[2])
+                scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_ctf), label = "corrected (tf)", markersize = ms, marker = markers[3], color = colors[3])
+                scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_cft), label = "corrected (ft)", markersize = ms, marker = markers[4], color = colors[4])
+                scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.(df_lp.total_flux_ctt), label = "corrected (tt)", markersize = ms, marker = markers[5], color = colors[5])
+
+                # if i == 1 && j == 1
+                    # axislegend(ax, position = :lb)
+                # end
+
+                ylims!(ax, 1e-6, 1e-2)
+
+                push!(axs, ax)
             end
-
-            ylims!(ax, 1e-6, 1e0)
         end
+
+        Legend(fig[0, :], axs[1], orientation = :horizontal)
+
+        fig
     end
 
-    fig
-end
-
-save(joinpath(@__DIR__, "figs/convergence_corrected_far.svg"), fig)
+    save(joinpath(@__DIR__, "figs/convergence_corrected_far.svg"), fig)
