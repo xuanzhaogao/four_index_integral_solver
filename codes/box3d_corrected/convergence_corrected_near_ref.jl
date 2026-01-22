@@ -7,7 +7,7 @@ using Random
 
 function solve_single_thin_box3d(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps_out, fmm_tol)
     ps = PointSource((0.1, 0.2, 1.0), 1.0)
-    tbox = BI.single_dielectric_box3d_rhs_adaptive(Lx, Ly, Lz, n_quad, ps, 1.0, l_ec, 1e-5, eps_in, eps_out)
+    tbox = BI.single_dielectric_box3d_rhs_adaptive(Lx, Ly, Lz, n_quad, ps, 1.0, l_ec, 1e-6, eps_in, eps_out)
 
     lhs = BI.Lhs_dielectric_box3d_fmm3d(tbox, fmm_tol)
 
@@ -24,7 +24,7 @@ end
 
 function solve_single_thin_box3d_corrected(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, include_edges_src, include_edges_trg)
     ps = PointSource((0.1, 0.2, 1.0), 1.0)
-    tbox = BI.single_dielectric_box3d_rhs_adaptive(Lx, Ly, Lz, n_quad, ps, 1.0, l_ec, 1e-5, eps_in, eps_out)
+    tbox = BI.single_dielectric_box3d_rhs_adaptive(Lx, Ly, Lz, n_quad, ps, 1.0, l_ec, 1e-6, eps_in, eps_out)
 
     lhs = BI.Lhs_dielectric_box3d_fmm3d_corrected(tbox, fmm_tol, up_tol, max_order, include_edges_src = include_edges_src, include_edges_trg = include_edges_trg)
     rhs = BI.Rhs_dielectric_box3d(tbox, ps, eps_in)

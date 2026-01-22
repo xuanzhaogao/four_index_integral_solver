@@ -38,10 +38,11 @@ function solve_single_thin_box3d_corrected(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps
 end
 
 df = joinpath(@__DIR__, "data/convergence_corrected_far.csv")
-CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], total_flux_u = Float64[], total_flux_cff = Float64[], total_flux_ctf = Float64[], total_flux_cft = Float64[], total_flux_ctt = Float64[], n_val_u = Int[], n_val_cff = Int[], n_val_ctf = Int[], n_val_cft = Int[], n_val_ctt = Int[], n_iter_u = Int[], n_iter_cff = Int[], n_iter_ctf = Int[], n_iter_cft = Int[], n_iter_ctt = Int[], potential_u = Float64[], potential_cff = Float64[], potential_ctf = Float64[], potential_cft = Float64[], potential_ctt = Float64[]))
+# CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], total_flux_u = Float64[], total_flux_cff = Float64[], total_flux_ctf = Float64[], total_flux_cft = Float64[], total_flux_ctt = Float64[], n_val_u = Int[], n_val_cff = Int[], n_val_ctf = Int[], n_val_cft = Int[], n_val_ctt = Int[], n_iter_u = Int[], n_iter_cff = Int[], n_iter_ctf = Int[], n_iter_cft = Int[], n_iter_ctt = Int[], potential_u = Float64[], potential_cff = Float64[], potential_ctf = Float64[], potential_cft = Float64[], potential_ctt = Float64[]))
 
 begin
-    ps = [2, 4, 6]
+    # ps = [2, 4, 6]
+    ps = [3, 5]
     rs = 0:2:6
 
     eps_in = 4.0
@@ -79,8 +80,13 @@ begin
                 potential_cft = BI.laplace3d_pottrg_near(tbox_cft, target, sigma_cft, 1e-6)
 
                 # corrected case, edge included
-                tbox_ctt, sigma_ctt, total_flux_ctt, n_val_ctt, n_iter_ctt = solve_single_thin_box3d_corrected(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, true, true)
-                potential_ctt = BI.laplace3d_pottrg_near(tbox_ctt, target, sigma_ctt, 1e-6)
+                # tbox_ctt, sigma_ctt, total_flux_ctt, n_val_ctt, n_iter_ctt = solve_single_thin_box3d_corrected(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, true, true)
+                # potential_ctt = BI.laplace3d_pottrg_near(tbox_ctt, target, sigma_ctt, 1e-6)
+
+                total_flux_ctt = 0.0
+                n_iter_ctt = 0
+                n_val_ctt = 0
+                potential_ctt = 0.0
 
                 @show p, r, L, l_ec, total_flux_u, total_flux_cff, total_flux_ctf, total_flux_cft, total_flux_ctt
                 @show potential_u, potential_cff, potential_ctf, potential_cft, potential_ctt

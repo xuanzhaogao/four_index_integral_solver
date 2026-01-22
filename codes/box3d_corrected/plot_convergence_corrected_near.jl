@@ -9,7 +9,7 @@ ps = sort(filter(p -> p in (2, 4, 6, 8), unique(df.p)))
 rs = sort(unique(df.r))
 
 begin
-    fig = Figure(size = (900, 100 + 250 * length(Ls)), fontsize = 16)
+    fig = Figure(size = (300 * length(ps), 100 + 250 * length(Ls)), fontsize = 16)
 
     axs = []
 
@@ -19,8 +19,8 @@ begin
 
     for (i, L) in enumerate(Ls)
 
-        # ref_pot = df_ref[(df_ref.L .== L), :].potential_cff[1] .* 4
-        ref_pot = df[(df.L .== L) .& (df.p .== 6) .& (df.r .== 6), :].potential_ctt[1]
+        ref_pot = df_ref[(df_ref.L .== L), :].potential_cff[1]
+        # ref_pot = df[(df.L .== L) .& (df.p .== 6) .& (df.r .== 6), :].potential_ctt[1]
 
         for (j, p) in enumerate(ps)
             ax = Axis(
@@ -34,11 +34,11 @@ begin
             )
 
             df_lp = df[(df.L .== L) .& (df.p .== p), :]
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((4 .* df_lp.potential_u .- ref_pot) ./ ref_pot), label = "uncorrected", markersize = ms, marker = markers[1], color = colors[1])
+            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_u .- ref_pot) ./ ref_pot), label = "uncorrected", markersize = ms, marker = markers[1], color = colors[1])
             scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_cff .- ref_pot) ./ ref_pot), label = "corrected (ff)", markersize = ms, marker = markers[2], color = colors[2])
             scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_ctf .- ref_pot) ./ ref_pot), label = "corrected (tf)", markersize = ms, marker = markers[3], color = colors[3])
             scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_cft .- ref_pot) ./ ref_pot), label = "corrected (ft)", markersize = ms, marker = markers[4], color = colors[4])
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_ctt .- ref_pot) ./ ref_pot), label = "corrected (tt)", markersize = ms, marker = markers[5], color = colors[5])
+            # scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_ctt .- ref_pot) ./ ref_pot), label = "corrected (tt)", markersize = ms, marker = markers[5], color = colors[5])
 
             # if i == 1 && j == 1
                 # axislegend(ax, position = :lb)
