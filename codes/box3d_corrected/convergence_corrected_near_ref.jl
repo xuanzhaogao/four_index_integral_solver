@@ -43,8 +43,8 @@ df = joinpath(@__DIR__, "data/convergence_corrected_near_ref.csv")
 CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], total_flux_u = Float64[], total_flux_cff = Float64[], total_flux_ctf = Float64[], total_flux_cft = Float64[], total_flux_ctt = Float64[], n_val_u = Int[], n_val_cff = Int[], n_val_ctf = Int[], n_val_cft = Int[], n_val_ctt = Int[], n_iter_u = Int[], n_iter_cff = Int[], n_iter_ctf = Int[], n_iter_cft = Int[], n_iter_ctt = Int[], potential_u = Float64[], potential_cff = Float64[], potential_ctf = Float64[], potential_cft = Float64[], potential_ctt = Float64[]))
 
 begin
-    ps = [6]
-    rs = [7]
+    ps = [7]
+    rs = [6]
 
     eps_in = 4.0
     eps_out = 1.0
@@ -89,13 +89,18 @@ begin
                 println("potential_cft = $potential_cft")
 
                 # corrected case, edge included
-                tbox_ctt, sigma_ctt, total_flux_ctt, n_val_ctt, n_iter_ctt = solve_single_thin_box3d_corrected(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, true, true)
-                potential_ctt = BI.laplace3d_pottrg_near(tbox_ctt, target, sigma_ctt, 1e-6)
+                # tbox_ctt, sigma_ctt, total_flux_ctt, n_val_ctt, n_iter_ctt = solve_single_thin_box3d_corrected(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, max_order, true, true)
+                # potential_ctt = BI.laplace3d_pottrg_near(tbox_ctt, target, sigma_ctt, 1e-6)
+
+                total_flux_ctt = 0.0
+                n_iter_ctt = 0
+                n_val_ctt = 0
+                potential_ctt = 0.0
 
                 println("potential_ctt = $potential_ctt")
 
-                @show p, r, L, l_ec, total_flux_u, total_flux_cff, total_flux_ctf, total_flux_cft, total_flux_ctt
-                @show potential_u, potential_cff, potential_ctf, potential_cft, potential_ctt
+                # @show p, r, L, l_ec, total_flux_u, total_flux_cff, total_flux_ctf, total_flux_cft, total_flux_ctt
+                # @show potential_u, potential_cff, potential_ctf, potential_cft, potential_ctt
 
 
                 # res = Dict("tbox_u" => tbox_u, "sigma_u" => sigma_u, "tbox_cff" => tbox_cff, "sigma_cff" => sigma_cff, "tbox_ctf" => tbox_ctf, "sigma_ctf" => sigma_ctf, "tbox_cft" => tbox_cft, "sigma_cft" => sigma_cft, "tbox_ctt" => tbox_ctt, "sigma_ctt" => sigma_ctt)

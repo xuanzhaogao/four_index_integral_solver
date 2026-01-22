@@ -1,10 +1,10 @@
 using CSV, DataFrames
 using CairoMakie
 
-df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_far.csv"), DataFrame)
-df_ref = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_far_ref.csv"), DataFrame)
+df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_near.csv"), DataFrame)
+df_ref = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_near_ref.csv"), DataFrame)
 
-Ls = sort(unique(df.L))
+Ls = sort(unique(df_ref.L))
 ps = sort(filter(p -> p in (2, 4, 6, 8), unique(df.p)))
 rs = sort(unique(df.r))
 
@@ -19,7 +19,8 @@ begin
 
     for (i, L) in enumerate(Ls)
 
-        ref_pot = df_ref[(df_ref.L .== L), :].potential_ctf[1]
+        # ref_pot = df_ref[(df_ref.L .== L), :].potential_cff[1] .* 4
+        ref_pot = df[(df.L .== L) .& (df.p .== 6) .& (df.r .== 6), :].potential_ctt[1]
 
         for (j, p) in enumerate(ps)
             ax = Axis(
@@ -55,4 +56,4 @@ begin
     fig
 end
 
-save(joinpath(@__DIR__, "figs/convergence_corrected_far.svg"), fig)
+save(joinpath(@__DIR__, "figs/convergence_corrected_near.svg"), fig)
