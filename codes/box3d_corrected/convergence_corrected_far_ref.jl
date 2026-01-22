@@ -37,12 +37,12 @@ function solve_single_thin_box3d_corrected(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps
     return tbox, sigma, total_flux, n_val, n_iter
 end
 
-df = joinpath(@__DIR__, "data/convergence_corrected_far.csv")
+df = joinpath(@__DIR__, "data/convergence_corrected_far_ref.csv")
 CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], total_flux_u = Float64[], total_flux_cff = Float64[], total_flux_ctf = Float64[], total_flux_cft = Float64[], total_flux_ctt = Float64[], n_val_u = Int[], n_val_cff = Int[], n_val_ctf = Int[], n_val_cft = Int[], n_val_ctt = Int[], n_iter_u = Int[], n_iter_cff = Int[], n_iter_ctf = Int[], n_iter_cft = Int[], n_iter_ctt = Int[], potential_u = Float64[], potential_cff = Float64[], potential_ctf = Float64[], potential_cft = Float64[], potential_ctt = Float64[]))
 
 begin
-    ps = [2, 4, 6]
-    rs = 0:2:6
+    ps = [6]
+    rs = [7]
 
     eps_in = 4.0
     eps_out = 1.0

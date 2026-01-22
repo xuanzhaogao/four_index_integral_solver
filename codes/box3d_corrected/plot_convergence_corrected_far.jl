@@ -1,7 +1,8 @@
 using CSV, DataFrames
 using CairoMakie
 
-df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_far_3.csv"), DataFrame)
+df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_far.csv"), DataFrame)
+df_ref = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_far_ref.csv"), DataFrame)
 
 Ls = sort(unique(df.L))
 ps = sort(filter(p -> p in (2, 4, 6, 8), unique(df.p)))
@@ -18,13 +19,13 @@ begin
 
     for (i, L) in enumerate(Ls)
 
-        ref_pot = df[(df.L .== L) .& (df.p .== maximum(ps)) .& (df.r .== maximum(rs)), :].potential_ctt[1]
+        ref_pot = df_ref[(df_ref.L .== L), :].potential_ctt[1]
 
         for (j, p) in enumerate(ps)
             ax = Axis(
                 fig[i, j],
                 xlabel = "l_min",
-                ylabel = "Error total flux",
+                ylabel = "relative error of potential",
                 xscale = log2,
                 xreversed = true,
                 yscale = log10,
@@ -32,7 +33,7 @@ begin
             )
 
             df_lp = df[(df.L .== L) .& (df.p .== p), :]
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_u .- ref_pot) ./ ref_pot), label = "uncorrected", markersize = ms, marker = markers[1], color = colors[1])
+            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((4 .* df_lp.potential_u .- ref_pot) ./ ref_pot), label = "uncorrected", markersize = ms, marker = markers[1], color = colors[1])
             scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_cff .- ref_pot) ./ ref_pot), label = "corrected (ff)", markersize = ms, marker = markers[2], color = colors[2])
             scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_ctf .- ref_pot) ./ ref_pot), label = "corrected (tf)", markersize = ms, marker = markers[3], color = colors[3])
             scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_cft .- ref_pot) ./ ref_pot), label = "corrected (ft)", markersize = ms, marker = markers[4], color = colors[4])

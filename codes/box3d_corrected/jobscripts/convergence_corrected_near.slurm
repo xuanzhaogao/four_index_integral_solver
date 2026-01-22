@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # set name of job
-#SBATCH --job-name=convergence_corrected
+#SBATCH --job-name=near
 #SBATCH --output=job.%J.out
 #SBATCH --error=job.%J.err
 
@@ -11,4 +11,4 @@
 
 cd /mnt/home/xgao1/work/four_index_integral_solver/codes/box3d_corrected
 
-OMP_NUM_THREADS=96 julia --project=/mnt/home/xgao1/work/four_index_integral_solver/codes/box3d_corrected -t auto convergence_corrected.jl
+OMP_NUM_THREADS=96 julia --project=/mnt/home/xgao1/work/four_index_integral_solver/codes/box3d_corrected -t auto convergence_corrected_near.jl
