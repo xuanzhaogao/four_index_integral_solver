@@ -49,8 +49,8 @@ begin
     eps_in = 4.0
     eps_out = 1.0
 
-    fmm_tol = 1e-4
-    up_tol = 1e-5
+    fmm_tol = 1e-6
+    up_tol = 1e-7
     max_order = 128
 
     target = (0.1, 0.2, 0.3)
