@@ -6,20 +6,20 @@ df = joinpath(@__DIR__, "data/near_source_cubic_L1.csv")
 CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], potential_u = Float64[], flux_u = Float64[], n_val_u = Int[], n_iter_u = Int[], potential_n = Float64[], flux_n = Float64[], n_val_n = Int[], n_iter_n = Int[]))
 
 begin
-    ps = [3, 4, 5, 6]
+    ps = [4, 5, 6, 7]
     rs = 0:2:8
 
     eps_in = 4.0
     eps_out = 1.0
 
     fmm_tol = 1e-6
-    up_tol = 1e-7
+    up_tol = 1e-6
     max_order = 128
 
     source = PointSource((0.2, 0.3, 0.51), 1.0)
     target = (0.1, 0.2, 0.4)
 
-    for (p, r) in [(a, b) for a in ps, b in rs] ∪ [(7, 8)]
+    for (p, r) in [(a, b) for a in ps, b in rs] ∪ [(7, 9)]
         for L in [1.0]
             Lx = L
             Ly = L

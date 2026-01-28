@@ -2,12 +2,13 @@ using CSV, DataFrames
 using CairoMakie
 
 df = CSV.read(joinpath(@__DIR__, "data/near_source_cubic_L1.csv"), DataFrame)
+df_corrected = CSV.read(joinpath(@__DIR__, "data/near_source_cubic_L1_corrected.csv"), DataFrame)
 
 Ls = sort(unique(df.L))
-ps = sort(filter(p -> p in (2, 3, 4, 5, 6), unique(df.p)))
-rs = sort(unique(df.r))
+ps = sort(filter(p -> p in (2, 3, 4, 5, 6, 7), unique(df.p)))
+rs = sort(filter(r -> r in (0, 2, 4, 6, 8), unique(df.r)))
 
-df_ref = df[(df.p .== 7), :]
+df_ref = df[(df.p .== 7) .& (df.r .== 9), :]
 ref_pot = df_ref.potential_u[1]
 
 begin
@@ -22,14 +23,16 @@ begin
     ax2 = Axis(fig[1, 2], xlabel = "l_min", ylabel = "relative error of potential", xscale = log10, xreversed = true, yscale = log10, title = "non-adaptive mesh")
 
     for (j, p) in enumerate(ps)
-        df_lp = df[(df.L .== 1.0) .& (df.p .== p), :]
+        df_lp = df[(df.L .== 1.0) .& (df.p .== p) .& (df.r .!= 9), :]
+        # df_lp_corrected = df_corrected[(df_corrected.L .== 1.0) .& (df_corrected.p .== p), :]
         scatterlines!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_u .- ref_pot) ./ ref_pot), label = "p = $p", markersize = ms, marker = markers[j], color = colors[j])
+        # scatterlines!(ax, 1.0 ./ (2 .^ df_lp_corrected.r), abs.((df_lp_corrected.potential .- ref_pot) ./ ref_pot), label = "p = $p", markersize = ms, marker = markers[j], color = colors[j])
         scatterlines!(ax2, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_n .- ref_pot) ./ ref_pot), label = "p = $p", markersize = ms, marker = markers[j], color = colors[j])
     end
 
-    axislegend(ax, position = :rt, nbanks = 2)
-    ylims!(ax, 1e-4, 10^(-0.5))
-    ylims!(ax2, 1e-4, 10^(1.0))
+    axislegend(ax, position = :lb, nbanks = 2)
+    ylims!(ax, 1e-5, 10^(-1))
+    ylims!(ax2, 1e-2, 10^(0.5))
 
     fig
 end
