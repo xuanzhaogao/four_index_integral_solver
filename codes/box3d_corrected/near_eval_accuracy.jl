@@ -48,7 +48,7 @@ begin
 end
 
 begin
-    trg_zs = 0.5 .+ [0.05, 0.1, 0.2, 0.5, 1.0]
+    trg_zs = 0.5 .+ [0.001, 0.01, 0.1, 0.2, 0.5, 1.0]
 
     for trg_z in trg_zs
         trg = (0.1, 0.2, trg_z)
@@ -59,7 +59,7 @@ begin
         errs = []
         for tol in [1e-2, 1e-4, 1e-6, 1e-8]
             pot_cff = BI.laplace3d_pottrg_near(tbox_cff, trg, sigma_cff, tol, range_factor = 5.0)
-            CSV.write(df, DataFrame(trg_z = trg_z - 0.5, tol = tol, pot = pot_cff, pot_ref = pot_ref, err = abs(pot_cff - pot_ref) / abs(pot_ref)), append = true)
+            CSV.write(df, DataFrame(trg_z = trg_z - 0.5, tol = tol, pot = pot_cff, pot_ref = pot_ref, err = abs(pot_cff - pot_ref)), append = true)
         end
     end
 end

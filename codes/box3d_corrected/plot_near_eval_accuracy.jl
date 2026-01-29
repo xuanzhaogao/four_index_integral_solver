@@ -18,8 +18,8 @@ begin
         title = "Near evaluation accuracy",
     )
 
-    markers = [:xcross, :circle, :rect, :rtriangle, :diamond]
-    colors = [:green, :red, :blue, :orange, :purple]
+    markers = [:xcross, :circle, :rect, :rtriangle, :diamond, :star]
+    colors = [:green, :red, :blue, :orange, :purple, :brown]
     ms = 10
 
     for (k, trg_z) in enumerate(trg_zs)
