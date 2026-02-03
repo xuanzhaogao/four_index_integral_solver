@@ -2,56 +2,54 @@ using CSV, DataFrames
 using CairoMakie
 
 df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_near.csv"), DataFrame)
-df_ref = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_near_ref.csv"), DataFrame)
 
 Ls = sort(unique(df_ref.L))
-ps = sort(filter(p -> p in (2, 3, 4, 5, 6), unique(df.p)))
+ps = sort(filter(p -> p in (4, 6), unique(df.p)))
 rs = sort(unique(df.r))
+dzs = sort(unique(df.dz))
+
+df_ref = df[df.p .== 7, :]
 
 begin
-    fig = Figure(size = (900, 100 + 250 * length(Ls)), fontsize = 16)
+    fig = Figure(size = (900, 400), fontsize = 16)
 
     axs = []
 
-    markers = [:xcross, :circle, :rect, :rtriangle, :diamond]
-    colors = [:black, :red, :blue, :green, :purple]
+    markers = [:xcross, :circle, :rtriangle, :diamond, :utriangle, :pentagon, :hexagon, :heptagon]
+    colors = [:black, :red, :blue, :green, :purple, :orange, :cyan, :magenta, :brown]
     ms = 10
 
-    for (i, L) in enumerate(Ls)
+    dzss = [0.01, 0.1, 1.0]
 
-        ref_pot = df_ref[(df_ref.L .== L), :].potential_cff[1]
+
+    for (i, dz) in enumerate(dzs)
+
+        ref_pot = df_ref[(df_ref.dz .== dz), :].potential_cff[1]
         # ref_pot = df[(df.L .== L) .& (df.p .== 6) .& (df.r .== 6), :].potential_ctt[1]
 
-        for (j, p) in enumerate([2, 4, 6])
-            ax = Axis(
-                fig[i, j],
-                xlabel = "l_min",
-                ylabel = "relative error of potential",
-                xscale = log2,
-                xreversed = true,
-                yscale = log10,
-                title = "L = $L, p = $p",
-            )
+        ax = Axis(
+            fig[1, i],
+            ylabel = "relative error of potential",
+            xscale = log2,
+            xreversed = true,
+            yscale = log10,
+            title = "dz = $(dzss[i])",
+        )
 
-            df_lp = df[(df.L .== L) .& (df.p .== p), :]
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_u .- ref_pot) ./ ref_pot), label = "uncorrected", markersize = ms, marker = markers[1], color = colors[1])
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_cff .- ref_pot) ./ ref_pot), label = "corrected (ff)", markersize = ms, marker = markers[2], color = colors[2])
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_ctf .- ref_pot) ./ ref_pot), label = "corrected (tf)", markersize = ms, marker = markers[3], color = colors[3])
-            scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_cft .- ref_pot) ./ ref_pot), label = "corrected (ft)", markersize = ms, marker = markers[4], color = colors[4])
-            # scatter!(ax, 1.0 ./ (2 .^ df_lp.r), abs.((df_lp.potential_ctt .- ref_pot) ./ ref_pot), label = "corrected (tt)", markersize = ms, marker = markers[5], color = colors[5])
+        for (j, p) in enumerate([4, 6])
+            
+            df_p = df[(df.dz .== dz) .& (df.p .== p), :]
+            scatter!(ax, df_p.l_ec, abs.((df_p.potential_u .- ref_pot) ./ ref_pot), label = "uncorrected, p=$p", markersize = ms, marker = markers[3 * (j - 1) + 1], color = colors[1])
+            scatter!(ax, df_p.l_ec, abs.((df_p.potential_cff .- ref_pot) ./ ref_pot), label = "corrected (ff), p=$p", markersize = ms, marker = markers[3 * (j - 1) + 2], color = colors[2])
+            scatter!(ax, df_p.l_ec, abs.((df_p.potentail_cft .- ref_pot) ./ ref_pot), label = "corrected (ft), p=$p", markersize = ms, marker = markers[3 * (j - 1) + 3], color = colors[3])
 
-            # if i == 1 && j == 1
-                # axislegend(ax, position = :lb)
-            # end
-
-            xlims!(ax, 2^(0.5), 2^(-6.5))
-            ylims!(ax, 1e-5, 1e1)
-
+            # xlims!(ax, 2^(0.5), 2^(-6.5))
+            # ylims!(ax, 1e-5, 1e1)
             push!(axs, ax)
         end
     end
 
-    Legend(fig[0, :], axs[1], orientation = :horizontal)
+    Legend(fig[0, :], axs[1], orientation = :horizontal, nbanks = 2)
 
     fig
 end

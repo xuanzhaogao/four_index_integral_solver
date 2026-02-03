@@ -18,7 +18,7 @@ l_ec = 1 / 2^r * 1.01
 
 # tbox = BI.single_dielectric_box3d_rhs_adaptive(Lx, Ly, Lz, p, PointSource((5.0, 6.0, Lz / 2 + 0.01), 1.0), 1.0, l_ec, 1e-6, eps_in, eps_out)
 
-tbox, sigma, total_flux, n_val, n_iter = solve_single_box3d_adaptive_mesh(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, 1e-6, 1e-6, PointSource((5.0, 6.0, 100.0), 1.0))
+tbox, sigma, total_flux, n_val, n_iter = solve_single_box3d_adaptive_mesh(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, 1e-6, 1e-6, PointSource((5.0, 6.0, Lz / 2 + 0.01), 1.0))
 
 # sigma_func = (x) -> sin(3 * x[1]) * cos(2 * x[2]) * exp(-x[3]^2)
 # sigma = [sigma_func(pt.panel_point.point) for pt in BI.eachpoint(tbox)]
@@ -80,4 +80,4 @@ begin
     fig
 end
 
-save("figs/near_correction_far_source.png", fig)
+save("figs/near_correction_near_source.png", fig)

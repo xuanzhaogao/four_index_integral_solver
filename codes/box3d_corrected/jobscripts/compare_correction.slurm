@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # set name of job
-#SBATCH --job-name=near
+#SBATCH --job-name=compare_correction
 #SBATCH --output=job.%J.out
 #SBATCH --error=job.%J.err
 
@@ -11,4 +11,4 @@
 
 cd /mnt/home/xgao1/work/four_index_integral_solver/codes/box3d_corrected
 
-julia --project=/mnt/home/xgao1/work/four_index_integral_solver/codes/box3d_corrected -t auto convergence_corrected_near.jl
+julia --project=/mnt/home/xgao1/work/four_index_integral_solver/codes/box3d_corrected -t auto compare_correction.jl
