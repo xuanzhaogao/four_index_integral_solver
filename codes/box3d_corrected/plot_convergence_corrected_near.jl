@@ -29,6 +29,7 @@ begin
 
         ax = Axis(
             fig[1, i],
+            xlabel = "l_min",
             ylabel = "relative error of potential",
             xscale = log10,
             xreversed = true,
