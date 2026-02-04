@@ -2,11 +2,11 @@
 include("utils.jl")
 
 df = joinpath(@__DIR__, "data/convergence_corrected_near.csv")
-CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], dz = [], potential_u = [], potential_cff = [], potentail_cft = []))
+CSV.write(df, DataFrame(p = Int[], r = Int[], L = Float64[], l_ec = Float64[], dz = [], potential_u = [], potential_cff = []))
 
 begin
     ps = [4, 6]
-    rs = 0:2:6
+    rs = 0:7
 
     eps_in = 4.0
     eps_out = 1.0
@@ -27,15 +27,15 @@ begin
                 l_ec = 1.0 / 2^r * 1.01
 
                 tbox_u, sigma_u, total_flux_u, n_val_u, n_iter_u = solve_single_box3d_adaptive_mesh(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, source)
-                potential_u = BI.laplace3d_pottrg_near(tbox_u, target, sigma_u, 1e-10)
+                potential_u = BI.laplace3d_pottrg_near(tbox_u, target, sigma_u, 1e-10, range_factor = Inf)
 
                 tbox_cff, sigma_cff, total_flux_cff, n_val_cff, n_iter_cff = solve_single_box3d_adaptive_mesh_corrected(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, up_tol, max_order, source, include_edges_src = false, include_edges_trg = false)
-                potential_cff = BI.laplace3d_pottrg_near(tbox_cff, target, sigma_cff, 1e-10)
+                potential_cff = BI.laplace3d_pottrg_near(tbox_cff, target, sigma_cff, 1e-10, range_factor = Inf)
 
-                tbox_cft, sigma_cft, total_flux_cft, n_val_cft, n_iter_cft = solve_single_box3d_adaptive_mesh_corrected(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, up_tol, max_order, source, include_edges_src = false, include_edges_trg = true)
-                potentail_cft = BI.laplace3d_pottrg_near(tbox_cft, target, sigma_cft, 1e-10)
+                # tbox_cft, sigma_cft, total_flux_cft, n_val_cft, n_iter_cft = solve_single_box3d_adaptive_mesh_corrected(Lx, Ly, Lz, p, l_ec, eps_in, eps_out, fmm_tol, up_tol, up_tol, max_order, source, include_edges_src = false, include_edges_trg = true)
+                # potentail_cft = BI.laplace3d_pottrg_near(tbox_cft, target, sigma_cft, 1e-10)
 
-                CSV.write(df, DataFrame(p = p, r = r, L = L, l_ec = l_ec, dz = source.point[3] - Lz / 2, potential_u = potential_u, potential_cff = potential_cff, potentail_cft = potentail_cft), append = true)
+                CSV.write(df, DataFrame(p = p, r = r, L = L, l_ec = l_ec, dz = source.point[3] - Lz / 2, potential_u = potential_u, potential_cff = potential_cff), append = true)
             end
         end
     end

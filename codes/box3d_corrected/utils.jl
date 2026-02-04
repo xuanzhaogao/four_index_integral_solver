@@ -39,7 +39,7 @@ function solve_single_box3d_nonadaptive_mesh(Lx, Ly, Lz, n_quad, l_ec, eps_in, e
 end
 
 function solve_single_box3d_adaptive_mesh_corrected(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps_out, fmm_tol, rhs_tol, up_tol, max_order, ps; include_edges_src = false, include_edges_trg = false)
-    tbox = BI.single_dielectric_box3d_rhs_adaptive(Lx, Ly, Lz, n_quad, ps, 1.0, l_ec, rhs_tol, eps_in, eps_out)
+    tbox = BI.single_dielectric_box3d_rhs_adaptive(Lx, Ly, Lz, n_quad, ps, 1.0, l_ec, rhs_tol, eps_in, eps_out, max_depth = 1000)
 
     lhs = BI.Lhs_dielectric_box3d_fmm3d_corrected(tbox, fmm_tol, up_tol, max_order, include_edges_src = include_edges_src, include_edges_trg = include_edges_trg)
     rhs = BI.Rhs_dielectric_box3d(tbox, ps, eps_in)
