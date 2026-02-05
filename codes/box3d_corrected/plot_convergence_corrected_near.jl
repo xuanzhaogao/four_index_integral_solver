@@ -2,6 +2,7 @@ using CSV, DataFrames
 using CairoMakie
 
 df = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_near.csv"), DataFrame)
+df_varquad = CSV.read(joinpath(@__DIR__, "data/convergence_corrected_near_varquad.csv"), DataFrame)
 
 Ls = sort(unique(df.L))
 ps = sort(filter(p -> p in (4, 6), unique(df.p)))
@@ -10,14 +11,14 @@ dzs = sort(unique(df.dz))
 
 df_ref = df[df.p .== 7, :]
 
+markers = [:xcross, :circle, :rtriangle, :diamond, :utriangle, :pentagon, :hexagon, :heptagon]
+colors = [:black, :red, :blue, :green, :purple, :orange, :cyan, :magenta, :brown]
+ms = 10
+
 begin
     fig = Figure(size = (300 * length(dzs) + 100, 400), fontsize = 16)
 
     axs = []
-
-    markers = [:xcross, :circle, :rtriangle, :diamond, :utriangle, :pentagon, :hexagon, :heptagon]
-    colors = [:black, :red, :blue, :green, :purple, :orange, :cyan, :magenta, :brown]
-    ms = 10
 
     dzss = [0.01, 0.1, 1.0]
 
@@ -56,3 +57,33 @@ begin
 end
 
 save(joinpath(@__DIR__, "figs/convergence_corrected_near_r.svg"), fig)
+
+begin
+    fig = Figure(size = (500, 400), fontsize = 16)
+    ax = Axis(
+        fig[1, 1],
+        xlabel = "l_min",
+        ylabel = "relative error of potential",
+        xscale = log10,
+        xreversed = true,
+        yscale = log10,
+        title = "Variable quadrature points",
+    )
+
+    ref_pot = df_ref[(df_ref.dz .≈ 0.1), :].potential_cff[1]
+
+    for (j, p) in enumerate([4, 6, 8])
+        
+        df_p = df_varquad[(df_varquad.dz .≈ 0.01) .& (df_varquad.p .== p), :]
+        scatterlines!(ax, df_p.l_ec, abs.((df_p.potential_cff .- ref_pot) ./ ref_pot), label = "p=$p", markersize = ms, marker = markers[j], color = colors[j])
+    end
+
+    axislegend(ax, position = :rb)
+
+    # xlims!(ax, 10^(0.1), 10^(-2.1))
+    # ylims!(ax, 1e-5, 1e1)
+
+    fig
+end
+
+save(joinpath(@__DIR__, "figs/convergence_corrected_near_varquad_r.svg"), fig)

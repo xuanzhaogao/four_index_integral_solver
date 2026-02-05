@@ -53,3 +53,20 @@ function solve_single_box3d_adaptive_mesh_corrected(Lx, Ly, Lz, n_quad, l_ec, ep
     println("total_flux = $total_flux, n_val = $n_val, n_iter = $n_iter")
     return tbox, sigma, total_flux, n_val, n_iter
 end
+
+
+function solve_single_box3d_adaptive_mesh_varquad_corrected(Lx, Ly, Lz, n_quad, l_ec, eps_in, eps_out, fmm_tol, rhs_tol, up_tol, max_order, ps; include_edges_src = false, include_edges_trg = false)
+    tbox = BI.single_dielectric_box3d_rhs_adaptive_varquad(Lx, Ly, Lz, n_quad, ps, 1.0, l_ec, rhs_tol, eps_in, eps_out, max_depth = 1000)
+
+    lhs = BI.Lhs_dielectric_box3d_fmm3d_corrected(tbox, fmm_tol, up_tol, max_order, include_edges_src = include_edges_src, include_edges_trg = include_edges_trg)
+    rhs = BI.Rhs_dielectric_box3d(tbox, ps, eps_in)
+
+    sigma, status = Krylov.gmres(lhs, rhs, atol=fmm_tol, verbose = 1)
+    total_flux = dot(sigma, BI.all_weights(tbox))
+
+    n_val = length(sigma)
+    n_iter = status.niter
+
+    println("total_flux = $total_flux, n_val = $n_val, n_iter = $n_iter")
+    return tbox, sigma, total_flux, n_val, n_iter
+end
