@@ -1,3 +1,9 @@
 [deps]
 BoundaryIntegral = "c5e3a73d-e4f2-41fa-921b-bb4fcd908115"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+Krylov = "ba0b0d4f-ebba-5204-a429-3ac8c609bfb7"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+StructUtils = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
+
+[compat]
+StructUtils = "2.6.2"
