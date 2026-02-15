@@ -21,7 +21,7 @@ markers = [:circle, :diamond, :utriangle, :dtriangle]
 
 begin
     fig = Figure(size = (500, 400), fontsize = 16)
-    ax = Axis(fig[1, 1], xlabel = "r", ylabel = "relative error", yscale = log10, xscale = log10, xreversed = true)
+    ax = Axis(fig[1, 1], xlabel = L"l_{min}", ylabel = "relative error", yscale = log10, xscale = log10, xreversed = true)
 
     ref_res = df[(df.p .== ref_p) .& (df.r .== ref_r), :potential]
 
@@ -44,4 +44,4 @@ begin
 
 end
 
-save("figs/orbital_source_convergence.png", fig)
+save("figs/orbital_source_convergence.svg", fig)
