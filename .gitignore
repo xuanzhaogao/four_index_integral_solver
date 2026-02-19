@@ -1,6 +1,8 @@
 *.jld
 *.jld2
 
+*.data
+
 .vscode
 .DS_Store
 
