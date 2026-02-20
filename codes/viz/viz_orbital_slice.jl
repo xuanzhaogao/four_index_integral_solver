@@ -9,4 +9,13 @@ z = 1.2
 nz = Int(ceil((structure.primvec[3, 3] / 2 + 1.2) / structure.primvec[3, 3] * 100))
 slice_val = datagrid.values[:, :, nz]
 
-maximum(slice_val)
+fig = BI.viz_3d_zslice(
+    datagrid;
+    z = structure.primvec[3, 3] / 2 + 1.2,
+    interpolation = :trilinear,
+    nx_sample = 120,
+    ny_sample = 120,
+    add_colorbar = true,
+)
+
+save(joinpath(@__DIR__, "orbital_slice.png"), fig)
