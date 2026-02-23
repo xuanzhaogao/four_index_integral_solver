@@ -41,6 +41,7 @@ for i in 1:n_trg
     end
 end
 
+pot_trg = zeros(n_trg)
 @time for (i, pos) in enumerate(pos_trg)
     pot_trg[i] = BI.laplace3d_pottrg_near(interface, pos, sigma, 1e-12, range_factor = Inf)
 end
