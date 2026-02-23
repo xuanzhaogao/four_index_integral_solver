@@ -8,8 +8,8 @@ structure, datagrid = BI.read_xsf(orbital_file)
 
 datagrid.values .*= datagrid.values
 
-vs = BoundaryIntegral.VolumeSource(datagrid, shift = (0.0, 0.0, - 7.920155482424242))
-vs_trg = BoundaryIntegral.VolumeSource(datagrid, shift = (20.0, 20.0, 0.0))
+vs = BoundaryIntegral.VolumeSource(datagrid, shift = (0.0, 0.0, - 7.920155482424242), tol = 1e-4)
+vs_trg = BoundaryIntegral.VolumeSource(datagrid, shift = (20.0, 20.0, 0.0), tol = 1e-4)
 
 L = 90.0
 Lx = L
