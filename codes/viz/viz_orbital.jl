@@ -9,7 +9,7 @@ structure, datagrid = BI.read_xsf(orbital_file)
 datagrid.values .*= datagrid.values
 
 vs = BoundaryIntegral.VolumeSource(datagrid, shift = (0.0, 0.0, - 7.920155482424242))
-
+vs_trg = BoundaryIntegral.VolumeSource(datagrid, shift = (20.0, 20.0, 0.0))
 
 L = 90.0
 Lx = L
@@ -27,6 +27,18 @@ l_ec = 10.0 / 2^4 * 1.01
 interface = BI.single_dielectric_box3d_rhs_adaptive(Lx, Ly, Lz, p, vs, 1.0, l_ec, 1e-6, eps_in, eps_out, Float64)
 
 fig = BI.viz_3d(; interfaces = [interface], sources = [vs], show_points = false, highlight_edges = true)
+
+targets = zeros(3, length(vs_trg.density))
+for trg in BI.eachpoint(vs_trg)
+    targets[1, trg.global_idx] = trg.point[1]
+    targets[2, trg.global_idx] = trg.point[2]
+    targets[3, trg.global_idx] = trg.point[3]
+end
+
+panel_size_limit = minimum(BI._panel_max_length(panel) for panel in interface.panels)
+interface_refined, _, _ = BI._refine_interface_for_targets(interface, targets, panel_size_limit; range_factor = 5.0)
+
+fig = BI.viz_3d(; interfaces = [interface_refined], sources = [vs, vs_trg], show_points = false, highlight_edges = true)
 
 save(joinpath(@__DIR__, "figs/graphene_orbital_2.png"), fig)
 
