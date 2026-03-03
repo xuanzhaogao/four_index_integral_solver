@@ -1,8 +1,8 @@
 using Printf
 include("/Users/xgao/Works/four_indices_integral_solver/codes/xsf_read/reader.jl")
 
-const INPUT = "/Users/xgao/Works/four_indices_integral_solver/codes/xsf_read/graphene_00002.xsf"
-const OUTPUT = "/Users/xgao/Works/four_indices_integral_solver/codes/xsf_read/graphene_00002_upper_half_to_bottom.xsf"
+const INPUT = "/Users/xgao/Works/four_indices_integral_solver/density_data/graphene_00002_5x5x1.xsf"
+const OUTPUT = "/Users/xgao/Works/four_indices_integral_solver/density_data/graphene_00002_5x5x1_shifted.xsf"
 
 """
 Shift the 3D DATAGRID by half along k (C direction):
