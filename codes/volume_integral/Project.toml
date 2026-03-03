@@ -1,2 +1,9 @@
 [deps]
+BoundaryIntegral = "c5e3a73d-e4f2-41fa-921b-bb4fcd908115"
+BoxDMK = "d87f08cc-5cc4-4d95-bbbf-e9f9c6a6460a"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 FBCPoisson = "1f0f7e10-245c-4955-b3bf-660f62c508bb"
+FINUFFT = "d8beea63-0952-562e-9c6a-8e8ef7364055"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
