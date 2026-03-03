@@ -40,7 +40,11 @@ interface_refined, _, _ = BI._refine_interface_for_targets(interface, targets, p
 
 fig = BI.viz_3d(; interfaces = [interface_refined], sources = [vs, vs_trg], show_points = false, highlight_edges = true)
 
-save(joinpath(@__DIR__, "figs/graphene_orbital_2.png"), fig)
+save(joinpath(@__DIR__, "figs/target_refined_with_target.png"), fig)
+
+fig = BI.viz_3d(; interfaces = [interface_refined], sources = [], show_points = false, highlight_edges = true)
+
+save(joinpath(@__DIR__, "figs/target_refined_without_target.png"), fig)
 
 rhs = BI.Rhs_dielectric_box3d_fmm3d(interface, vs, eps_in, 1e-6)
 
