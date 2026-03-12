@@ -22,7 +22,7 @@ center = (1.0, 2.0, 0.51)
 σ = 0.5
 
 # tol controls truncation of the Gaussian support
-source = BI.GaussianVolumeSource(center, σ, 60, 1e-8)
+source = BI.GaussianVolumeSource(center, σ, 60, 1e-12)
 
 interface = BI.single_dielectric_box3d_rhs_adaptive(Lx, Ly, Lz, p, source, 1.0, l_ec, 1e-6, eps_in, eps_out, Float64)
 
@@ -39,7 +39,7 @@ rhs_fmm = BI.Rhs_dielectric_box3d_fmm3d(interface, source, 1.0, 1e-8)
 rhs_fmm_approx = BI.interface_approx(interface, rhs_fmm)
 rhs_fmm_values = [rhs_fmm_approx((x, y, z)) for x in xs, y in ys]
 
-rhs_hybrid = BI.Rhs_dielectric_box3d_hybrid(interface, source, 1.0, 1e-9, fbc_N = 128)
+rhs_hybrid = BI.Rhs_dielectric_box3d_hybrid(interface, source, 1.0, 1e-8)
 rhs_hybrid_approx = BI.interface_approx(interface, rhs_hybrid)
 rhs_hybrid_values = [rhs_hybrid_approx((x, y, z)) for x in xs, y in ys]
 
