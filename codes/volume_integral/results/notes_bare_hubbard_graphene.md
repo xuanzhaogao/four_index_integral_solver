@@ -23,13 +23,13 @@ $$
 
 ## Numerical implementation
 
-The `lfbc3d` solver (`FBCPoisson.jl`) uses the free-boundary Poisson kernel
+The original reference run used `lfbc3d` (`FBCPoisson.jl`), which applies the free-boundary Poisson kernel
 
 $$
 G(\mathbf{r}) = \frac{1}{4\pi|\mathbf{r}|}
 $$
 
-so the raw code output (in Å$^{-1}$) is related to the physical interaction by
+and the current validation run uses `TKM3D.ltkm3dc`, which evaluates the same free-space Laplace kernel in Fourier space. In both cases the raw code output (in Å$^{-1}$) is related to the physical interaction by
 
 $$
 U_{mn}^{\rm phys} \;[\text{eV}] = \underbrace{4\pi}_{\text{restore Coulomb}} \times \underbrace{\frac{e^2}{4\pi\varepsilon_0}}_{\text{= 14.3996 eV·Å}} \times \frac{U_{mn}^{\rm raw} \;[\text{Å}^{-1}]}{\mathcal{N}_m \cdot \mathcal{N}_n}
@@ -63,6 +63,8 @@ Orbital A is centered on sublattice A, orbital B on sublattice B (both from `gra
 
 ## Results
 
+### FBCPoisson reference
+
 | Parameter | Pair | Distance (Å) | $U^{\rm raw}$ (Å$^{-1}$) | $U^{\rm phys}$ (eV) | Point-charge limit (eV) |
 |---|---|---|---|---|---|
 | $U_{00}$ | A–A on-site | 0 | 673.070 | **17.153** | — |
@@ -73,17 +75,33 @@ Orbital A is centered on sublattice A, orbital B on sublattice B (both from `gra
 The point-charge limit is $e^2/(4\pi\varepsilon_0 d)$.
 All inter-site values fall below the point-charge limit, as expected for extended Wannier functions.
 
+### TKM3D validation
+
+`compute_bare_hubbard_graphene_tkm3d.jl` reproduces the same four channels using `ltkm3dc` with a geometry-derived shared cutoff `k_{\max} = 39.0625` and tolerance sweep `10^{-2}, 10^{-3}, 10^{-4}`. Taking the `10^{-4}` run as the TKM reference gives:
+
+| Parameter | $U^{\rm raw}$ (Å$^{-1}$) | $U^{\rm phys}$ (eV) | rel. err. at $10^{-3}$ | rel. err. at $10^{-2}$ |
+|---|---|---|---|---|
+| $U_{00}$ | 673.525 | **17.1645** | $3.89\times 10^{-5}$ | $1.33\times 10^{-3}$ |
+| $U_{01}$ | 346.008 | **8.8170** | $3.92\times 10^{-5}$ | $1.25\times 10^{-3}$ |
+| $U_{02}$ | 218.395 | **5.5657** | $3.34\times 10^{-5}$ | $9.75\times 10^{-4}$ |
+| $U_{03}$ | 190.573 | **4.8562** | $3.12\times 10^{-5}$ | $9.13\times 10^{-4}$ |
+
+These values agree closely with the `lfbc3d` reference. The practical lesson from this dataset is that letting `estimate_kcut3dc` infer an anisotropic Nyquist box from Cartesian coordinate gaps is too expensive for the skewed graphene grid; the validation script therefore uses the shared geometry-derived cutoff instead.
+
 ---
 
 ## Script
 
-`compute_bare_hubbard_graphene.jl` (same directory) — runs all four integrals and prints results.
+`compute_bare_hubbard_graphene.jl` — `lfbc3d` reference sweep over `N_FFT`.
+
+`compute_bare_hubbard_graphene_tkm3d.jl` — `ltkm3dc` validation sweep over `tol`.
 
 ---
 
 ## Computational details
 
-- Solver: `lfbc3d` with $N_{\rm FFT} = 256$, tolerance $10^{-6}$
+- FBC reference: `lfbc3d` with $N_{\rm FFT} = 256$, tolerance $10^{-6}$
+- TKM validation: `ltkm3dc` with shared geometry-derived $k_{\max} = 39.0625$ and tolerances $10^{-2}, 10^{-3}, 10^{-4}$
 - Input: squared XSF wavefunction (`datagrid.values .*= datagrid.values`)
 - Z-shift applied to both orbitals: $-7.920155$ Å (centers graphene at $z \approx 0$)
 - Off-site shifts for $U_{02}$/$U_{03}$: `VolumeSource` position shift by $\mathbf{a}_1 = [2.465, 0, 0]$ Å
