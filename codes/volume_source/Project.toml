@@ -3,6 +3,8 @@ BoundaryIntegral = "c5e3a73d-e4f2-41fa-921b-bb4fcd908115"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+FINUFFT = "d8beea63-0952-562e-9c6a-8e8ef7364055"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
@@ -17,4 +19,4 @@ SparseMatricesCOO = "fa32481b-f100-4b48-8dc8-c62f61b13870"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [sources]
-BoundaryIntegral = {path = "/mnt/home/xgao1/codes/BoundaryIntegral.jl/"}
+BoundaryIntegral = {path = "/Users/xgao/codes/BoundaryIntegral.jl/"}
