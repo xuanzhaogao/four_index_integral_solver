@@ -128,6 +128,18 @@ Considering the phyiscal model of the system, the dielectric permittivity should
 In this way, we can obtain a screened charge density that is continuous across the interface, and its Fourier transform decays rapidly, also shown in Fig.~\ref{fig:screened_gauss_ft}.
 This also allows us to tune the bandwidth of the screening function to match the experimental or full ab initio results of pairwise interactions.
 
+For a interface, there are two different methods to create a smooth transition of the dielectric permittivity.
+The first is to mix the permittivity directly
+\begin{equation}
+    \tilde{\epsilon}(x) = \epsilon_1 P(x) + \epsilon_2 (1 - P(x)),
+\end{equation}
+where $P(x)$ is a smooth function that transitions from 1 to 0 across the interface, such as the $\text{erf}(\cdot)$ function.
+This approach seems more reasonable in physcal sense.
+Another choice is to mix the inverse of the permittivity, which gives a more smooth transition of the effective screened charge density
+\begin{equation}
+    \tilde{\epsilon}(x) = \frac{1}{\frac{P(x)}{\epsilon_1} + \frac{1 - P(x)}{\epsilon_2}}.
+\end{equation}
+
 Thus, we propose to use a mixture of two different models: for the calculation of the incident potential, we assume the dielectric permittivity change smoothly across the interface; for the calculation of the single layer potential, we use the original model with a sharp interface for ease of calculation. 
 This way, we can still use the TKM-Fourier solver to compute the incident potential, and then solve the single layer potential using the original model with a sharp interface.
 We can rewrite the equations as follows:
