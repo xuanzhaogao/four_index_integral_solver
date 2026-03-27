@@ -1,6 +1,8 @@
 using Test
 using BoundaryIntegral
 import BoundaryIntegral as BI
+using CairoMakie
+using LaTeXStrings
 
 include("../src/ScreenedDensityAnalysis.jl")
 using .ScreenedDensityAnalysis
@@ -26,6 +28,19 @@ function synthetic_point_datagrid(nx::Int, ny::Int, nz::Int, active_index::NTupl
     C = (0.0, 0.0, 1.0)
     values = zeros(Float64, nx, ny, nz)
     values[active_index...] = 3.0
+    return (nx = nx, ny = ny, nz = nz, origin = origin, A = A, B = B, C = C, values = values)
+end
+
+function synthetic_periodic_z_datagrid(nx::Int, ny::Int, nz::Int)
+    origin = (-0.5, -0.5, -0.5)
+    A = (1.0, 0.0, 0.0)
+    B = (0.0, 1.0, 0.0)
+    C = (0.0, 0.0, 1.0)
+    values = Array{Float64}(undef, nx, ny, nz)
+    for ix in 1:nx, iy in 1:ny, iz in 1:nz
+        θ = 2π * (iz - 1) / nz
+        values[ix, iy, iz] = ix - 0.5 * iy + cos(θ) + 0.25 * sin(2θ)
+    end
     return (nx = nx, ny = ny, nz = nz, origin = origin, A = A, B = B, C = C, values = values)
 end
 
@@ -94,6 +109,75 @@ end
     ]
 
     @test spectrum ≈ direct atol = 1e-12
+end
+
+@testset "TKM3D NUFFT kz-slab max spectrum is constant for a single active source" begin
+    xs = [0.0, 1.0]
+    ys = [0.0, 1.0]
+    zs = [0.0, 1.0]
+    weights = ones(length(xs), length(ys), length(zs))
+    density = zeros(length(xs), length(ys), length(zs))
+    density[1, 1, 1] = 1.0
+
+    vs = BI.VolumeSource((xs, ys, zs), weights, density)
+    kz_values, slab_max = tkm3d_kz_slab_max_spectrum(vs, vs.density; kmax = 2.5, eps = 1e-12)
+
+    @test !isempty(kz_values)
+    @test first(kz_values) ≈ 0.0 atol = 1e-12
+    @test all(kz_values .>= 0.0)
+    @test slab_max ≈ ones(length(slab_max)) atol = 1e-10
+end
+
+@testset "global z-only NUFFT upsampling preserves original z planes" begin
+    datagrid = synthetic_periodic_z_datagrid(2, 3, 4)
+    factor = 3
+    refined = ScreenedDensityAnalysis.global_nufft_upsample_datagrid_z(datagrid; factor = factor, eps = 1e-12)
+
+    @test refined.nx == datagrid.nx
+    @test refined.ny == datagrid.ny
+    @test refined.nz == datagrid.nz * factor
+    @test refined.values[:, :, 1:factor:end] ≈ datagrid.values atol = 1e-10
+
+    for ix in 1:datagrid.nx, iy in 1:datagrid.ny, iz in 1:datagrid.nz
+        original_point = BI.grid_point(datagrid, ix, iy, iz)
+        refined_point = BI.grid_point(refined, ix, iy, 1 + (iz - 1) * factor)
+        @test collect(refined_point) ≈ collect(original_point) atol = 1e-12
+    end
+end
+
+@testset "3D NUFFT z-target resampling preserves original z planes" begin
+    datagrid = synthetic_periodic_z_datagrid(2, 3, 4)
+    factor = 2
+    refined_values = ScreenedDensityAnalysis.nufft_resample_datagrid_z_via_3d(datagrid; factor = factor, eps = 1e-12)
+
+    @test size(refined_values) == (datagrid.nx, datagrid.ny, datagrid.nz * factor)
+    @test refined_values[:, :, 1:factor:end] ≈ datagrid.values atol = 1e-10
+end
+
+@testset "z-upsampled TKM3D decay extends kz coverage for refined factors" begin
+    datagrid = synthetic_periodic_z_datagrid(2, 2, 6)
+    bounds = ((-10.0, -10.0, -10.0), (10.0, 10.0, 10.0))
+    curves = ScreenedDensityAnalysis.z_upsampled_tkm3d_decay_curves(
+        datagrid,
+        bounds,
+        1.0,
+        1.0,
+        BI.SharpScreening();
+        upsample_factors = [1, 3],
+        source_tol = 0.0,
+        tol = 1e-12,
+    )
+
+    @test length(curves) == 2
+    factor1, kz1, decay1 = curves[1]
+    factor3, kz3, decay3 = curves[2]
+    @test factor1 == 1
+    @test factor3 == 3
+    @test first(kz1) ≈ 0.0 atol = 1e-12
+    @test first(kz3) ≈ 0.0 atol = 1e-12
+    @test maximum(kz3) > maximum(kz1)
+    @test first(decay1) ≈ 1.0 atol = 1e-12
+    @test first(decay3) ≈ 1.0 atol = 1e-12
 end
 
 @testset "periodic spectral upsampling reproduces a cosine" begin
@@ -209,4 +293,17 @@ end
     @test transformed[2, 1] ≈ -3.0 atol = 1e-12
     @test transformed[2, 2] ≈ -3.0 atol = 1e-12
     @test transformed[2, 3] ≈ -3.0 atol = 1e-12
+end
+
+@testset "screened density script can be included without running main" begin
+    mod = Module(:ScreenedDensityScriptIncludeTest)
+    Core.eval(mod, :(include(path) = Base.include($mod, path)))
+    Core.eval(mod, :(using BoundaryIntegral))
+    Core.eval(mod, :(import BoundaryIntegral as BI))
+    Core.eval(mod, :(using CairoMakie))
+    Core.eval(mod, :(using LaTeXStrings))
+    Base.include(mod, joinpath(@__DIR__, "..", "scripts", "screened_density_tkm.jl"))
+
+    @test isdefined(mod, :main_all)
+    @test isdefined(mod, :main_z_upsampled)
 end

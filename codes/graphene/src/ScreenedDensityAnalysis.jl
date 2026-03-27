@@ -11,6 +11,7 @@ export box_bounds,
     default_volume_source,
     density_centroid,
     centering_shift,
+    global_nufft_upsample_datagrid_z,
     kz_zero_mode_spectrum,
     linear_upsample_uniform,
     log10_clamped,
@@ -18,13 +19,16 @@ export box_bounds,
     nufft_upsample_periodic,
     nufft_upsample_global,
     normalized_kz_decay,
+    normalized_tkm3d_kz_slab_max_decay,
     normalized_refined_qz_decay,
     plane_charge_density,
     refined_kz_zero_mode_spectrum,
     screened_density_at_points,
     screened_density_vector,
     spectral_upsample_periodic,
+    tkm3d_kz_slab_max_spectrum,
     shift_datagrid,
+    z_upsampled_tkm3d_decay_curves,
     yz_slice_at_x
 
 function default_orbital_file()
@@ -279,6 +283,101 @@ function nufft_upsample_global(
     return refined_full[(left_pad_refined + 1):(left_pad_refined + n * factor)]
 end
 
+function nufft_resample_datagrid_z_via_3d(datagrid; factor::Integer, eps::Real = 1e-12)
+    factor >= 1 || throw(ArgumentError("factor must be positive"))
+    eps > 0 || throw(ArgumentError("eps must be positive"))
+    factor == 1 && return copy(datagrid.values)
+
+    nx, ny, nz = datagrid.nx, datagrid.ny, datagrid.nz
+    nz_refined = nz * factor
+
+    x_axis = 2π .* collect(0:(nx - 1)) ./ nx
+    y_axis = 2π .* collect(0:(ny - 1)) ./ ny
+    z_axis = 2π .* collect(0:(nz - 1)) ./ nz
+    x_src = repeat(x_axis; outer = ny * nz)
+    y_src = repeat(repeat(y_axis; inner = nx); outer = nz)
+    z_src = repeat(z_axis; inner = nx * ny)
+
+    coeffs = FINUFFT.nufft3d1(
+        x_src,
+        y_src,
+        z_src,
+        ComplexF64.(vec(datagrid.values)),
+        -1,
+        eps,
+        nx,
+        ny,
+        nz,
+    ) ./ (nx * ny * nz)
+
+    z_refined_axis = 2π .* collect(0:(nz_refined - 1)) ./ nz_refined
+    x_trg = repeat(x_axis; outer = ny * nz_refined)
+    y_trg = repeat(repeat(y_axis; inner = nx); outer = nz_refined)
+    z_trg = repeat(z_refined_axis; inner = nx * ny)
+
+    refined_values = FINUFFT.nufft3d2(x_trg, y_trg, z_trg, 1, eps, coeffs)
+    return reshape(real.(refined_values), nx, ny, nz_refined)
+end
+
+function global_nufft_upsample_datagrid_z(datagrid; factor::Integer, eps::Real = 1e-12)
+    factor >= 1 || throw(ArgumentError("factor must be positive"))
+    eps > 0 || throw(ArgumentError("eps must be positive"))
+    factor == 1 && return merge(datagrid, (; values = copy(datagrid.values)))
+
+    nx, ny, nz = datagrid.nx, datagrid.ny, datagrid.nz
+    nz_refined = nz * factor
+    refined_values = nufft_resample_datagrid_z_via_3d(datagrid; factor = factor, eps = eps)
+
+    _, _, Ct = BI.true_cell_vectors(datagrid)
+    C_refined = ntuple(i -> Float64(Ct[i]) * (nz_refined - 1) / nz_refined, 3)
+    return merge(datagrid, (; nz = nz_refined, C = C_refined, values = refined_values))
+end
+
+function z_upsampled_tkm3d_decay_curves(
+    datagrid,
+    bounds::Tuple{<:NTuple{3, <:Real}, <:NTuple{3, <:Real}},
+    eps_in::Real,
+    eps_out::Real,
+    mode;
+    upsample_factors::AbstractVector{<:Integer} = [1, 2, 3],
+    source_tol::Real = 0.0,
+    tol::Real = 1e-12,
+    verbose::Bool = false,
+    label::AbstractString = "",
+)
+    isempty(upsample_factors) && throw(ArgumentError("upsample_factors must not be empty"))
+    curves = Tuple{Int, Vector{Float64}, Vector{Float64}}[]
+    for factor in upsample_factors
+        factor >= 1 || throw(ArgumentError("upsample factors must be positive"))
+        if verbose
+            prefix = isempty(label) ? "[z-upsampled]" : "[z-upsampled][$label]"
+            println("$prefix factor=$factor: building source")
+            flush(stdout)
+        end
+        source_datagrid = factor == 1 ? datagrid : global_nufft_upsample_datagrid_z(datagrid; factor = factor, eps = tol)
+        vs = BI.VolumeSource(source_datagrid, tol = source_tol)
+        if verbose
+            prefix = isempty(label) ? "[z-upsampled]" : "[z-upsampled][$label]"
+            println("$prefix factor=$factor: screening density")
+            flush(stdout)
+        end
+        rho = screened_density_vector(vs, bounds, eps_in, eps_out, mode; tol = tol)
+        if verbose
+            prefix = isempty(label) ? "[z-upsampled]" : "[z-upsampled][$label]"
+            println("$prefix factor=$factor: computing slab spectrum")
+            flush(stdout)
+        end
+        kz_values, decay = normalized_tkm3d_kz_slab_max_decay(vs, rho; kmax = BI._estimate_tkm3dc_kmax(vs), eps = tol)
+        push!(curves, (factor, kz_values, decay))
+        if verbose
+            prefix = isempty(label) ? "[z-upsampled]" : "[z-upsampled][$label]"
+            println("$prefix factor=$factor: done")
+            flush(stdout)
+        end
+    end
+    return curves
+end
+
 function z_plane_charges(vs, rho::AbstractVector{<:Real})
     length(rho) == length(vs.density) || throw(ArgumentError("rho must match vs.density length"))
     zs = unique(vs.positions[3, :])
@@ -288,6 +387,104 @@ function z_plane_charges(vs, rho::AbstractVector{<:Real})
         charges[index_by_z[vs.positions[3, i]]] += vs.weights[i] * rho[i]
     end
     return zs, charges
+end
+
+function _drop_singleton_nufft_dimension(coeff)
+    if ndims(coeff) == 4 && size(coeff, 4) == 1
+        return dropdims(coeff; dims = 4)
+    end
+    return coeff
+end
+
+function _tkm3d_nufft_geometry(vs; kmax = nothing)
+    resolved_kmax = isnothing(kmax) ? Float64(BI._estimate_tkm3dc_kmax(vs)) : Float64(kmax)
+    resolved_kmax > 0 || throw(ArgumentError("kmax must be positive"))
+
+    lengths, center = BI.TKM3D.combined_box_geometry_3xn(vs.positions, vs.positions)
+    l_x, l_y, l_z = Float64.(lengths)
+    cx, cy, cz = Float64.(center)
+    L = sqrt(l_x^2 + l_y^2 + l_z^2)
+    L > 0 || throw(ArgumentError("source box must have positive extent"))
+
+    Δk_x = prevfloat(2π / (l_x + L))
+    Δk_y = prevfloat(2π / (l_y + L))
+    Δk_z = prevfloat(2π / (l_z + L))
+
+    kx = BI.TKM3D.centered_mode_axis(Δk_x, resolved_kmax)
+    ky = BI.TKM3D.centered_mode_axis(Δk_y, resolved_kmax)
+    kz = BI.TKM3D.centered_mode_axis(Δk_z, resolved_kmax)
+
+    srcx = Δk_x .* (vec(view(vs.positions, 1, :)) .- cx)
+    srcy = Δk_y .* (vec(view(vs.positions, 2, :)) .- cy)
+    srcz = Δk_z .* (vec(view(vs.positions, 3, :)) .- cz)
+
+    return resolved_kmax, kx, ky, kz, srcx, srcy, srcz
+end
+
+function _kz_slab_maxabs(coeff, kx, ky, kz, kmax::Real)
+    kmax2 = Float64(kmax)^2
+    tol = max(eps(Float64), 1e-12 * max(Float64(kmax), 1.0))
+    kz_values = Float64[]
+    slab_max = Float64[]
+
+    for iz in eachindex(kz)
+        kz_value = Float64(kz[iz])
+        kz_value < -tol && continue
+        abs(kz_value) > Float64(kmax) + tol && continue
+
+        slab_value = 0.0
+        for iy in eachindex(ky)
+            ky2 = Float64(ky[iy])^2
+            ky2 + kz_value^2 > kmax2 + tol && continue
+            for ix in eachindex(kx)
+                if Float64(kx[ix])^2 + ky2 + kz_value^2 <= kmax2 + tol
+                    slab_value = max(slab_value, abs(coeff[ix, iy, iz]))
+                end
+            end
+        end
+
+        push!(kz_values, kz_value)
+        push!(slab_max, slab_value)
+    end
+
+    return kz_values, slab_max
+end
+
+function tkm3d_kz_slab_max_spectrum(
+    vs,
+    rho::AbstractVector{<:Real};
+    kmax = nothing,
+    eps::Real = 1e-12,
+)
+    length(rho) == length(vs.density) || throw(ArgumentError("rho must match vs.density length"))
+    eps > 0 || throw(ArgumentError("eps must be positive"))
+
+    resolved_kmax, kx, ky, kz, srcx, srcy, srcz = _tkm3d_nufft_geometry(vs; kmax = kmax)
+    coeff = FINUFFT.nufft3d1(
+        srcx,
+        srcy,
+        srcz,
+        ComplexF64.(vs.weights .* rho),
+        -1,
+        Float64(eps),
+        length(kx),
+        length(ky),
+        length(kz),
+    )
+    coeff = _drop_singleton_nufft_dimension(coeff)
+    return _kz_slab_maxabs(coeff, kx, ky, kz, resolved_kmax)
+end
+
+function normalized_tkm3d_kz_slab_max_decay(
+    vs,
+    rho::AbstractVector{<:Real};
+    kmax = nothing,
+    eps::Real = 1e-12,
+)
+    kz_values, slab_max = tkm3d_kz_slab_max_spectrum(vs, rho; kmax = kmax, eps = eps)
+    scale = isempty(slab_max) ? 1.0 : slab_max[1]
+    iszero(scale) && (scale = 1.0)
+    return kz_values, slab_max ./ scale
 end
 
 function kz_zero_mode_spectrum(vs, rho::AbstractVector{<:Real}, kz_values::AbstractVector{<:Real})
