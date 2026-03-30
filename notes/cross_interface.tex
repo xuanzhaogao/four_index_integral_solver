@@ -77,6 +77,8 @@
 
 \maketitle
 
+\section{Basic Idea}
+
 In this note, we consider the case where the orbital density crosses the box, introducing discontinuity in the density across the boundary.
 A simple schematic of this case is shown in Fig.~\ref{fig:orbital_cross_interface}, where the density~$\rho(x)$ is seperated into two parts, $\rho_1$ and $\rho_2$, by the interface. The permittivity on the two sides of the interface are~$\epsilon_1$ and~$\epsilon_2$, respectively.
 
@@ -152,9 +154,17 @@ and the scattered potential can be computed as
     u_{\text{scat}}(x) = \int_{\partial \Omega} G(x,y) \sigma(y) dy.
 \end{equation}
 
+\section{Numerical Results}
 
+In this section, we show some preliminary numerical results of the proposed method.
+We first test the decay of the Fourier transform of the unscreened and screened orbital density in $k_z$ direction.
 
-% However, consider the physical model of the system, we propose to use a mixture of two different models
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{../codes/graphene/figs/screened_density_kz_decay_z_upsampled.png}
+    \caption{Screened Gaussian functions and their Fourier transforms.}
+    \label{fig:screened_gauss_ft}
+\end{figure}
 
 % \bibliographystyle{apsrev}
 \bibliography{ref}
