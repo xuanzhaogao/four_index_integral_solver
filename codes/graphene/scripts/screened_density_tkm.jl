@@ -13,10 +13,10 @@ const L = 90.0
 const LZ = 2.8
 const EPS_IN = 2.4
 const EPS_OUT = 1.0
-const BANDWIDTHS = [0.1, 0.5, 1.0]
+const BANDWIDTHS = [0.1]
 const QZ_UPSAMPLE_FACTOR = 8
 const QZ_GLOBAL_PAD_FACTOR = 4
-const Z_UPSAMPLE_FACTORS = [1, 2, 3]
+const Z_UPSAMPLE_FACTORS = [1, 2]
 const FULL_SOURCE_TOL = 0.0
 
 function analysis_cases()
@@ -235,7 +235,7 @@ function save_z_upsampled_kz_decay_figure(datagrid, bounds, cases; verbose::Bool
     ]
 
     n_panels = length(spectra)
-    ncols = 3
+    ncols = 2
     nrows = cld(n_panels, ncols)
     fig = Figure(size = (480 * ncols, 360 * nrows + 80))
     colors = Makie.wong_colors()
