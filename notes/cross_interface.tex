@@ -71,7 +71,7 @@
 \begin{document}
 \preprint{Preprint}
 
-\title{Oribital Density Cross the Interface}
+\title{Orbital Density Across the Interface}
 \author{Xuanzhao Gao}
 % \date{}
 
@@ -79,8 +79,8 @@
 
 \section{Basic Idea}
 
-In this note, we consider the case where the orbital density crosses the box, introducing discontinuity in the density across the boundary.
-A simple schematic of this case is shown in Fig.~\ref{fig:orbital_cross_interface}, where the density~$\rho(x)$ is seperated into two parts, $\rho_1$ and $\rho_2$, by the interface. The permittivity on the two sides of the interface are~$\epsilon_1$ and~$\epsilon_2$, respectively.
+In this note, we consider the case in which the orbital density crosses the box, introducing a discontinuity across the boundary.
+A simple schematic of this case is shown in Fig.~\ref{fig:orbital_cross_interface}, where the density~$\rho(x)$ is separated into two parts, $\rho_1$ and $\rho_2$, by the interface. The permittivities on the two sides of the interface are~$\epsilon_1$ and~$\epsilon_2$, respectively.
 
 \begin{figure}[htbp]
     \centering
@@ -103,7 +103,7 @@ Recall that the incident potential~$u_{\text{inc}}(x)$ should satisfy
 \begin{equation}
     \epsilon_i \nabla^2 u_{\text{inc}}(x) = -\rho(x),~x \in \Omega_i,
 \end{equation}
-it can be expressed as follows:
+and it can be expressed as follows:
 \begin{equation}
     u_{\text{inc}}(x) = \sum_{i} \int_{\Omega_i} G(x,y) \frac{\rho_i(y)}{\epsilon_i} dy,
 \end{equation}
@@ -125,24 +125,24 @@ which is a Fredholm integral equation of the second kind~\cite{greengard1994nume
     \label{fig:screened_gauss_ft}
 \end{figure}
 
-Notice that~$\tilde{\rho}(y)$ is discontinuous across the interface, making its Fourier transform decay slowly, as shown in the blue curve in Fig.~\ref{fig:screened_gauss_ft}, so that is not suitable for our TKM-Fourier solver.
-Considering the phyiscal model of the system, the dielectric permittivity should not change sharply, especially on atomic scale, we propose to replace the screening function with a smooth function that transitions smoothly across the interface, such as the $\text{erf}(\cdot)$ function.
+Notice that~$\tilde{\rho}(y)$ is discontinuous across the interface, which makes its Fourier transform decay slowly, as shown by the blue curve in Fig.~\ref{fig:screened_gauss_ft}. Therefore, it is not suitable for our TKM-Fourier solver.
+Considering the physical model of the system, the dielectric permittivity should not change sharply, especially on the atomic scale. We therefore propose replacing the screening function with a smooth function that transitions continuously across the interface, such as the $\text{erf}(\cdot)$ function.
 In this way, we can obtain a screened charge density that is continuous across the interface, and its Fourier transform decays rapidly, also shown in Fig.~\ref{fig:screened_gauss_ft}.
 This also allows us to tune the bandwidth of the screening function to match the experimental or full ab initio results of pairwise interactions.
 
-For a interface, there are two different methods to create a smooth transition of the dielectric permittivity.
-The first is to mix the permittivity directly
+For an interface, there are two different ways to create a smooth transition of the dielectric permittivity.
+The first is to mix the permittivity directly:
 \begin{equation}
     \tilde{\epsilon}(x) = \epsilon_1 P(x) + \epsilon_2 (1 - P(x)),
 \end{equation}
 where $P(x)$ is a smooth function that transitions from 1 to 0 across the interface, such as the $\text{erf}(\cdot)$ function.
-This approach seems more reasonable in physcal sense.
-Another choice is to mix the inverse of the permittivity, which gives a more smooth transition of the effective screened charge density
+This approach seems more reasonable in a physical sense.
+Another choice is to mix the inverse permittivity, which gives a smoother transition of the effective screened charge density:
 \begin{equation}
     \tilde{\epsilon}(x) = \frac{1}{\frac{P(x)}{\epsilon_1} + \frac{1 - P(x)}{\epsilon_2}}.
 \end{equation}
 
-Thus, we propose to use a mixture of two different models: for the calculation of the incident potential, we assume the dielectric permittivity change smoothly across the interface; for the calculation of the single layer potential, we use the original model with a sharp interface for ease of calculation. 
+Thus, we propose a combination of two different models: for the calculation of the incident potential, we assume that the dielectric permittivity changes smoothly across the interface; for the calculation of the single-layer potential, we use the original model with a sharp interface for ease of calculation.
 This way, we can still use the TKM-Fourier solver to compute the incident potential, and then solve the single layer potential using the original model with a sharp interface.
 We can rewrite the equations as follows:
 \begin{align}
@@ -156,14 +156,36 @@ and the scattered potential can be computed as
 
 \section{Numerical Results}
 
-In this section, we show some preliminary numerical results of the proposed method.
-We first test the decay of the Fourier transform of the unscreened and screened orbital density in $k_z$ direction.
+In this section, we present some preliminary numerical results for the proposed method.
+We first examine the decay of the Fourier transform of the screened orbital density in the $k_z$ direction, as shown in Fig.~\ref{fig:graphene_screened_density_kz_decay}.
+The original screened density is discontinuous across the interface, and its Fourier transform decays slowly even with upsampling.
+The smoothed screened density is continuous across the interface, and its Fourier transform decays rapidly, which is suitable for our TKM-Fourier solver.
+
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=0.85\textwidth]{../codes/graphene/figs/screened_density_kz_decay_z_upsampled.png}
-    \caption{Screened Gaussian functions and their Fourier transforms.}
-    \label{fig:screened_gauss_ft}
+    \includegraphics[width=0.6\textwidth]{../codes/graphene/figs/screened_density_kz_decay_z_upsampled.png}
+    \caption{Screened orbital functions with upsampling in $z$ and their Fourier transforms.}
+    \label{fig:graphene_screened_density_kz_decay}
+\end{figure}
+
+We then consider a full solve for the graphene system, using an effective dielectric model with $L_x = L_y = 90~\text{\AA}$, $L_z = 2.8~\text{\AA}$, and $\epsilon_r = 2.4$, and evaluate $U_{00}$, $U_{01}$, $U_{02}$, and $U_{03}$ as defined in Ref.~\cite{PhysRevLett.106.236805}.
+The results are shown in Fig.~\ref{fig:screened_hubbard_vs_crpa}, where we compare the screened Hubbard model with the constrained RPA results from Ref.~\cite{PhysRevLett.106.236805}. The two methods show good agreement for small screening bandwidths.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{../codes/graphene/figs/screened_hubbard_vs_crpa.png}
+    \caption{Comparison of the screened Hubbard and constrained RPA results. The dashed lines denote the constrained RPA data from Ref.~\cite{PhysRevLett.106.236805}.}
+    \label{fig:screened_hubbard_vs_crpa}
+\end{figure}
+
+The current code is also ready to solve systems with multiple dielectric boxes, as shown in Fig.~\ref{fig:multiple_boxes}. In this example, the orbital density is located in the slab at the top, and the interface is discretized into panels with refinement near the edges, corners, and orbital density.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{../codes/multibox3d_convergence/figs/graphene_slab_rhs_mesh.png}
+    \caption{Discretized boundary for a system with multiple dielectric boxes. The yellow boxes are edge or corner panels.}
+    \label{fig:multiple_boxes}
 \end{figure}
 
 % \bibliographystyle{apsrev}
