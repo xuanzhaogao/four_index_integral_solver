@@ -6,6 +6,10 @@ using LinearAlgebra
 import BoundaryIntegral as BI
 
 export DEFAULT_A1,
+    DEFAULT_A2,
+    DEFAULT_BOND_VECTOR,
+    DEFAULT_PAIR_LAYOUT,
+    PAPER_SHELL_LAYOUT,
     E2_4PIEPS0,
     centered_graphene_sources,
     evaluate_scattered_potential,
@@ -19,6 +23,17 @@ export DEFAULT_A1,
     to_eV
 
 const DEFAULT_A1 = (2.465, 0.0, 0.0)
+const DEFAULT_BOND_VECTOR = (0.0, 1.4233656765561458, 0.0)
+const DEFAULT_A2 = (DEFAULT_A1[1] / 2, 1.5 * DEFAULT_BOND_VECTOR[2], 0.0)
+const PAPER_SHELL_LAYOUT = (
+    (pair = :U_00, orbital = :vs1, shift = (0.0, 0.0, 0.0)),
+    (pair = :U_01, orbital = :vs2, shift = (0.0, 0.0, 0.0)),
+    (pair = :U_02, orbital = :vs1, shift = DEFAULT_A1),
+    (pair = :U_03, orbital = :vs2, shift = DEFAULT_A1),
+    (pair = :U_04, orbital = :vs2, shift = DEFAULT_A2),
+    (pair = :U_05, orbital = :vs1, shift = (DEFAULT_A1[1] + DEFAULT_A2[1], DEFAULT_A1[2] + DEFAULT_A2[2], 0.0)),
+)
+const DEFAULT_PAIR_LAYOUT = PAPER_SHELL_LAYOUT
 const E2_4PIEPS0 = 14.3996
 const DEFAULT_ORBITAL_1 = normpath(joinpath(@__DIR__, "..", "..", "..", "density_data", "graphene_00001_5x5x1_shifted.xsf"))
 const DEFAULT_ORBITAL_2 = normpath(joinpath(@__DIR__, "..", "..", "..", "density_data", "graphene_00002_5x5x1_shifted.xsf"))
@@ -62,10 +77,16 @@ function centered_graphene_sources(;
     orbital_1::AbstractString = DEFAULT_ORBITAL_1,
     orbital_2::AbstractString = DEFAULT_ORBITAL_2,
     tol::Real = 1e-3,
+    z_center::Real = 0.0,
 )
     datagrid_1_raw = _load_squared_datagrid(orbital_1)
     datagrid_2_raw = _load_squared_datagrid(orbital_2)
-    shared_shift = _centering_shift(datagrid_1_raw; tol = tol)
+    centering_shift = _centering_shift(datagrid_1_raw; tol = tol)
+    shared_shift = (
+        centering_shift[1],
+        centering_shift[2],
+        centering_shift[3] + Float64(z_center),
+    )
     datagrid_1 = _shift_datagrid(datagrid_1_raw, shared_shift)
     datagrid_2 = _shift_datagrid(datagrid_2_raw, shared_shift)
     vs1 = BI.VolumeSource(datagrid_1, tol = tol)
@@ -87,28 +108,43 @@ function shift_volume_source(vs::BI.VolumeSource{T, 3}, shift::NTuple{3, <:Real}
     return BI.VolumeSource(shifted_positions, copy(vs.weights), copy(vs.density))
 end
 
-function pair_targets(vs1::BI.VolumeSource{T, 3}, vs2::BI.VolumeSource{T, 3}; a1::NTuple{3, <:Real} = DEFAULT_A1) where {T}
-    return (
-        U_00 = vs1,
-        U_01 = vs2,
-        U_02 = shift_volume_source(vs1, a1),
-        U_03 = shift_volume_source(vs2, a1),
-    )
+function _pair_target(base_sources, layout)
+    named_pairs = [
+        Pair(spec.pair, shift_volume_source(getproperty(base_sources, spec.orbital), spec.shift))
+        for spec in layout
+    ]
+    return (; named_pairs...)
 end
 
 function _normalization(vs::BI.VolumeSource)
     return sum(vs.weights .* vs.density)
 end
 
-function pair_specs(vs1::BI.VolumeSource{T, 3}, vs2::BI.VolumeSource{T, 3}; a1::NTuple{3, <:Real} = DEFAULT_A1) where {T}
-    targets = pair_targets(vs1, vs2; a1 = a1)
+function pair_targets(
+    vs1::BI.VolumeSource{T, 3},
+    vs2::BI.VolumeSource{T, 3};
+    layout = DEFAULT_PAIR_LAYOUT,
+) where {T}
+    return _pair_target((; vs1, vs2), layout)
+end
+
+function pair_specs(
+    vs1::BI.VolumeSource{T, 3},
+    vs2::BI.VolumeSource{T, 3};
+    layout = DEFAULT_PAIR_LAYOUT,
+) where {T}
+    targets = pair_targets(vs1, vs2; layout = layout)
     n1 = _normalization(vs1)
     n2 = _normalization(vs2)
+    norms = (; vs1 = n1, vs2 = n2)
     return [
-        (pair = "U_00", target_vs = targets.U_00, Na = n1, Nb = n1),
-        (pair = "U_01", target_vs = targets.U_01, Na = n1, Nb = n2),
-        (pair = "U_02", target_vs = targets.U_02, Na = n1, Nb = n1),
-        (pair = "U_03", target_vs = targets.U_03, Na = n1, Nb = n2),
+        (
+            pair = String(spec.pair),
+            target_vs = getproperty(targets, spec.pair),
+            Na = n1,
+            Nb = getproperty(norms, spec.orbital),
+        )
+        for spec in layout
     ]
 end
 

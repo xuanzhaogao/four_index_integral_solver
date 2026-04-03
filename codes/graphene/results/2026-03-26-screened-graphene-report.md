@@ -9,20 +9,21 @@ This report summarizes the verified results currently available in this reposito
 The current state splits into two parts:
 
 1. The density-analysis workflow is complete and has generated figures.
-2. The full screened Hubbard/orbital workflow is implemented and tested, but a real-data production run has not completed locally yet, so there is no validated CSV of `U_00`, `U_01`, `U_02`, and `U_03` values in this repo at the time of this report.
+2. The full screened Hubbard/orbital workflow is implemented, tested, and now has a validated sharp-screening production run for the bilayer-as-slab geometry, yielding `U_00` through `U_05`.
 
 ## Problem Setup
 
-The full-solve workflow is configured with:
+The current bilayer-slab production workflow is configured with:
 
 - `Lx = Ly = 90.0`
-- `Lz = 2.8`
+- `Lz = 6.7`
 - `eps_in = 2.4`
 - `eps_out = 1.0`
+- orbital centers shifted to `z = d/4 = 1.675`
 
 The shared centering shift applied to the orbital densities is:
 
-- `(-4.9383594533135144e-5, -1.1431743832672156e-5, -8.000157062349036)`
+- `(-4.9383594533135144e-5, -1.1431743832672156e-5, -6.325157062349036)`
 
 At `SOURCE_TOL = 1e-3`, the centered orbital sources resolve to:
 
@@ -108,7 +109,7 @@ The solve path now does the following:
 6. solve for the surface density `sigma` with GMRES
 7. evaluate the direct volume potential `u_int`
 8. evaluate the scattered potential `u_scatter`
-9. integrate `u_int + u_scatter` against the four target orbitals `U_00`, `U_01`, `U_02`, and `U_03`
+9. integrate `u_int + u_scatter` against the six target orbitals `U_00`, `U_01`, `U_02`, `U_03`, `U_04`, and `U_05`
 
 The script is configured to write:
 
@@ -121,12 +122,35 @@ and supports:
 
 ### Current Status
 
-The workflow is implemented and covered by tests, but there is no completed real-data output file in this repository yet:
+The workflow is implemented, covered by tests, and now has a completed local `sharp` production run for the bilayer-slab case. The output file is present:
 
-- `data/screened_hubbard_graphene.csv` is absent
-- a local `sharp` production run did not finish within the interactive session, so no validated orbital interaction table is available yet
+- `data/screened_hubbard_graphene.csv`
 
-This means that the repo currently contains validated analysis figures and validated solve infrastructure, but not final Hubbard numbers from a completed production solve.
+The sharp-screening interaction values are:
+
+| Pair | `u_int_ev` | `u_scatter_ev` | `u_total_ev` |
+| --- | ---: | ---: | ---: |
+| `U_00` | `7.18640` | `1.23061` | `8.41701` |
+| `U_01` | `3.69732` | `1.15564` | `4.85296` |
+| `U_02` | `2.33554` | `1.05490` | `3.39044` |
+| `U_03` | `2.03792` | `1.01758` | `3.05550` |
+| `U_04` | `1.57792` | `0.93555` | `2.51347` |
+| `U_05` | `1.39494` | `0.89469` | `2.28963` |
+
+This means the repo now contains validated analysis figures, validated solve infrastructure, and a completed sharp-screening interaction table for the bilayer-slab geometry.
+
+### Labeling Note
+
+For the current slab workflow, `U_00` through `U_05` are labeled to follow the shell ordering used in Rosner et al. for bilayer graphene:
+
+- `U_00`: on-site
+- `U_01`: nearest neighbor
+- `U_02`: next-nearest neighbor
+- `U_03`: third shell
+- `U_04`: fourth shell representative
+- `U_05`: fifth shell representative
+
+This is a labeling alignment only. The present workflow is still a dielectric-slab approximation with scalar box parameters `eps_in = 2.4` and `eps_out = 1.0`. The paper instead uses AB-stacked bilayer graphene together with a momentum-dependent effective dielectric function `ε_eff^2D(q)`, so the current values should not be interpreted as a full WFCE/cRPA reproduction of the paper’s bilayer interaction channels.
 
 ## Verification
 
@@ -142,7 +166,7 @@ Relevant tested items include:
 - log10 slice transform behavior
 - refined `Q(z)` spectral paths
 - global NUFFT boundary-ringing reduction
-- pair-target construction for `U_00/U_01/U_02/U_03`
+- pair-target construction for `U_00/U_01/U_02/U_03/U_04/U_05`
 - target-potential integration
 - synthetic validation of the volume potential evaluation
 
@@ -153,4 +177,4 @@ The density-analysis results are complete enough to support two conclusions:
 1. The centered density and `x = 0` log-scale slices behave as expected in the dielectric box.
 2. Smaller softmix bandwidths produce slower `k_z` decay, and simple NUFFT upsampling of the reduced `Q(z)` only partially mitigates numerical artifacts because the main limitation is the original mesh resolution near the interface.
 
-The full screened-orbital solver is now in place, but the actual production interaction values still need a completed real-data run.
+The full screened-orbital solver is now in place and has produced a verified sharp-screening bilayer-slab interaction table through `U_05`. Additional softmix production sweeps remain optional follow-on runs rather than a missing core result.

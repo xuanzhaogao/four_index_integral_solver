@@ -8,7 +8,8 @@ include(joinpath(@__DIR__, "..", "src", "ScreenedOrbitalSolve.jl"))
 using .ScreenedOrbitalSolve
 
 const L = 90.0
-const LZ = 2.8
+const LZ = 6.7
+const Z_CENTER = LZ / 4
 const EPS_IN = 2.4
 const EPS_OUT = 1.0
 const BANDWIDTHS = [0.05, 0.1, 0.2, 0.4]
@@ -47,7 +48,7 @@ function mode_cases(args = ARGS)
 end
 
 function main(args = ARGS)
-    sources = centered_graphene_sources(tol = SOURCE_TOL)
+    sources = centered_graphene_sources(tol = SOURCE_TOL, z_center = Z_CENTER)
     specs = pair_specs(sources.vs1, sources.vs2)
 
     rows = NamedTuple[]
@@ -98,6 +99,8 @@ function main(args = ARGS)
                 lhs_tol = LHS_TOL,
                 gmres_atol = GMRES_ATOL,
                 gmres_rtol = GMRES_RTOL,
+                slab_thickness = LZ,
+                orbital_z_center = Z_CENTER,
                 shift_x = sources.shared_shift[1],
                 shift_y = sources.shared_shift[2],
                 shift_z = sources.shared_shift[3],

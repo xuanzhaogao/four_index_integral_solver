@@ -1,27 +1,69 @@
 using Test
 using BoundaryIntegral
+using LinearAlgebra
 import BoundaryIntegral as BI
 
 include("../src/ScreenedOrbitalSolve.jl")
 using .ScreenedOrbitalSolve
 
-@testset "pair targets apply the graphene a1 shift" begin
+@testset "pair targets apply the graphene shell shifts" begin
     xs = [0.0, 0.5]
     ys = [0.0]
-    zs = [0.0]
+    zs = [1.675]
     weights = ones(length(xs), length(ys), length(zs))
     density_1 = reshape([1.0, 2.0], length(xs), length(ys), length(zs))
     density_2 = reshape([3.0, 4.0], length(xs), length(ys), length(zs))
 
     vs1 = BI.VolumeSource((xs, ys, zs), weights, density_1)
     vs2 = BI.VolumeSource((xs, ys, zs), weights, density_2)
-    pairs = pair_targets(vs1, vs2; a1 = (2.465, 0.0, 0.0))
+    pairs = pair_targets(vs1, vs2)
 
-    @test keys(pairs) == (:U_00, :U_01, :U_02, :U_03)
+    a1 = reshape(collect(DEFAULT_A1), 3, 1)
+    a2 = reshape(collect(DEFAULT_A2), 3, 1)
+    a1_plus_a2 = reshape([DEFAULT_A1[1] + DEFAULT_A2[1], DEFAULT_A1[2] + DEFAULT_A2[2], 0.0], 3, 1)
+
+    @test keys(pairs) == (:U_00, :U_01, :U_02, :U_03, :U_04, :U_05)
     @test pairs.U_00.positions ≈ vs1.positions atol = 1e-12
     @test pairs.U_01.positions ≈ vs2.positions atol = 1e-12
-    @test pairs.U_02.positions ≈ (vs1.positions .+ reshape([2.465, 0.0, 0.0], 3, 1)) atol = 1e-12
-    @test pairs.U_03.positions ≈ (vs2.positions .+ reshape([2.465, 0.0, 0.0], 3, 1)) atol = 1e-12
+    @test pairs.U_02.positions ≈ (vs1.positions .+ a1) atol = 1e-12
+    @test pairs.U_03.positions ≈ (vs2.positions .+ a1) atol = 1e-12
+    @test pairs.U_04.positions ≈ (vs2.positions .+ a2) atol = 1e-12
+    @test pairs.U_05.positions ≈ (vs1.positions .+ a1_plus_a2) atol = 1e-12
+end
+
+@testset "paper shell layout labels are monotone in shell distance" begin
+    xs = [0.0]
+    ys = [0.0]
+    zs = [6.7 / 4]
+    weights = ones(1, 1, 1)
+    density_1 = reshape([1.0], 1, 1, 1)
+    density_2 = reshape([1.0], 1, 1, 1)
+
+    vs1 = BI.VolumeSource((xs, ys, zs), weights, density_1)
+    vs2 = BI.VolumeSource((xs, ys, zs), weights, density_2)
+    pairs = pair_targets(vs1, vs2; layout = PAPER_SHELL_LAYOUT)
+
+    distances = [
+        norm(pairs.U_00.positions[:, 1] .- vs1.positions[:, 1]),
+        norm(pairs.U_01.positions[:, 1] .- vs1.positions[:, 1]),
+        norm(pairs.U_02.positions[:, 1] .- vs1.positions[:, 1]),
+        norm(pairs.U_03.positions[:, 1] .- vs1.positions[:, 1]),
+        norm(pairs.U_04.positions[:, 1] .- vs1.positions[:, 1]),
+        norm(pairs.U_05.positions[:, 1] .- vs1.positions[:, 1]),
+    ]
+
+    @test distances == sort(distances)
+end
+
+@testset "centered graphene sources support a requested z center" begin
+    sources = centered_graphene_sources(tol = 1e-3, z_center = 6.7 / 4)
+    w1 = sources.vs1.weights .* sources.vs1.density
+    w2 = sources.vs2.weights .* sources.vs2.density
+    z1 = sum(sources.vs1.positions[3, :] .* w1) / sum(w1)
+    z2 = sum(sources.vs2.positions[3, :] .* w2) / sum(w2)
+
+    @test z1 ≈ 6.7 / 4 atol = 1e-3
+    @test z2 ≈ 6.7 / 4 atol = 1e-3
 end
 
 @testset "target potential integration uses orbital density weights" begin
