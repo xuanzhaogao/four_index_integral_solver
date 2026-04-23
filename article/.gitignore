@@ -1,0 +1,12 @@
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+*Notes.bib
+*.spl
+
+/svg-inkscape/
+
+main.pdf
