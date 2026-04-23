@@ -466,22 +466,23 @@ Each step is detailed below.
             $\alpha_i = \tfrac{1}{2}(\epsilon_{\mathrm{out}}(x_i){+}\epsilon_{\mathrm{in}}(x_i))/
             (\epsilon_{\mathrm{out}}(x_i){-}\epsilon_{\mathrm{in}}(x_i))$
         \State define matvec $A\mathbf{v}$ via Eq.~\eqref{eq:linsys}: near pairs
-            ($\abs{x_i{-}x_j}\leq 5h_{P_j}$) by upsampling correction defined in Eq.~\eqref{eq:nearfield_upsample}; far pairs by FMM2D/FMM3D
+            ($\abs{x_i{-}x_j}\leq 5h_{P_j}$) by upsampling correction (Sec.~\ref{sec:nearfield}); far pairs by FMM2D/FMM3D
         \State solve $A\,\boldsymbol{\sigma} = \mathbf{f}$ by GMRES
-        \State \textbf{// Step 4: evaluate $\phi_{kl} = u_{\mathrm{inc}} + u$ at $\mathrm{supp}\,\rho_{ij}$}
+        \State \textbf{// Step 4: source-adaptive refinement for evaluation}
             \Comment{Sec.~\ref{sec:nearfield}}
-        \For{each near target--panel pair $(y_m,\,P_j)$ with $d(y_m,P_j)\leq 5h_{P_j}$}
-            \State $u(y_m) \mathrel{+}= A^{\mathrm{near}}_{y_m,P_j}\,\boldsymbol{\sigma}_{P_j}$
-                \quad (upsampling correction)
-        \EndFor
-        \For{each far target--panel pair $(y_m,\,P_j)$ with $d(y_m,P_j) > 5h_{P_j}$}
-            \State $u(y_m) \mathrel{+}=
-                \tfrac{1}{4\pi}\sum_{i\in P_j}\sigma(x_i)\,w_i/\abs{y_m{-}x_i}$
-        \EndFor
-        \State set $\phi_{kl}(y_m) \gets u_{\mathrm{inc}}(y_m) + u(y_m)$ for all $y_m$
-        \State \textbf{// Step 5: contraction}
+        \State subdivide every panel $P_j$ with $d(P_j,\mathrm{supp}\,\rho_{ij}) < 5h_{P_j}$
+               until $\abs{P_j} \leq h_0$; repeat until no panel qualifies
+        \State interpolate $\boldsymbol{\sigma}$ to refined panels via
+               tensor-product barycentric interpolation
+        \State \textbf{// Step 5: evaluate $\phi_{kl} = u_{\mathrm{inc}} + u$ and contract}
+        \State far pairs:
+               $u(y_m) \mathrel{+}= \tfrac{1}{4\pi}\sum_{i\in P_j}
+               \sigma(x_i)\,w_i/\abs{y_m{-}x_i}$ \quad via FMM
+        \State near pairs:
+               $u(y_m) \mathrel{+}= \int_{P_j} \sigma(x)/({4\pi\abs{y_m{-}x}})\,
+               \mathrm{d}S(x)$ \quad via brute force such as \mbox{HCubature}~\cite{HCubature}
         \State \Return $V_{ijkl} \gets
-            \sum_m \rho_{ij}(y_m)\,\phi_{kl}(y_m)\,w_m^{\mathrm{vol}}$
+            \sum_m \rho_{ij}(y_m)\,(u_{\mathrm{inc}}(y_m){+}u(y_m))\,w_m^{\mathrm{vol}}$
     \end{algorithmic}
 \end{algorithm}
 
@@ -531,32 +532,33 @@ and $D^T_{\mathrm{corr}}$ is the near-field sparse correction matrix precomputed
 The $D^T$ matrix is never formed explicitly; instead, the matrix--vector product $D^T\boldsymbol{\sigma}$ is evaluated by FMM2D or FMM3D at $\mathcal{O}(N)$ cost.
 The system is then solved by GMRES.
 
-\paragraph{Step 4: Potential evaluation with near-field correction}
-The scattered potential at target nodes $\{y_m\}$ is
+\paragraph{Step 4: Source-adaptive mesh refinement for evaluation}
+Once $\boldsymbol{\sigma}$ is obtained on the BIE mesh, the panels are further refined before evaluating the potential at the target quadrature nodes $\{y_m\} \subset \mathrm{supp}\,\rho_{ij}$.
+Every panel $P_j$ with $d(P_j,\,\mathrm{supp}\,\rho_{ij}) < 5 h_{P_j}$ is dyadically subdivided until its size satisfies $\abs{P_j} \leq h_{0}$, where $h_0$ is a threshold to control the minimum panel size.
+The density $\sigma$ is transferred to the refined panels by tensor-product barycentric interpolation from the coarser GL nodes.
+The purpose of this step is to ensure that, for most target nodes $y_m$, every refined panel $P_j^\prime$ satisfies $d(y_m, P_j^\prime) > 5h_{P_j^\prime}$, so the corresponding interaction is classified as far-field and handled efficiently by FMM.
+Only the small residual set of near pairs, where $d(y_m, P_j) \leq 5h_{P_j}$, requires a brute-force summation via tools such as HCubature~\cite{HCubature}.
+
+\paragraph{Step 5: Potential evaluation}
+The scattered potential is assembled as
 \begin{equation}\label{eq:potential_eval}
     u(y_m) = \frac{1}{4\pi}\sum_{j}\sum_{i \in P_j}
-    \frac{\sigma(x_i)}{\abs{y_m - x_i}}\,w_i.
+    \frac{\sigma(x_i)}{\abs{y_m - x_i}}\,w_i,
 \end{equation}
-For target--panel pairs with $d(y_m, P_j) \leq 5h_{P_j}$, the panel contribution
-is replaced by the upsampling-corrected operator $A^{\mathrm{near}}_{y_m,P_j}$
-(Section~\ref{sec:nearfield}).
-The full potential is $\phi_{kl} = u_{\mathrm{inc}} + u$.
-
-\paragraph{Step 5: Contraction against the second density}
+where the sum over far pairs is accelerated by FMM2D/FMM3D at $\mathcal{O}(N)$ cost,
+and the sum over near pairs is evaluated directly.
+The full potential $\phi_{kl} = u_{\mathrm{inc}} + u$ is then contracted against
+$\rho_{ij}$ to give the four-index integral:
 \begin{equation}\label{eq:contraction}
     V_{ijkl} = \int \rho_{ij}(x)\,\phi_{kl}(x)\,\mathrm{d}x
     \approx \sum_m \rho_{ij}(y_m)\,\phi_{kl}(y_m)\,w_m^{\mathrm{vol}}.
 \end{equation}
 
 \paragraph{Complexity and convergence}
-The dominant cost is the GMRES solve in Step~3: each iteration costs $\mathcal{O}(N\log N)$
-(FMM-accelerated), giving a total of $\mathcal{O}(N_{\mathrm{iter}}\,N\log N)$.
-The iteration count $N_{\mathrm{iter}}$ is independent of $N$ but grows with the dielectric
-contrast, since $\alpha_i$ in~\eqref{eq:linsys} diverges as $\epsilon_m \to \infty$
-(perfect-conductor limit).
-The solver achieves exponential convergence in both the quadrature order $p$ and the
-refinement depth $n_{\mathrm{adapt}}$, as demonstrated numerically in
-Section~\ref{sec:convergence}.
+The dominant cost is the GMRES solve in Step~3, where each iteration costs $\mathcal{O}(N)$ via FMM, giving a total of $\mathcal{O}(N_{\mathrm{iter}}\,N)$.
+The iteration count $N_{\mathrm{iter}}$ depends on both the geometry and the permittivity contrast, and can grow as the refinement depth and contrast increase.
+% since $\alpha_i$ in~\eqref{eq:linsys} diverges as $\epsilon_m \to \infty$.
+The solver achieves exponential convergence in the refinement depth $n_{\mathrm{adapt}}$, as going to be demonstrated numerically in Section~\ref{sec:convergence}.
 
 \section{Numerical Results}
 
