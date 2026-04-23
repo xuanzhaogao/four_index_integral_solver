@@ -74,3 +74,49 @@ end
     @test abs(j_ph.u_ev - 0.130804) / 0.130804 < 0.13
     @test abs(j_sf.u_ev - j_ph.u_ev) < 1e-6
 end
+
+@testset "bare integral against two-Gaussian analytic answer" begin
+    using SpecialFunctions
+    import BoundaryIntegral as BI
+
+    α = 2.0
+    R = 2.5  # separation in Å
+    Lx = Ly = Lz = 8.0
+    nx = ny = nz = 60
+    xs = range(-Lx/2, Lx/2; length = nx)
+    ys = range(-Ly/2, Ly/2; length = ny)
+    zs = range(-Lz/2, Lz/2; length = nz)
+
+    norm_prefactor = (α/π)^1.5
+    dens_a = Array{Float64}(undef, nx, ny, nz)
+    dens_b = Array{Float64}(undef, nx, ny, nz)
+    for (iz, z) in enumerate(zs), (iy, y) in enumerate(ys), (ix, x) in enumerate(xs)
+        r2_a = x^2 + y^2 + z^2
+        r2_b = x^2 + (y - R)^2 + z^2
+        dens_a[ix, iy, iz] = norm_prefactor * exp(-α * r2_a)
+        dens_b[ix, iy, iz] = norm_prefactor * exp(-α * r2_b)
+    end
+
+    dx = step(xs); dy = step(ys); dz = step(zs)
+    weights = fill(dx * dy * dz, nx, ny, nz)
+
+    xv = collect(xs); yv = collect(ys); zv = collect(zs)
+    vs_a = BI.VolumeSource((xv, yv, zv), weights, dens_a)
+    vs_b = BI.VolumeSource((xv, yv, zv), weights, dens_b)
+
+    charges_a = vs_a.weights .* vs_a.density
+    resolved_kmax = BI._estimate_tkm3dc_kmax(vs_a)
+    vals = BI.TKM3D.ltkm3dc(1e-4, vs_a.positions;
+                            charges = charges_a, targets = vs_b.positions,
+                            pgt = 1, kmax = resolved_kmax)
+    u_at_b = real.(vals.pottarg)
+    u_raw = sum(u_at_b .* (vs_b.weights .* vs_b.density))
+
+    # ltkm3dc returns the 1/(4π|r|) Laplace kernel, so multiply by 4π to get the
+    # atomic-unit Coulomb integral that the erf/R analytic answer uses.
+    u_coulomb = 4π * u_raw
+
+    analytic = erf(sqrt(α/2) * R) / R
+    @info "two-Gaussian bare integral" u_raw u_coulomb analytic rel_err=abs(u_coulomb - analytic)/analytic
+    @test abs(u_coulomb - analytic) / analytic < 5e-3
+end
