@@ -21,6 +21,9 @@
 \usepackage{autobreak}
 \usepackage{tikz}
 \usepackage{placeins}
+\usepackage{float}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 
 \sloppy
 
@@ -166,7 +169,7 @@ where $\rho^\prime$ is another source density.
 In this section, we present the numerical method for solving the boundary-value problem in Eq.~\eqref{eq:bvp} and evaluating the target integral.
 We first show that the solution can be reformulated as a boundary integral equation (BIE) defined on the union of dielectric interfaces, and then present an adaptive quadrature scheme together with an efficient volume integral solver to solve the BIE efficiently and accurately.
 
-\subsection{The Boundary Integral Formulation}
+\subsection{The Boundary Integral Formulation}\label{sec:bie}
 
 To formulate Eq.~\eqref{eq:bvp} as a boundary integral equation, we first split the potential as two parts,
 \begin{equation}
@@ -197,7 +200,7 @@ the interfacial flux-matching condition in Eq.~\eqref{eq:bvp} reduces to the Fre
 
 In the following sections, we will present the numerical method for solving the BIE in Eq.~\eqref{eq:sl} and evaluating the target integral $V$.
 
-\subsection{Adaptive Quadrature}
+\subsection{Adaptive Quadrature}\label{sec:quadrature}
 
 % We discretize the union of dielectric interfaces, denoted by~$\Gamma$, by a collection of boundary panels and solve the integral equation by a Nyström method. 
 % The discretization is performed entirely on the interfaces, rather than in the surrounding volume, which is one of the main advantages of the boundary-integral formulation for the present screening problem. 
@@ -272,7 +275,7 @@ In Fig.~\ref{fig:rhs}(b), we plot the absolute interpolation error in the right-
     The refinements toward corners and edges can not really solve the singularity of the unknown density, but make the solution more resolved on panels that are close to the singularity, which is sufficient for the present purpose.
 \end{remark}
 
-\subsection{Near-field evaluation of layer potentials}
+\subsection{Near-field evaluation of layer potentials}\label{sec:nearfield}
 
 A further difficulty arises when the target point lies too close to a panel for the standard panelwise quadrature to remain accurate at the current resolution. 
 This situation occurs, for instance, when two large panels are near each other, or when the target point is close to the panel itself.
@@ -297,7 +300,7 @@ Instead, for each target--panel pair $(x,P)$ satisfying the $5h$ criterion, we r
 Let $\sigma_P$ denote the restriction of the layer density to the source panel $P$, represented on the original tensor-product Gauss--Legendre grid. 
 We then lift $\sigma_P$ to a finer tensor-product grid on the same panel and use this refined representation to assemble a corrected interaction matrix, denoted by $A^{\mathrm{near}}_{x,P}$. 
 The contribution of the panel $P$ to the layer potential at the target $x$ is then approximated by
-\begin{equation}
+\begin{equation}\label{eq:nearfield_upsample}
     u_P(x) \approx A^{\mathrm{near}}_{x,P}\,\sigma_P.
 \end{equation}
 By contrast, for source--target pairs outside the near-field regime, we retain the standard Nystr\"om evaluation
@@ -322,7 +325,7 @@ Accordingly, the correction is invoked only when the $5h$ criterion is satisfied
     The 5$h$ rule is a heuristic that has been found to be effective for about 6 to 8 digit accuracy in practice, for higher accuracy, may need to use a larger factor than 5.
 \end{remark}
 
-\subsection{TKM volume solver for the incident potential}
+\subsection{TKM volume solver for the incident potential}\label{sec:tkm}
 
 We assume that the source density \(\rho\) is a smooth function supported entirely in a single material region \(\Omega_m\), and that it is represented on a local uniform Cartesian grid. 
 Under this assumption, the incident potential
@@ -431,9 +434,133 @@ An example of the accuracy of the TKM volume solver for the incident potential \
 
 \subsection{Algorithm Summary}
 
+We collect the components described in Sections~\ref{sec:bie}--\ref{sec:tkm} into a
+complete procedure for evaluating the four-index integral $V_{ijkl}$, summarized in
+Algorithm~\ref{alg:main}.
+Each step is detailed below.
+
+\begin{algorithm}[H]
+\footnotesize
+\algrenewcommand\algorithmicindent{1.2em}
+\caption{Adaptive BIE solver for the four-index integral $V_{ijkl}$.}
+\label{alg:main}
+    \begin{algorithmic}[1]
+        \Require pair densities $\rho_{ij}$, $\rho_{kl}$; permittivities $\{\epsilon_k\}$;
+                interface $\Gamma$; quadrature order $p$; tolerance $\tau_{\mathrm{tol}}$
+        \Ensure  $V_{ijkl} = \int \rho_{ij}(x)\,\phi_{kl}(x)\,\mathrm{d}x$
+        \State \textbf{// Step 1: incident potential and RHS} \Comment{Sec.~\ref{sec:tkm}}
+        \State compute $u_{\mathrm{inc}}$ and $f := -\partial_{\V{n}}u_{\mathrm{inc}}|_{\Gamma}$ via TKM--FFT
+        % \If{$\mathrm{supp}\,\rho_{kl} \subset \Omega_m$}
+        %     \State compute $u_{\mathrm{inc}}$ and $f := -\partial_{\V{n}}u_{\mathrm{inc}}|_{\Gamma}$
+        %            via TKM--FFT
+        % \Else
+        %     \State smooth $\epsilon \to \tilde{\epsilon}$ via erf transition (hybrid model)
+        %     \State compute $u_{\mathrm{inc}}$ and $f$ with $\tilde{\epsilon}$ via TKM--FFT
+        % \EndIf
+        \State \textbf{// Step 2: adaptive discretization of $\Gamma$} \Comment{Sec.~\ref{sec:quadrature}}
+        \State partition $\Gamma$ into flat panels; equip each with $p{\times}p$ GL quadrature nodes
+        \State dyadically subdivide every panel satisfying criterion Eq.~\eqref{eq:refine_criterion};
+        repeat until no panel qualifies
+        \State \textbf{// Step 3: assemble and solve the BIE}
+        \State set $\mathbf{f} = (f(x_i))_{i=1}^{N}$;\quad
+            $\alpha_i = \tfrac{1}{2}(\epsilon_{\mathrm{out}}(x_i){+}\epsilon_{\mathrm{in}}(x_i))/
+            (\epsilon_{\mathrm{out}}(x_i){-}\epsilon_{\mathrm{in}}(x_i))$
+        \State define matvec $A\mathbf{v}$ via Eq.~\eqref{eq:linsys}: near pairs
+            ($\abs{x_i{-}x_j}\leq 5h_{P_j}$) by upsampling correction defined in Eq.~\eqref{eq:nearfield_upsample}; far pairs by FMM2D/FMM3D
+        \State solve $A\,\boldsymbol{\sigma} = \mathbf{f}$ by GMRES
+        \State \textbf{// Step 4: evaluate $\phi_{kl} = u_{\mathrm{inc}} + u$ at $\mathrm{supp}\,\rho_{ij}$}
+            \Comment{Sec.~\ref{sec:nearfield}}
+        \For{each near target--panel pair $(y_m,\,P_j)$ with $d(y_m,P_j)\leq 5h_{P_j}$}
+            \State $u(y_m) \mathrel{+}= A^{\mathrm{near}}_{y_m,P_j}\,\boldsymbol{\sigma}_{P_j}$
+                \quad (upsampling correction)
+        \EndFor
+        \For{each far target--panel pair $(y_m,\,P_j)$ with $d(y_m,P_j) > 5h_{P_j}$}
+            \State $u(y_m) \mathrel{+}=
+                \tfrac{1}{4\pi}\sum_{i\in P_j}\sigma(x_i)\,w_i/\abs{y_m{-}x_i}$
+        \EndFor
+        \State set $\phi_{kl}(y_m) \gets u_{\mathrm{inc}}(y_m) + u(y_m)$ for all $y_m$
+        \State \textbf{// Step 5: contraction}
+        \State \Return $V_{ijkl} \gets
+            \sum_m \rho_{ij}(y_m)\,\phi_{kl}(y_m)\,w_m^{\mathrm{vol}}$
+    \end{algorithmic}
+\end{algorithm}
+
+\paragraph{Step 1: Source preparation and incident potential}
+Given the pair density $\rho_{kl}$, compute the incident potential
+\begin{equation}
+    u_{\mathrm{inc}}(x) = \frac{1}{4\pi\epsilon_m}
+    \int_{\Omega_m} \frac{\rho_{kl}(y)}{\abs{x - y}}\,\mathrm{d}y
+\end{equation}
+and the right-hand side $f := -\partial_{\V{n}} u_{\mathrm{inc}}$ at all quadrature nodes on $\Gamma$.
+When $\mathrm{supp}\,\rho_{kl} \subset \Omega_m$, both are evaluated by the TKM--Fourier solver (Section~\ref{sec:tkm}).
+% When $\rho_{kl}$ straddles a dielectric interface, the permittivity is replaced by the smooth erf-based approximation $\tilde{\epsilon}$ for the evaluation of $u_{\mathrm{inc}}$ only; the sharp interface is retained in the BIE~\eqref{eq:sl} (hybrid model).
+
+\paragraph{Step 2: Adaptive discretization of the interface}
+Partition $\Gamma = \bigcup_k \partial\Omega_k$ into flat rectangular panels $\{P_j\}$, each equipped with a $p \times p$ tensor-product Gauss--Legendre rule in local coordinates $(\xi,\eta) \in [-1,1]^2$, giving $N = \sum_j p^2$ nodes total.
+Starting from a coarse partition, panels are dyadically refined until none satisfies
+\begin{equation}\label{eq:refine_criterion}
+    \norm{g_P - f}_{L^2(P)} > \tau_{\mathrm{tol}},
+    \quad\text{or}\quad
+    d\!\left(P,\, \partial\Omega^{\mathrm{sing}}\right) < \delta_{\mathrm{geom}},
+    % \quad\text{or}\quad
+    % d\!\left(P,\, \mathrm{supp}\,\rho_{kl}\right) < \delta_{\mathrm{src}},
+\end{equation}
+where $g_P \in \mathbb{Q}_{p-1,p-1}([-1,1]^2)$ is the GL interpolant of $f$ on $P$, and $\partial\Omega^{\mathrm{sing}}$ is the set of edges and corners.
+The two criteria respectively control the accuracy of the RHS representation, and resolve the integrable corner singularity $\sigma = \mathcal{O}(r^k)$~\cite{van2007electromagnetic} (Section~\ref{sec:quadrature}).
+
+\paragraph{Step 3: Assembly and solution of the discrete BIE}
+Let $\{(x_i,\V{n}_i,w_i)\}_{i=1}^N$ be the quadrature nodes, normals, and weights.
+The Nystr\"{o}m discretization of~\eqref{eq:sl} yields the $N\times N$ system
+\begin{equation}\label{eq:linsys}
+    A\,\boldsymbol{\sigma} = (\M{\alpha} + D^{T} + D^{T}_{\mathrm{corr}}) \,\boldsymbol{\sigma} = \mathbf{f},
+\end{equation}
+where $\mathbf{f} = (f(x_1),\dots,f(x_N))^{\top}$,~$\M{\alpha}$ is a diagonal matrix with 
+\begin{equation}
+    \alpha_i = \frac{1}{2} \frac{\epsilon_{\mathrm{out}}(x_i)+\epsilon_{\mathrm{in}}(x_i)}{\epsilon_{\mathrm{out}}(x_i)-\epsilon_{\mathrm{in}}(x_i)},
+\end{equation}
+$D^T$ is the standard double-layer matrix defined as
+\begin{equation}
+    A_{ij} =
+    \begin{cases}
+        0, & i = j,\\[4pt]
+        \displaystyle\frac{(x_i - x_j)\cdot\V{n}_i}{4\pi\,\abs{x_i-x_j}^3}\,w_j,
+        & i \neq j,
+    \end{cases}
+\end{equation}
+and $D^T_{\mathrm{corr}}$ is the near-field sparse correction matrix precomputed by upsampling the nearby panels.
+The $D^T$ matrix is never formed explicitly; instead, the matrix--vector product $D^T\boldsymbol{\sigma}$ is evaluated by FMM2D or FMM3D at $\mathcal{O}(N)$ cost.
+The system is then solved by GMRES.
+
+\paragraph{Step 4: Potential evaluation with near-field correction}
+The scattered potential at target nodes $\{y_m\}$ is
+\begin{equation}\label{eq:potential_eval}
+    u(y_m) = \frac{1}{4\pi}\sum_{j}\sum_{i \in P_j}
+    \frac{\sigma(x_i)}{\abs{y_m - x_i}}\,w_i.
+\end{equation}
+For target--panel pairs with $d(y_m, P_j) \leq 5h_{P_j}$, the panel contribution
+is replaced by the upsampling-corrected operator $A^{\mathrm{near}}_{y_m,P_j}$
+(Section~\ref{sec:nearfield}).
+The full potential is $\phi_{kl} = u_{\mathrm{inc}} + u$.
+
+\paragraph{Step 5: Contraction against the second density}
+\begin{equation}\label{eq:contraction}
+    V_{ijkl} = \int \rho_{ij}(x)\,\phi_{kl}(x)\,\mathrm{d}x
+    \approx \sum_m \rho_{ij}(y_m)\,\phi_{kl}(y_m)\,w_m^{\mathrm{vol}}.
+\end{equation}
+
+\paragraph{Complexity and convergence}
+The dominant cost is the GMRES solve in Step~3: each iteration costs $\mathcal{O}(N\log N)$
+(FMM-accelerated), giving a total of $\mathcal{O}(N_{\mathrm{iter}}\,N\log N)$.
+The iteration count $N_{\mathrm{iter}}$ is independent of $N$ but grows with the dielectric
+contrast, since $\alpha_i$ in~\eqref{eq:linsys} diverges as $\epsilon_m \to \infty$
+(perfect-conductor limit).
+The solver achieves exponential convergence in both the quadrature order $p$ and the
+refinement depth $n_{\mathrm{adapt}}$, as demonstrated numerically in
+Section~\ref{sec:convergence}.
+
 \section{Numerical Results}
 
-\subsection{Convergence Study of the BIE Solver}
+\subsection{Convergence Study of the BIE Solver}\label{sec:convergence}
 
 \subsection{Edge Singularity}
 
