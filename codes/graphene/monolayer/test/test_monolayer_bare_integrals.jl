@@ -120,3 +120,13 @@ end
     @info "two-Gaussian bare integral" u_raw u_coulomb analytic rel_err=abs(u_coulomb - analytic)/analytic
     @test abs(u_coulomb - analytic) / analytic < 5e-3
 end
+
+@testset "compute_all_bare_channels returns four labelled rows" begin
+    rows = compute_all_bare_channels(; orbital_1 = XSF_1, orbital_2 = XSF_2, source_tol = 1e-3, volume_tol = 1e-3)
+    @test length(rows) == 4
+    labels = [r.channel for r in rows]
+    @test Set(labels) == Set([:onsite, :nn, :hund_sf, :hund_ph])
+    for r in rows
+        @test r.u_ev > 0
+    end
+end

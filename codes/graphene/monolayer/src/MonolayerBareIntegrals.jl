@@ -102,4 +102,45 @@ function bare_channel_integral(densities, signed, channel::Symbol; volume_tol::R
     )
 end
 
+const BARE_CHANNELS = (:onsite, :nn, :hund_sf, :hund_ph)
+
+"""
+    compute_all_bare_channels(; orbital_1, orbital_2, source_tol = 1e-3, volume_tol = 1e-3)
+
+Run all four bare-interaction channels for a monolayer orbital pair and return a
+vector of NamedTuples, each annotated with `source_tol` and the shared centering
+shift components so that downstream scripts/reports can emit one CSV row per
+channel with full provenance.
+
+We resolve the loader via `Main.MonolayerOrbitalLoader` because `runtests.jl`
+and downstream scripts already include `MonolayerOrbitalLoader.jl` into `Main`
+before loading this module; keeping the lookup dynamic avoids a hard
+`using ..MonolayerOrbitalLoader` dependency that would require `MonolayerBareIntegrals`
+to live under the same parent package as the loader.
+"""
+function compute_all_bare_channels(;
+    orbital_1::AbstractString,
+    orbital_2::AbstractString,
+    source_tol::Real = 1e-3,
+    volume_tol::Real = 1e-3,
+)
+    densities = Main.MonolayerOrbitalLoader.centered_monolayer_sources(;
+        orbital_1 = orbital_1, orbital_2 = orbital_2, source_tol = source_tol, square = true,
+    )
+    signed = Main.MonolayerOrbitalLoader.centered_monolayer_sources(;
+        orbital_1 = orbital_1, orbital_2 = orbital_2, source_tol = source_tol, square = false,
+    )
+    rows = NamedTuple[]
+    for channel in BARE_CHANNELS
+        r = bare_channel_integral(densities, signed, channel; volume_tol = volume_tol)
+        push!(rows, merge(r, (;
+            source_tol = Float64(source_tol),
+            shift_x = densities.shared_shift[1],
+            shift_y = densities.shared_shift[2],
+            shift_z = densities.shared_shift[3],
+        )))
+    end
+    return rows
+end
+
 end # module
