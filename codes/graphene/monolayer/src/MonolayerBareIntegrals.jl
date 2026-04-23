@@ -123,18 +123,22 @@ function compute_all_bare_channels(;
     orbital_2::AbstractString,
     source_tol::Real = 1e-3,
     volume_tol::Real = 1e-3,
+    mirror_pad_level::Integer = 0,
 )
-    densities = Main.MonolayerOrbitalLoader.centered_monolayer_sources(;
+    densities = Main.MonolayerOrbitalLoader.centered_monolayer_sources_padded(;
         orbital_1 = orbital_1, orbital_2 = orbital_2, source_tol = source_tol, square = true,
+        mirror_pad_level = mirror_pad_level,
     )
-    signed = Main.MonolayerOrbitalLoader.centered_monolayer_sources(;
+    signed = Main.MonolayerOrbitalLoader.centered_monolayer_sources_padded(;
         orbital_1 = orbital_1, orbital_2 = orbital_2, source_tol = source_tol, square = false,
+        mirror_pad_level = mirror_pad_level,
     )
     rows = NamedTuple[]
     for channel in BARE_CHANNELS
         r = bare_channel_integral(densities, signed, channel; volume_tol = volume_tol)
         push!(rows, merge(r, (;
             source_tol = Float64(source_tol),
+            mirror_pad_level = Int(mirror_pad_level),
             shift_x = densities.shared_shift[1],
             shift_y = densities.shared_shift[2],
             shift_z = densities.shared_shift[3],
