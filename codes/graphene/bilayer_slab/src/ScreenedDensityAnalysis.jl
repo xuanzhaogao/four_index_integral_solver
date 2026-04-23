@@ -32,7 +32,7 @@ export box_bounds,
     yz_slice_at_x
 
 function default_orbital_file()
-    return normpath(joinpath(@__DIR__, "..", "scripts", "../../../density_data/graphene_00001_5x5x1_shifted.xsf"))
+    return normpath(joinpath(@__DIR__, "..", "scripts", "../../../../density_data/graphene_00001_5x5x1_shifted.xsf"))
 end
 
 function box_bounds(Lx::T, Ly::T, Lz::T) where {T}

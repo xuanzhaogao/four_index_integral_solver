@@ -35,8 +35,8 @@ const PAPER_SHELL_LAYOUT = (
 )
 const DEFAULT_PAIR_LAYOUT = PAPER_SHELL_LAYOUT
 const E2_4PIEPS0 = 14.3996
-const DEFAULT_ORBITAL_1 = normpath(joinpath(@__DIR__, "..", "..", "..", "density_data", "graphene_00001_5x5x1_shifted.xsf"))
-const DEFAULT_ORBITAL_2 = normpath(joinpath(@__DIR__, "..", "..", "..", "density_data", "graphene_00002_5x5x1_shifted.xsf"))
+const DEFAULT_ORBITAL_1 = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "density_data", "graphene_00001_5x5x1_shifted.xsf"))
+const DEFAULT_ORBITAL_2 = normpath(joinpath(@__DIR__, "..", "..", "..", "..", "density_data", "graphene_00002_5x5x1_shifted.xsf"))
 
 function _load_squared_datagrid(path::AbstractString)
     _, raw_datagrid = BI.read_xsf(path)

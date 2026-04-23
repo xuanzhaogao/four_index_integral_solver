@@ -1,5 +1,7 @@
 # Screened Graphene Results Report
 
+> **Historical note (2026-04-23):** This report documents the bilayer-slab dielectric approximation with scalar `eps_in/eps_out`. It has been superseded for the purpose of reference validation by the monolayer workflow under `graphene/monolayer/`, which compares directly against Malte Rösner's CoQui cRPA values. The numbers below remain valid within the slab model but are not a cRPA reproduction.
+
 Date: 2026-03-26
 
 ## Scope
