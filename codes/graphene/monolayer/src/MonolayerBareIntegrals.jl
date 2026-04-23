@@ -44,4 +44,62 @@ function _product_datagrid(a, b)
     return merge(a, (; values = values))
 end
 
+"""
+    bare_channel_integral(densities, signed, channel; volume_tol = 1e-3, kmax = nothing)
+
+Compute a single bare Coulomb matrix element in raw units and eV.
+
+`densities` and `signed` are the outputs of `centered_monolayer_sources` with
+`square = true` / `false`, sharing the same centering shift and `source_tol`.
+"""
+function bare_channel_integral(densities, signed, channel::Symbol; volume_tol::Real = 1e-3, kmax = nothing)
+    pair = channel_pair_sources(densities, signed, channel)
+    source = pair.source
+    target = pair.target
+
+    target_positions = target.positions
+    target_weights = target.weights .* target.density
+
+    charges = source.weights .* source.density
+    resolved_kmax = isnothing(kmax) ? BI._estimate_tkm3dc_kmax(source) : Float64(kmax)
+    values = BoundaryIntegral.TKM3D.ltkm3dc(
+        Float64(volume_tol),
+        source.positions;
+        charges = charges,
+        targets = target_positions,
+        pgt = 1,
+        kmax = resolved_kmax,
+    )
+    values.ier == 0 || error("TKM3D.ltkm3dc failed with ier=$(values.ier)")
+    u_at_targets = real.(values.pottarg)
+    u_raw = dot(u_at_targets, target_weights)
+
+    # Normalize by orbital norms, not product norms (Hund's-safe convention).
+    Nphi1 = sum(densities.vs1.weights .* densities.vs1.density)
+    Nphi2 = sum(densities.vs2.weights .* densities.vs2.density)
+
+    if channel === :onsite
+        Na, Nb = Nphi1, Nphi1
+    elseif channel === :nn
+        Na, Nb = Nphi1, Nphi2
+    elseif channel === :hund_sf || channel === :hund_ph
+        Na, Nb = Nphi1, Nphi2
+    else
+        throw(ArgumentError("unknown channel $channel"))
+    end
+
+    u_ev = to_eV(u_raw, Na, Nb)
+    return (
+        channel = channel,
+        u_raw = u_raw,
+        u_ev = u_ev,
+        Na = Na,
+        Nb = Nb,
+        n_source_points = size(source.positions, 2),
+        n_target_points = size(target.positions, 2),
+        tkm_kmax = resolved_kmax,
+        volume_tol = Float64(volume_tol),
+    )
+end
+
 end # module
