@@ -1,6 +1,6 @@
 using Test
 
-include(joinpath(@__DIR__, "..", "src", "MonolayerOrbitalLoader.jl"))
+isdefined(Main, :MonolayerOrbitalLoader) || include(joinpath(@__DIR__, "..", "src", "MonolayerOrbitalLoader.jl"))
 using .MonolayerOrbitalLoader
 
 const REF_DIR = "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_161601_nb_144_c_15"
