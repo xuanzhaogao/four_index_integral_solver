@@ -22,15 +22,17 @@ This spec covers **only the monolayer bare-interaction validation**, organized a
 ## Repo Reorganization
 
 1. Move the existing bilayer-slab workflow under a `bilayer_slab/` subdirectory:
-   - `graphene/{src,scripts,data,results,test}` → `graphene/bilayer_slab/{src,scripts,data,results,test}`
+   - `graphene/{src,scripts,data,results}` → `graphene/bilayer_slab/{src,scripts,data,results}`
+   - Move existing bilayer-related test files from `graphene/test/` into `graphene/bilayer_slab/test/`.
    - Keep `Project.toml`, `Manifest.toml`, `docs/` at `graphene/` top level (shared environment and design docs).
+   - Keep `graphene/test/runtests.jl` at the top level as a **dispatcher**: it `include`s `bilayer_slab/test/runtests.jl` and `monolayer/test/runtests.jl` so `julia --project=. test/runtests.jl` still runs the full suite. (Each subdirectory gets its own `test/runtests.jl`.)
    - Update the 2026-03-26 report: add a "Historical — bilayer-slab approximation" header noting it has been superseded for the purpose of reference comparison by the monolayer workflow.
 2. Create a new `graphene/monolayer/` tree:
    - `graphene/monolayer/src/`
    - `graphene/monolayer/scripts/`
    - `graphene/monolayer/data/`
    - `graphene/monolayer/results/`
-   - `graphene/monolayer/test/`
+   - `graphene/monolayer/test/` (with its own `runtests.jl`)
 3. Script entry points under the existing `Project.toml` environment (no new Julia project) so both workflows share dependencies.
 
 Any path references in the moved bilayer scripts are updated to the new nested layout.
