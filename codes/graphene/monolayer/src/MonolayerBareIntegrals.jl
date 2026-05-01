@@ -23,14 +23,14 @@ Channel semantics:
 - `:hund_sf`   — (phi1*phi2) vs (phi1*phi2)
 - `:hund_ph`   — (phi1*phi2) vs (phi1*phi2)  (same numerics as :hund_sf for real orbitals)
 """
-function channel_pair_sources(densities, signed, channel::Symbol)
+function channel_pair_sources(densities, signed, channel::Symbol; source_tol::Real = 1e-3)
     if channel === :onsite
         return (source = densities.vs1, target = densities.vs1)
     elseif channel === :nn
         return (source = densities.vs1, target = densities.vs2)
     elseif channel === :hund_sf || channel === :hund_ph
         product_datagrid = _product_datagrid(signed.datagrid_1, signed.datagrid_2)
-        vs_product = BI.VolumeSource(product_datagrid, tol = 1e-3)
+        vs_product = BI.VolumeSource(product_datagrid, tol = Float64(source_tol))
         return (source = vs_product, target = vs_product)
     else
         throw(ArgumentError("unknown channel $channel"))
@@ -52,8 +52,8 @@ Compute a single bare Coulomb matrix element in raw units and eV.
 `densities` and `signed` are the outputs of `centered_monolayer_sources` with
 `square = true` / `false`, sharing the same centering shift and `source_tol`.
 """
-function bare_channel_integral(densities, signed, channel::Symbol; volume_tol::Real = 1e-3, kmax = nothing)
-    pair = channel_pair_sources(densities, signed, channel)
+function bare_channel_integral(densities, signed, channel::Symbol; volume_tol::Real = 1e-3, source_tol::Real = 1e-3, kmax = nothing)
+    pair = channel_pair_sources(densities, signed, channel; source_tol = source_tol)
     source = pair.source
     target = pair.target
 
@@ -135,7 +135,7 @@ function compute_all_bare_channels(;
     )
     rows = NamedTuple[]
     for channel in BARE_CHANNELS
-        r = bare_channel_integral(densities, signed, channel; volume_tol = volume_tol)
+        r = bare_channel_integral(densities, signed, channel; volume_tol = volume_tol, source_tol = source_tol)
         push!(rows, merge(r, (;
             source_tol = Float64(source_tol),
             mirror_pad_level = Int(mirror_pad_level),
