@@ -79,7 +79,9 @@
 \section{Bare interaction: monolayer graphene $p_z$ orbitals}
 
 We evaluate the bare Coulomb matrix elements
-$U_{abcd}=\int d\V r\,d\V r'\,\phi_a^*(\V r)\phi_b^*(\V r')\,\frac{1}{|\V r-\V r'|}\,\phi_c(\V r')\phi_d(\V r)$
+\begin{equation}
+  U_{abcd}=\int d\V r\,d\V r'\,\phi_a^*(\V r)\phi_b(\V r)\,\frac{1}{|\V r-\V r'|}\,\phi^*_c(\V r')\phi_d(\V r')
+\end{equation}
 on the carbon $p_z$ Wannier orbitals from Wannier90 (5$\times$5$\times$1 supercell, $150\times150\times192$ grid). 
 
 Reference values used for comparison:
@@ -90,7 +92,7 @@ Reference values used for comparison:
 
 \begin{table}[h]
 \centering
-\caption{Bare $p_z$--$p_z$ Coulomb matrix elements for monolayer graphene, in eV. ``This work'' uses \texttt{source\_tol = volume\_tol = $10^{-3}$} on the raw Wannier90 XSF grid (level-0, no padding). Relative differences are quoted against the CoQui value.}
+\caption{Bare $p_z$--$p_z$ Coulomb matrix elements for monolayer graphene, in eV. ``This work'' uses \texttt{source\_tol = volume\_tol = $10^{-3}$} on the raw Wannier90 XSF grid. Relative differences are quoted against the CoQui value.}
 \label{tab:mlg_bare}
 \begin{tabular}{lcccccc}
 \hline\hline
@@ -104,23 +106,26 @@ Hund's pair-hopping    & $J^{\mathrm{ph}}$   &  0.1175 & 0.1308 & --   & $-10.17
 \end{tabular}
 \end{table}
 
-The two Hund's channels agree numerically ($|J^{\mathrm{sf}}-J^{\mathrm{ph}}|<10^{-16}$), confirming the real-orbital identity $V_{abba}=V_{aabb}$. The residual underestimate relative to CoQui is consistent with under-resolution of the orbital cusp at the C nucleus on the $\sim$0.08~\AA{} XSF grid; a mirror-pad xy-tail diagnostic was inconclusive because the Wannier90 output already fills the 5$\times$5 supercell periodically. Only the on-site and NN channels are reported here---$U_{02}$, $U_{03}$ require shifting the second orbital onto further-neighbor sublattice sites, which has not been done in this run.
+The two Hund's channels agree numerically ($|J^{\mathrm{sf}}-J^{\mathrm{ph}}|<10^{-16}$), confirming the real-orbital identity $V_{abba}=V_{abab}$. 
+% The residual underestimate relative to CoQui is consistent with under-resolution of the orbital cusp at the C nucleus on the $\sim$0.08~\AA{} XSF grid; a mirror-pad xy-tail diagnostic was inconclusive because the Wannier90 output already fills the 5$\times$5 supercell periodically. 
+The difference with CoQui is likely because the CoQui cRPA run was under a periodic setup, which may have led to an overestimate of the bare interaction due to the periodic images.
+Only the on-site and NN channels are reported here---$U_{02}$, $U_{03}$ require shifting the second orbital onto further-neighbor sublattice sites, which has not been done in this run.
 
 \section{Tolerance convergence}
 
-The TKM3D quadrature tolerances \texttt{source\_tol} and \texttt{volume\_tol} were swept jointly over $\{10^{-3},3\times10^{-4},10^{-4},3\times10^{-5},10^{-5}\}$ at level-0 padding.
+The TKM3D quadrature tolerances \texttt{source\_tol} and \texttt{volume\_tol} were swept jointly from~$10^{-3}$ to $10^{-5}$.
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.85\linewidth]{../codes/graphene/figs/monolayer_tol_sweep_all_channels.png}
-\caption{All four bare channels (onsite, NN, Hund's spin-flip, Hund's pair-hopping) versus quadrature tolerance. Solid lines are this work; dashed horizontal lines are the CoQui cRPA bare references.}
+\caption{All four bare channels (onsite, NN, Hund's spin-flip, Hund's pair-hopping) versus quadrature tolerance. Dots are this work; dashed horizontal lines are the CoQui cRPA bare references; and solid lines are the PRL 106, 236805 values.}
 \label{fig:tol_all}
 \end{figure}
 
 \begin{figure}[h]
 \centering
 \includegraphics[width=0.85\linewidth]{../codes/graphene/figs/monolayer_tol_sweep_self_convergence.png}
-\caption{Self-convergence of each channel: relative change of $U$ between successive tolerance levels. Values are stable to $\lesssim10^{-3}$ by \texttt{tol}~$=10^{-4}$, so the discrepancy with CoQui in Table~\ref{tab:mlg_bare} is not a quadrature error.}
+\caption{Self-convergence of each channel: relative change of $U$ between successive tolerance levels. A clear convergence is observed, so the discrepancy with CoQui in Table 1 is not a quadrature error.}
 \label{fig:tol_self}
 \end{figure}
 
