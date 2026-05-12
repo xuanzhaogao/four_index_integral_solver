@@ -1,3 +1,7 @@
 [deps]
 BoundaryIntegral = "c5e3a73d-e4f2-41fa-921b-bb4fcd908115"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
+Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
