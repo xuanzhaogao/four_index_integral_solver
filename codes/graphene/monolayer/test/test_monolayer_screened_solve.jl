@@ -80,3 +80,37 @@ end
     @test hund_specs[1].Nb ≈ src.Nphi2
     @test hund_specs[1].target_vs === src.vs_product
 end
+
+@testset "screened_run_record packs pair_result + metadata" begin
+    fake_pair_result = (
+        pair = "onsite",
+        target_vs = nothing,
+        Na = 1.0, Nb = 1.0,
+        u_int_raw = 0.1, u_scatter_raw = -0.02, u_total_raw = 0.08,
+        u_int_ev = 17.4, u_scatter_ev = -3.5, u_total_ev = 13.9,
+    )
+    fake_solve_result = (
+        residual = 1e-6,
+        n_interface_points = 1234,
+        tkm_kmax = 40.0,
+        gmres_status = nothing,
+        pair_results = [fake_pair_result],
+    )
+    row = screened_run_record(fake_pair_result, fake_solve_result;
+        mode_label = "Sharp", bandwidth = missing,
+        eps_in = 2.4, eps_out = 1.0, Lz = 3.35, L = 90.0, z_center = 1.675,
+        source_tol = 1e-3, rhs_tol = 1e-3, lhs_tol = 1e-5,
+        gmres_atol = 1e-5, gmres_rtol = 1e-5,
+        n_quad = 6, edge_refine_level = 4, max_order = 64, max_depth = 12,
+    )
+    @test row.channel == "onsite"
+    @test row.mode == "Sharp"
+    @test ismissing(row.bandwidth)
+    @test row.u_total_ev ≈ 13.9
+    @test row.u_int_ev ≈ 17.4
+    @test row.u_scatter_ev ≈ -3.5
+    @test row.eps_in == 2.4
+    @test row.Lz == 3.35
+    @test row.n_interface_points == 1234
+    @test row.sigma_residual ≈ 1e-6
+end

@@ -6,7 +6,7 @@ import BoundaryIntegral as BI
 include(joinpath(@__DIR__, "MonolayerOrbitalLoader.jl"))
 using .MonolayerOrbitalLoader
 
-export parse_coqui_loc, monolayer_screened_sources, density_target_specs, hund_target_specs
+export parse_coqui_loc, monolayer_screened_sources, density_target_specs, hund_target_specs, screened_run_record
 
 """
     parse_coqui_loc(path)
@@ -137,6 +137,54 @@ function hund_target_specs(sources)
     return [
         (pair = "hund", target_vs = sources.vs_product, Na = sources.Nphi1, Nb = sources.Nphi2),
     ]
+end
+
+"""
+    screened_run_record(pair_result, solve_result; mode_label, bandwidth, ...slab params...)
+
+Flatten one `pair_result` from `solve_screened_mode` plus the surrounding solve
+NamedTuple and the slab/mode parameters into a single NamedTuple ready for
+DataFrame / CSV serialization.
+"""
+function screened_run_record(pair_result, solve_result;
+    mode_label::AbstractString,
+    bandwidth::Union{Real, Missing},
+    eps_in::Real, eps_out::Real, Lz::Real, L::Real, z_center::Real,
+    source_tol::Real, rhs_tol::Real, lhs_tol::Real,
+    gmres_atol::Real, gmres_rtol::Real,
+    n_quad::Integer, edge_refine_level::Integer,
+    max_order::Integer, max_depth::Integer,
+)
+    return (
+        channel = pair_result.pair,
+        mode = String(mode_label),
+        bandwidth = bandwidth,
+        u_int_raw = pair_result.u_int_raw,
+        u_scatter_raw = pair_result.u_scatter_raw,
+        u_total_raw = pair_result.u_total_raw,
+        u_int_ev = pair_result.u_int_ev,
+        u_scatter_ev = pair_result.u_scatter_ev,
+        u_total_ev = pair_result.u_total_ev,
+        Na = pair_result.Na,
+        Nb = pair_result.Nb,
+        sigma_residual = solve_result.residual,
+        n_interface_points = solve_result.n_interface_points,
+        tkm_kmax = solve_result.tkm_kmax,
+        eps_in = Float64(eps_in),
+        eps_out = Float64(eps_out),
+        Lz = Float64(Lz),
+        L = Float64(L),
+        z_center = Float64(z_center),
+        source_tol = Float64(source_tol),
+        rhs_tol = Float64(rhs_tol),
+        lhs_tol = Float64(lhs_tol),
+        gmres_atol = Float64(gmres_atol),
+        gmres_rtol = Float64(gmres_rtol),
+        n_quad = Int(n_quad),
+        edge_refine_level = Int(edge_refine_level),
+        max_order = Int(max_order),
+        max_depth = Int(max_depth),
+    )
 end
 
 end # module
