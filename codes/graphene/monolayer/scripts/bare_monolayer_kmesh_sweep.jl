@@ -86,6 +86,9 @@ function sweep_dataset(kmesh::AbstractString)
     isfile(coqui) || error("missing CoQui output in $dir")
 
     println("--- $kmesh ---")
+    # mirror_pad_level fixed at 0: the 2026-04-23 report showed pad>=1 is
+    # inconclusive on these XSFs (orbital fills the supercell, so reflections
+    # produce coherent replicas rather than a vacuum-padded tail).
     rows = compute_all_bare_channels(;
         orbital_1 = xsf_1, orbital_2 = xsf_2,
         source_tol = SOURCE_TOL, volume_tol = VOLUME_TOL,
