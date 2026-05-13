@@ -1,6 +1,12 @@
 module MonolayerScreenedSolve
 
-export parse_coqui_loc
+using BoundaryIntegral
+import BoundaryIntegral as BI
+
+include(joinpath(@__DIR__, "MonolayerOrbitalLoader.jl"))
+using .MonolayerOrbitalLoader
+
+export parse_coqui_loc, monolayer_screened_sources
 
 """
     parse_coqui_loc(path)
@@ -39,6 +45,69 @@ function parse_coqui_loc(path::AbstractString)
         haskey(result, k) || error("parse_coqui_loc: missing channel $k in $path")
     end
     return result
+end
+
+function _product_datagrid(a, b)
+    size(a.values) == size(b.values) || throw(ArgumentError("grid shapes differ"))
+    a.origin == b.origin || throw(ArgumentError("grid origins differ"))
+    values = a.values .* b.values
+    return merge(a, (; values = values))
+end
+
+function _shift_z(datagrid, dz::Real)
+    origin = (Float64(datagrid.origin[1]),
+              Float64(datagrid.origin[2]),
+              Float64(datagrid.origin[3]) + Float64(dz))
+    return merge(datagrid, (; origin = origin))
+end
+
+"""
+    monolayer_screened_sources(; orbital_1, orbital_2, source_tol, z_center)
+
+Load and center the two monolayer Wannier orbitals, then apply an additional
+z-only shift of `+z_center` so the squared-orbital-1 centroid lands at
+`(0, 0, z_center)` (orbital sits at slab midplane). Returns the three
+`VolumeSource` objects (`vs1`, `vs2`, `vs_product = phi1*phi2`) plus the
+two squared-orbital norms (`Nphi1`, `Nphi2`) used for the eV conversion.
+"""
+function monolayer_screened_sources(;
+    orbital_1::AbstractString,
+    orbital_2::AbstractString,
+    source_tol::Real = 1e-3,
+    z_center::Real = 0.0,
+)
+    sq = MonolayerOrbitalLoader.centered_monolayer_sources_padded(;
+        orbital_1 = orbital_1, orbital_2 = orbital_2,
+        source_tol = source_tol, square = true, mirror_pad_level = 0,
+    )
+    sg = MonolayerOrbitalLoader.centered_monolayer_sources_padded(;
+        orbital_1 = orbital_1, orbital_2 = orbital_2,
+        source_tol = source_tol, square = false, mirror_pad_level = 0,
+    )
+
+    dg1_sq_z = _shift_z(sq.datagrid_1, z_center)
+    dg2_sq_z = _shift_z(sq.datagrid_2, z_center)
+    dg1_sg_z = _shift_z(sg.datagrid_1, z_center)
+    dg2_sg_z = _shift_z(sg.datagrid_2, z_center)
+
+    vs1 = BI.VolumeSource(dg1_sq_z, tol = source_tol)
+    vs2 = BI.VolumeSource(dg2_sq_z, tol = source_tol)
+
+    product_dg = _product_datagrid(dg1_sg_z, dg2_sg_z)
+    vs_product = BI.VolumeSource(product_dg, tol = source_tol)
+
+    Nphi1 = sum(vs1.weights .* vs1.density)
+    Nphi2 = sum(vs2.weights .* vs2.density)
+
+    return (
+        vs1 = vs1,
+        vs2 = vs2,
+        vs_product = vs_product,
+        Nphi1 = Nphi1,
+        Nphi2 = Nphi2,
+        shared_shift = sq.shared_shift,
+        z_center = Float64(z_center),
+    )
 end
 
 end # module
