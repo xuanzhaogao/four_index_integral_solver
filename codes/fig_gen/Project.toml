@@ -1,0 +1,11 @@
+[deps]
+BoundaryIntegral = "c5e3a73d-e4f2-41fa-921b-bb4fcd908115"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+FINUFFT = "d8beea63-0952-562e-9c6a-8e8ef7364055"
+FMM3D = "1e13804c-f9b7-11ea-0ef0-29f3b1745df8"
+FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
+HCubature = "19dc6840-f33b-545b-b366-655c7e3ffd49"
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+TKM3D = "5e3dfc9c-492c-4308-90e6-1b6681d75e39"
