@@ -127,3 +127,25 @@ function sweep_dataset(kmesh::AbstractString)
     end
     return out
 end
+
+function main()
+    all_rows = NamedTuple[]
+    for kmesh in DATASETS
+        rows = sweep_dataset(kmesh)
+        append!(all_rows, rows)
+        # Show per-dataset summary table immediately for easy mid-run progress
+        df_local = DataFrame(rows)
+        show(df_local[:, [:kmesh, :channel, :our_u_ev, :coqui_u_ev, :diff_ev, :madelung_ref_ev, :madelung_residual_ev]];
+             allrows = true, allcols = true)
+        println()
+    end
+    mkpath(dirname(OUT_CSV))
+    table = DataFrame(all_rows)
+    CSV.write(OUT_CSV, table)
+    println("Wrote $(nrow(table)) rows to $(OUT_CSV)")
+    show(table[:, [:kmesh, :channel, :our_u_ev, :coqui_u_ev, :diff_ev, :madelung_ref_ev, :madelung_residual_ev]];
+         allrows = true, allcols = true)
+    println()
+end
+
+main()
