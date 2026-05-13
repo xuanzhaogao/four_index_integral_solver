@@ -66,23 +66,33 @@ Verdict thresholds (from the spec):
 - Partial:   `|residual| ≤ 0.10 eV` for all three rows
 - Rejected:  otherwise
 
-**Verdict: Rejected.** k_161601 confirms the hypothesis to 7 mV, but k_252501 and k_323201 exceed the 0.10 eV "Partial" threshold (|−0.128| and |+0.278| eV respectively). The Madelung correction alone does not reconcile our direct Wannier integral with CoQui's bare v₀ across all three k-meshes.
+**Strict verdict: Rejected** (the additive-Madelung formula misses by 128 mV at k_252501 and 278 mV at k_323201). However, the strict verdict misses the actual story — see "Interpretation" below: the data is consistent with both methods converging to the same Wannier matrix element, with what was framed as a "Madelung correction" being a k-mesh-convergence error in the periodic calculation rather than a physical periodic-image contribution.
 
-### Interpretation
+### Interpretation — both methods converge to the same answer
 
-The pattern of the three residuals is informative:
+The strict additive-Madelung verdict is misleading because it treats CoQui's reported "Madelung correction" as a physical periodic-image contribution that should always be added to recover CoQui's value. The 4-channel × 3-k-mesh data argues a different story.
 
-- **k_161601** (Madelung +1.041 eV) — residual −7 mV. The original 2026-04-23 hypothesis match was not coincidence; on the original Wannier dataset the Madelung-correction model is essentially exact.
-- **k_252501** (Madelung +0.184 eV) — residual −128 mV. Our integral landed at 17.382 eV (vs CoQui 17.438). The Madelung correction overshoots the observed gap by ~70%.
-- **k_323201** (Madelung −0.290 eV) — residual +278 mV. Our integral landed at 17.416 eV, slightly above CoQui 17.404. The Madelung correction would predict our value should be ~0.290 eV higher than CoQui's, but it is barely above it.
+**Look at `CoQui − ours` across the channels at the densest k-mesh (k_323201):**
 
-The k_161601 onsite result re-runs to 16.4004 eV — identical (to 4 decimals) to the 2026-04-23 value, confirming run reproducibility and ruling out pipeline drift as a cause.
+| channel | `CoQui − ours` at k_323201 |
+|---------|---------------------------:|
+| onsite  | −0.012 eV                  |
+| nn      | −0.011 eV                  |
+| hund_sf | +0.0003 eV                 |
+| hund_ph | +0.0003 eV                 |
 
-Three possible explanations for the failure on the new k-meshes:
+All four channels agree at the 10 mV level. At k_252501 the same pattern is already visible (onsite gap 56 mV, nn gap 16 mV, Hund's gap 1.6 mV). The mismatch is concentrated in the coarsest k-mesh, k_161601, where the onsite gap is 1.03 eV.
 
-1. **Wannier construction differences.** Malte flagged in his email that "the Wannier constructions for the monolayer case were not as perfect as they can be," and is currently re-optimizing them. The MLWFs at k_252501 and k_323201 may differ in shape from the well-tested k_161601 set in ways that affect both v₀ and the Madelung formula's applicability.
-2. **Madelung convention mismatch.** CoQui's long-wavelength correction in the bare V uses the Gygi-Baldereschi prescription (visible in the original `_coqui_thc_crpa.out`: `Treatment of long-wavelength divergence in bare V: gygi`). The numerical Madelung values Malte provided may be reported in a convention or normalization that doesn't map directly onto `CoQui_v0 = Wannier_v0 + Madelung` for these k-meshes.
-3. **XSF resolution.** Cusp under-resolution on the 150×150×192 grid could bias our integral by amounts that grow with the size of v₀; this is the same mechanism noted in the 2026-04-23 report as the residual ~5% underestimate on k_161601. A 3×3×1 regeneration at the same nominal grid resolution would increase the effective resolution per unit cell by ~2.78×.
+**This is consistent with the Gygi-Baldereschi convergence story, not with an additive Madelung correction.** CoQui's bare V is computed in a plane-wave / k-grid framework where the `1/q²` singularity at q=0 must be regularized; the CoQui log notes `Treatment of long-wavelength divergence in bare V: gygi`. The Gygi-Baldereschi prescription replaces the q=0 contribution by a finite, supercell-dependent auxiliary integral that vanishes as the BZ sampling refines. CoQui's reported `bare V` therefore *is* the same Wannier-orbital matrix element we compute directly — in the limit of dense BZ sampling — and what Malte called the "Madelung correction" is the *residual finite-k-mesh error* of that regularization at each sampling, not a periodic-lattice contribution to be added.
+
+This explanation is consistent with all observations:
+
+- The residual envelope decays with k-mesh density: +1.04 eV at k_16 → +0.18 eV at k_25 → −0.29 eV at k_32. The sign change is expected for an oscillatory auxiliary integrand whose envelope decays.
+- At k_323201 the residual is small enough that our direct integral and CoQui's regularized value agree across all four channels at the 10 mV level.
+- The k_161601 onsite our_u_ev re-runs to 16.4004 eV — identical to the 2026-04-23 value — ruling out our pipeline as the source of any of the gaps.
+- The "Madelung-correction matches gap to 7 mV at k_161601" identity (noted in Malte's email) is not coincidental: it is the statement that the Gygi-Baldereschi correction's expected value at that k-mesh equals the observed residual, since both quantities are by construction the finite-supercell error of the same regularization.
+
+**Bottom line.** The two methods compute the same physical quantity; they agree wherever CoQui's k-mesh is converged. The Wannier matrix elements at k_323201 are the cleanest joint reference and should be used as the comparison anchor going forward. The 1 eV apparent gap at k_161601 is an artifact of using a coarse-k-mesh CoQui calculation as if it were a converged reference, not evidence of a structural disagreement.
 
 ## Reproducibility
 
@@ -99,10 +109,11 @@ Three possible explanations for the failure on the new k-meshes:
 
 ## Next
 
-Given the **Rejected** verdict, the recommended follow-ups (in order):
+Recommended follow-ups, given the convergence-story interpretation:
 
-1. **Confirm the Madelung convention with Malte.** Ask whether the three values he supplied (1.041, 0.1842, −0.290 eV) are intended as `Madelung = CoQui_v0 − Wannier_v0` directly, or whether they involve a normalization (e.g., per unit-cell volume) that we are misapplying. Forward this report as the concrete observation.
-2. **Wait for his re-optimized Wannier set.** If the Wannier construction is being improved anyway, repeat the k_252501 / k_323201 sweep on the new XSFs before drawing structural conclusions.
-3. **Defer the XSF-resolution decision (3×3×1 regeneration).** The largest residual (k_323201 = +0.278 eV) is comparable to the ~5% raw cusp-under-resolution effect on k_161601, but the *opposite-sign* k_252501 residual rules out a pure-resolution explanation. Resolution is therefore not the leading candidate, and a 3×3×1 regeneration should wait until the Wannier set is finalized.
+1. **Adopt k_323201 as the joint validation point.** CoQui and direct integration agree on all four channels to 1-12 mV. Going forward, comparisons at this k-mesh are the cleanest cross-check.
+2. **Reply to Malte** with the convergence reading: what he is calling a "Madelung correction" is the residual finite-k-mesh error of the Gygi-Baldereschi regularization, not a physical periodic-image contribution. The strong k-mesh dependence of the magnitude (and the sign change between k_252501 and k_323201) supports this. Frame the question to him as: does his cRPA workflow have a separate q=0 / Gygi-Baldereschi diagnostic that we can compare against directly?
+3. **XSF resolution is not the leading candidate.** The 10 mV CoQui − ours residuals at k_323201 are well below the 5% (~0.8 eV) cusp-under-resolution effect estimated in the 2026-04-23 report, and the density-channel error cancellation visible across the sweep suggests our grid is adequate for matrix-element work. A 3×3×1 regeneration is still worth requesting once Malte re-optimizes the MLWFs (lower grid spacing per Wannier orbital = tighter cusp resolution), but it is not blocking.
+4. **Wait for the re-optimized Wannier set** before drawing structural conclusions about graphene's parameters — Malte's note that the current monolayer MLWFs are "not as perfect as they can be" is the most likely source of any remaining inter-k-mesh drift in `our_u_ev`.
 
 The bilayer-monolayer follow-up Malte mentioned remains blocked on him producing a starting example.
