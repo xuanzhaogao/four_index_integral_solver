@@ -6,7 +6,7 @@ import BoundaryIntegral as BI
 include(joinpath(@__DIR__, "MonolayerOrbitalLoader.jl"))
 using .MonolayerOrbitalLoader
 
-export parse_coqui_loc, monolayer_screened_sources
+export parse_coqui_loc, monolayer_screened_sources, density_target_specs, hund_target_specs
 
 """
     parse_coqui_loc(path)
@@ -108,6 +108,35 @@ function monolayer_screened_sources(;
         shared_shift = sq.shared_shift,
         z_center = Float64(z_center),
     )
+end
+
+"""
+    density_target_specs(sources)
+
+Build a 2-entry target_specs vector consumed by `solve_screened_mode` for the
+density-source solve. Source is `sources.vs1` (squared orbital 1); targets are
+`:onsite` → vs1 and `:nn` → vs2. Normalizations follow the bare-channel
+Hund's-safe convention: divide by orbital norms (Nphi1, Nphi2), not by the
+target-density integral.
+"""
+function density_target_specs(sources)
+    return [
+        (pair = "onsite", target_vs = sources.vs1, Na = sources.Nphi1, Nb = sources.Nphi1),
+        (pair = "nn",     target_vs = sources.vs2, Na = sources.Nphi1, Nb = sources.Nphi2),
+    ]
+end
+
+"""
+    hund_target_specs(sources)
+
+Build a 1-entry target_specs vector for the Hund's-source solve. Source and
+target are both `sources.vs_product = phi1*phi2`. Normalizations follow the
+same orbital-norm convention.
+"""
+function hund_target_specs(sources)
+    return [
+        (pair = "hund", target_vs = sources.vs_product, Na = sources.Nphi1, Nb = sources.Nphi2),
+    ]
 end
 
 end # module

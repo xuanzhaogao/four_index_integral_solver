@@ -56,3 +56,27 @@ end
     @test 50.0 < out.Nphi1 < 100.0
     @test 50.0 < out.Nphi2 < 100.0
 end
+
+@testset "density_target_specs and hund_target_specs" begin
+    src = monolayer_screened_sources(
+        orbital_1 = XSF_1, orbital_2 = XSF_2,
+        source_tol = 1e-3, z_center = 1.675,
+    )
+    density_specs = density_target_specs(src)
+    @test length(density_specs) == 2
+    @test density_specs[1].pair == "onsite"
+    @test density_specs[2].pair == "nn"
+    @test density_specs[1].Na ≈ src.Nphi1
+    @test density_specs[1].Nb ≈ src.Nphi1
+    @test density_specs[2].Na ≈ src.Nphi1
+    @test density_specs[2].Nb ≈ src.Nphi2
+    @test density_specs[1].target_vs === src.vs1
+    @test density_specs[2].target_vs === src.vs2
+
+    hund_specs = hund_target_specs(src)
+    @test length(hund_specs) == 1
+    @test hund_specs[1].pair == "hund"
+    @test hund_specs[1].Na ≈ src.Nphi1
+    @test hund_specs[1].Nb ≈ src.Nphi2
+    @test hund_specs[1].target_vs === src.vs_product
+end
