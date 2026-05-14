@@ -58,7 +58,7 @@ begin
                   color = :black, marker = :rect,
                   markersize = 12, linewidth = 2,
                   linestyle = :dash,
-                  label = L"\text{FMM}")
+                  label = L"\text{Direct Sum}")
 
     axislegend(ax_a; position = :lb)
 
