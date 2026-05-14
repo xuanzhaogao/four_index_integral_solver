@@ -38,7 +38,7 @@ c_label(c)   = L"c = %$(Int(c))"
 h0_label(h0) = L"h_0 = 2^{%$(round(Int, log2(h0)))}"
 
 begin
-    fig = Figure(size = (1200, 540), fontsize = 18)
+    fig = Figure(size = (1000, 450), fontsize = 18)
 
     floor_y = 1e-16
     clip(y) = max(y, floor_y)
@@ -104,4 +104,6 @@ begin
     outpath = joinpath(@__DIR__, "fig6_post_refinement.png")
     save(outpath, fig; px_per_unit = 4)
     @info "Saved figure" outpath
+
+    fig
 end

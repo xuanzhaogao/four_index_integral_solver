@@ -48,7 +48,7 @@ const p_quad   = 8
 const eps_corr = 1e-12             # target tolerance for dynamic p_up
 const p_up_max = 512               # safety cap on p_up
 
-const c_near_list = (5, 8)          # integer near-field thresholds
+const c_near_list = (3, 5, 7)          # integer near-field thresholds
 
 # Panel half-side; both panels are [-1/2, 1/2]^2 in their tangent plane
 const L_half = 0.5
@@ -211,15 +211,19 @@ for c in c_near_list
     E_corr[c] = Ec
 end
 
-# Panel (b) data: integer c sweep.
-const c_scan = collect(1:12)
-max_err_corr_c   = zeros(length(c_scan))
-max_resid_far_c  = zeros(length(c_scan))
+# Panel (b) data: direct standard-GL error at d = c · h for each integer c.
+# This is the actual residual the uncorrected "far" region contributes right
+# at the near-field threshold — no log-grid binning bias.
+const c_scan   = collect(3:15)
+E_std_at_c     = zeros(length(c_scan))
+@info "Panel (b): direct E_std evaluation at d = c·h" c_scan h_node
 for (i, c) in enumerate(c_scan)
-    near = dh_list .<= c
-    far  = dh_list .>  c
-    max_err_corr_c[i]  = any(near) ? maximum(E_up[near])  : NaN
-    max_resid_far_c[i] = any(far)  ? maximum(E_std[far])  : NaN
+    d_c     = c * h_node
+    I_std_c = gl_quad_apply_all(targets, d_c, p_quad)
+    I_ref_c = [hcubature_ref(targets[t], d_c) for t in 1:Nt]
+    E_std_at_c[i] = norm(I_std_c - I_ref_c) / norm(I_ref_c)
+    @info @sprintf("  c = %2d   d = %.4f   E_std(c·h) = %.3e",
+                   c, d_c, E_std_at_c[i])
 end
 
 # ---------------------------------------------------------------------------
@@ -246,8 +250,7 @@ out = (
     E_up           = E_up,
     E_corr         = E_corr,
     c_scan          = c_scan,
-    max_err_corr_c  = max_err_corr_c,
-    max_resid_far_c = max_resid_far_c,
+    E_std_at_c      = E_std_at_c,
     geometry = (
         P = "[-1/2, 1/2]^2 x {0}",
         Q = "[-1/2, 1/2]^2 x {d}",

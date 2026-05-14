@@ -22,7 +22,10 @@ const Estd     = data.E_std
 const Eup      = data.E_up
 const Ecorr    = data.E_corr
 const c_scan   = data.c_scan
-const Eresid_c = data.max_resid_far_c
+# Direct standard-GL error at d = c·h for each c. This is the residual the
+# uncorrected far region contributes right at the near-field threshold,
+# evaluated without log-grid binning bias.
+const Eresid_c = data.E_std_at_c
 
 begin
     fig = Figure(size = (1000, 450), fontsize = 18)
@@ -33,7 +36,7 @@ begin
     ax_a = Axis(fig[1, 1];
                 xscale = log10, yscale = log10,
                 xlabel = L"d / h",
-                ylabel = L"E_{\mathrm{near}}")
+                ylabel = L"\mathcal{E}_{\mathrm{near}}")
                 # xticks = ([0.2, 0.5, 1, 2, 5, 10, 20],
                           # ["0.2","0.5","1","2","5","10","20"]))
 
@@ -43,17 +46,19 @@ begin
     scatterlines!(ax_a, dh, clip.(Estd);
                   color = :crimson, marker = :rect,
                   markersize = 12, linewidth = 2,
-                  label = L"standard $p \times p$ GL")
+                  label = L"standard $8 \times 8$ GL")
 
-    scatterlines!(ax_a, dh, clip.(Ecorr[5]);
-                  color = :royalblue, marker = :circle,
-                  markersize = 12, linewidth = 2,
-                  label = L"corrected, $c = 5$")
-
-    scatterlines!(ax_a, dh, clip.(Ecorr[8]);
-                  color = :seagreen, marker = :diamond,
-                  markersize = 12, linewidth = 2,
-                  label = L"corrected, $c = 8$")
+    # Iterate over the c values present in the saved E_corr dict. Sorted so
+    # color/marker assignment is stable across runs.
+    corr_styles = [(:royalblue, :circle), (:seagreen, :diamond),
+                   (:darkorange, :utriangle), (:purple, :star5)]
+    for (i, cc) in enumerate(sort(collect(keys(Ecorr))))
+        col, mk = corr_styles[mod1(i, length(corr_styles))]
+        scatterlines!(ax_a, dh, clip.(Ecorr[cc]);
+                      color = col, marker = mk,
+                      markersize = 12, linewidth = 2,
+                      label = L"corrected, $c = %$cc$")
+    end
 
     # eps_str = @sprintf("%.0e", eps_corr)
     # lines!(ax_a, dh, clip.(Eup);
@@ -66,14 +71,40 @@ begin
     # Panel (b): residual error in d/h > c (uncorrected far region)
     # ---------------------------------------------------------------------
     ax_b = Axis(fig[1, 2];
-                xlabel = L"near-field threshold $c$",
-                ylabel = L"\max_{d/h > c}\; E_{\mathrm{std}}",
+                xlabel = L"$c$",
+                ylabel = L"\mathcal{E}_{\mathrm{std}}",
                 yscale = log10,
                 xticks = (c_scan, string.(c_scan)))
 
     scatterlines!(ax_b, c_scan, max.(Eresid_c, 1e-16);
                   color = :crimson, marker = :circle,
-                  markersize = 12, linewidth = 2)
+                  markersize = 12, linewidth = 2,
+                  label = L"E_{\mathrm{std}}")
+
+    # Linear fit on the semi-log plane: log10(E) ≈ a + b·c. The slope b is
+    # decades-per-unit-c, i.e. 10^b is the per-step decay ratio.
+    # Restrict to the decay regime (drop points within one decade of the
+    # observed floor) so the flattening at large c doesn't blunt the slope.
+    fit_mask = isfinite.(Eresid_c) .& (Eresid_c .> 0)
+    floor_obs = minimum(Eresid_c[fit_mask])
+    fit_mask .&= Eresid_c .> 10 * floor_obs
+    cs_fit   = Float64.(c_scan[fit_mask])
+    ys_fit   = log10.(Eresid_c[fit_mask])
+    n_fit    = length(cs_fit)
+    c_mean   = sum(cs_fit) / n_fit
+    y_mean   = sum(ys_fit) / n_fit
+    b_slope  = sum((cs_fit .- c_mean) .* (ys_fit .- y_mean)) /
+               sum((cs_fit .- c_mean).^2)
+    a_int    = y_mean - b_slope * c_mean
+    c_line   = range(minimum(cs_fit), maximum(cs_fit); length = 64)
+    y_line   = 10 .^ (a_int .+ b_slope .* c_line)
+    slope_str  = @sprintf("%.2f", b_slope)
+    fit_label  = LaTeXString("fit: slope = " * slope_str * " per unit \$c\$")
+    # lines!(ax_b, c_line, y_line;
+    #        color = :black, linestyle = :dash, linewidth = 1.5,
+    #        label = fit_label)
+    # axislegend(ax_b; position = :rt, framevisible = false)
+    # @info "Panel (b) linear fit" slope = b_slope intercept = a_int
 
     # for (cc, col, lab) in ((5, :royalblue, L"c = 5"),
     #                         (8, :seagreen,  L"c = 8"))

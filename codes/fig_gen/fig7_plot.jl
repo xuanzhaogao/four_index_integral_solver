@@ -25,8 +25,8 @@ const p_ref  = data.sweep.p_ref
 const V_ref  = data.V_ref
 
 # Per-p color + marker assignment, reused across both panels.
-const COLORS = Dict(2 => :black, 4 => :royalblue, 6 => :crimson)
-const MARKERS = Dict(2 => :circle, 4 => :rect, 6 => :diamond)
+const COLORS = Dict(2 => :black, 3 => :royalblue, 4 => :crimson)
+const MARKERS = Dict(2 => :circle, 3 => :star, 4 => :rect)
 
 # Pull rows for a given p from the flat results vector. Sort by r for clean
 # line connections. Optionally drop the reference row (E_V = 0).
@@ -55,7 +55,7 @@ begin
                       marker = MARKERS[p], markersize = 12, linewidth = 2,
                       label = L"p = %$p")
     end
-    axislegend(ax_a; position = :rt, framevisible = false)
+    axislegend(ax_a; position = :rt)
 
     # ----- Panel (b): GMRES iteration count vs r --------------------------
     ax_b = Axis(fig[1, 2];
@@ -78,7 +78,7 @@ begin
                       marker = MARKERS[p], markersize = 12, linewidth = 2,
                       label = L"p = %$p")
     end
-    axislegend(ax_b; position = :rb, framevisible = false)
+    # axislegend(ax_b; position = :rb, framevisible = false)
 
     colgap!(fig.layout, 1, 30)
 

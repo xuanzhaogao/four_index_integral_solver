@@ -34,7 +34,7 @@ const eps_colors = Dict(
 eps_label(eps) = L"\varepsilon = 10^{%$(round(Int, log10(eps)))}"
 
 begin
-    fig = Figure(size = (1200, 540), fontsize = 18)
+    fig = Figure(size = (1000, 450), fontsize = 18)
 
     floor_y = 1e-16
     clip(y) = max(y, floor_y)
@@ -58,7 +58,7 @@ begin
                   color = :black, marker = :rect,
                   markersize = 12, linewidth = 2,
                   linestyle = :dash,
-                  label = L"FMM")
+                  label = L"\text{FMM}")
 
     axislegend(ax_a; position = :lb)
 
@@ -82,7 +82,7 @@ begin
     vlines!(ax_b, [1.0]; color = (:black, 0.6),
             linestyle = :dash, linewidth = 1.5)
     text!(ax_b, L"\eta = 1"; position = (1.04, 1e-1),
-          fontsize = 16, color = :black)
+          fontsize = 18, color = :black)
 
     axislegend(ax_b; position = :lb)
 
@@ -91,4 +91,6 @@ begin
     outpath = joinpath(@__DIR__, "fig5_tkm_validation.png")
     save(outpath, fig; px_per_unit = 4)
     @info "Saved figure" outpath
+
+    fig
 end

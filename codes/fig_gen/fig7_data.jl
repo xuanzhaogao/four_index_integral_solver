@@ -74,10 +74,10 @@ const MAX_ORDER  = 128
 const LEC_BASE   = 1.0
 const RANGE_FAC  = 5.0   # hcubature near-field correction range factor
 
-const p_list = [2, 4, 6]
-const r_list = [1, 2, 3, 4, 5, 6]
+const p_list = [2, 3, 4]
+const r_list = [1, 2, 3, 4]
 const p_ref  = 6
-const r_ref  = 10   # r_ref = 10 is very expensive but ensures a well-converged reference solution
+const r_ref  = 6   # r_ref = 10 is very expensive but ensures a well-converged reference solution
 
 # ---- Per-configuration solve ----------------------------------------------
 function delta_v_from_sigma(interface, sigma, vs_tar)
