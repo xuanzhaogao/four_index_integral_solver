@@ -63,7 +63,22 @@ function _record_kwargs(mode_label, bandwidth)
     )
 end
 
-function smoke()
+function _density_modes()
+    cases = NamedTuple{(:label, :bandwidth, :mode), Tuple{String, Union{Missing, Float64}, BI.AbstractScreeningMode}}[]
+    push!(cases, (label = "Sharp", bandwidth = missing, mode = BI.SharpScreening()))
+    for bw in BANDWIDTHS
+        push!(cases, (label = "SoftMixInversePermittivity", bandwidth = bw, mode = BI.SoftMixInversePermittivity(bw)))
+    end
+    return cases
+end
+
+function _hund_modes()
+    return [
+        (label = "Sharp", bandwidth = missing, mode = BI.SharpScreening()),
+    ]
+end
+
+function main()
     println("Loading sources ...")
     src = monolayer_screened_sources(
         orbital_1 = XSF_1, orbital_2 = XSF_2,
@@ -71,26 +86,66 @@ function smoke()
     )
     println("  Nphi1 = ", src.Nphi1, "  Nphi2 = ", src.Nphi2)
 
-    println("Running density Sharp solve ...")
-    density_specs = density_target_specs(src)
-    result = solve_screened_mode(
-        src.vs1, density_specs,
-        L, L, LZ, EPS_IN, EPS_OUT, BI.SharpScreening();
-        _solve_kwargs()...,
-    )
-    println("  residual = ", result.residual,
-            "  n_interface_points = ", result.n_interface_points)
-    for pr in result.pair_results
-        println("  ", pr.pair, "  u_total_ev = ", pr.u_total_ev,
-                "  (u_int_ev = ", pr.u_int_ev, ", u_scatter_ev = ", pr.u_scatter_ev, ")")
-    end
     coqui = parse_coqui_loc(COQUI)
-    println("CoQui reference:")
-    for ch in (:onsite, :nn)
-        println("  ", ch, "  U_ijkl = ", coqui[ch].U_ijkl)
+
+    rows = NamedTuple[]
+
+    density_specs = density_target_specs(src)
+    for case in _density_modes()
+        println("Density solve  mode=", case.label, "  bandwidth=", case.bandwidth)
+        result = solve_screened_mode(
+            src.vs1, density_specs,
+            L, L, LZ, EPS_IN, EPS_OUT, case.mode;
+            _solve_kwargs()...,
+        )
+        println("  residual = ", result.residual,
+                "  n_interface_points = ", result.n_interface_points)
+        for pr in result.pair_results
+            ch_sym = pr.pair == "onsite" ? :onsite : :nn
+            row0 = screened_run_record(pr, result; _record_kwargs(case.label, case.bandwidth)...)
+            row = merge(row0, (
+                coqui_v_ijkl = coqui[ch_sym].v_ijkl,
+                coqui_U_ijkl = coqui[ch_sym].U_ijkl,
+                diff_ev = coqui[ch_sym].U_ijkl - row0.u_total_ev,
+            ))
+            push!(rows, row)
+            println("    ", pr.pair, "  ours=", row0.u_total_ev,
+                    "  CoQui=", coqui[ch_sym].U_ijkl,
+                    "  diff=", row.diff_ev)
+        end
     end
-    return result
+
+    hund_specs = hund_target_specs(src)
+    for case in _hund_modes()
+        println("Hund's solve  mode=", case.label, "  bandwidth=", case.bandwidth)
+        result = solve_screened_mode(
+            src.vs_product, hund_specs,
+            L, L, LZ, EPS_IN, EPS_OUT, case.mode;
+            _solve_kwargs()...,
+        )
+        println("  residual = ", result.residual,
+                "  n_interface_points = ", result.n_interface_points)
+        for pr in result.pair_results
+            row0 = screened_run_record(pr, result; _record_kwargs(case.label, case.bandwidth)...)
+            row = merge(row0, (
+                coqui_v_ijkl = coqui[:hund_sf].v_ijkl,
+                coqui_U_ijkl = coqui[:hund_sf].U_ijkl,
+                diff_ev = coqui[:hund_sf].U_ijkl - row0.u_total_ev,
+            ))
+            push!(rows, row)
+            println("    ", pr.pair, "  ours=", row0.u_total_ev,
+                    "  CoQui=", coqui[:hund_sf].U_ijkl,
+                    "  diff=", row.diff_ev)
+        end
+    end
+
+    mkpath(dirname(OUT_CSV))
+    table = DataFrame(rows)
+    CSV.write(OUT_CSV, table)
+    println("Wrote $(nrow(table)) rows to $(OUT_CSV)")
+    summary_cols = [:channel, :mode, :bandwidth, :u_total_ev, :coqui_U_ijkl, :diff_ev, :sigma_residual]
+    show(table[:, summary_cols]; allrows = true, allcols = true)
+    println()
 end
 
-# Run smoke when invoked directly (Task 6).
-smoke()
+main()
