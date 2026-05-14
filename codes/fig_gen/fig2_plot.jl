@@ -28,7 +28,7 @@ const x0 = data.source.x0
 # Figure
 # ---------------------------------------------------------------------------
 begin
-    fig = Figure(size = (1200, 540), fontsize = 18)
+    fig = Figure(size = (1000, 450), fontsize = 18)
 
     # Panel (a): 3D cube panelization colored by refinement level
     panel_records = data.panel_records
@@ -104,7 +104,7 @@ begin
                 markersize = 12, linewidth = 2, label = "RHS-adaptive")
     scatterlines!(ax_c, Ns_u, Es_u; color = :royalblue, marker = :rect,
                 markersize = 12, linewidth = 2, label = "uniform")
-    axislegend(ax_c; position = :rt)
+    axislegend(ax_c; position = :lb)
 
     colgap!(fig.layout, 1, 6)
     colgap!(fig.layout, 2, 22)
@@ -112,4 +112,6 @@ begin
     outpath = joinpath(@__DIR__, "fig2_rhs_adaptive.png")
     save(outpath, fig, px_per_unit = 4)
     @info "Saved figure" outpath
+
+    fig
 end

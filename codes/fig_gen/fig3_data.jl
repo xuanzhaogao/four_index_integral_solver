@@ -31,8 +31,8 @@ const q_check = 3 * p_quad
 
 const ps = BI.PointSource((0.5, 0.6, 100.0), 1.0e4)
 
-const fmm_tol  = 1e-12
-const gmres_tol = 1e-10
+const fmm_tol  = 1e-6
+const gmres_tol = 1e-6
 
 # Sweeps
 const edge_lec_list = [1.01 / 2.0^k for k in 1:10]

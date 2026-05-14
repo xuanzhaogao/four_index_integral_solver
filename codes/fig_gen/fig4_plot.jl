@@ -25,7 +25,7 @@ const c_scan   = data.c_scan
 const Eresid_c = data.max_resid_far_c
 
 begin
-    fig = Figure(size = (1200, 540), fontsize = 18)
+    fig = Figure(size = (1000, 450), fontsize = 18)
 
     # ---------------------------------------------------------------------
     # Panel (a): E_near(d/h)
@@ -33,9 +33,9 @@ begin
     ax_a = Axis(fig[1, 1];
                 xscale = log10, yscale = log10,
                 xlabel = L"d / h",
-                ylabel = L"E_{\mathrm{near}}",
-                xticks = ([0.2, 0.5, 1, 2, 5, 10, 20],
-                          ["0.2","0.5","1","2","5","10","20"]))
+                ylabel = L"E_{\mathrm{near}}")
+                # xticks = ([0.2, 0.5, 1, 2, 5, 10, 20],
+                          # ["0.2","0.5","1","2","5","10","20"]))
 
     floor_y = 1e-16
     clip(y) = max(y, floor_y)
@@ -55,12 +55,12 @@ begin
                   markersize = 12, linewidth = 2,
                   label = L"corrected, $c = 8$")
 
-    eps_str = @sprintf("%.0e", eps_corr)
-    lines!(ax_a, dh, clip.(Eup);
-           color = (:gray, 0.6), linewidth = 1.5, linestyle = :dash,
-           label = L"dynamic $p_{\mathrm{up}}$ ($\varepsilon = %$(eps_str)$)")
+    # eps_str = @sprintf("%.0e", eps_corr)
+    # lines!(ax_a, dh, clip.(Eup);
+    #        color = (:gray, 0.6), linewidth = 1.5, linestyle = :dash,
+    #        label = L"dynamic $p_{\mathrm{up}}$ ($\varepsilon = %$(eps_str)$)")
 
-    axislegend(ax_a; position = :lc)
+    axislegend(ax_a; position = :rt) 
 
     # ---------------------------------------------------------------------
     # Panel (b): residual error in d/h > c (uncorrected far region)
@@ -88,4 +88,6 @@ begin
     outpath = joinpath(@__DIR__, "fig4_near_correction.png")
     save(outpath, fig; px_per_unit = 4)
     @info "Saved figure" outpath
+
+    fig
 end

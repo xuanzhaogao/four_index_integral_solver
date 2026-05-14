@@ -6,11 +6,23 @@ Two parallel unit panels:
     P = [-1/2, 1/2]^2 x {0},  n_P = e_z   (target)
     Q = [-1/2, 1/2]^2 x {d},              (source, density sigma_Q)
 
-For each d, evaluate D^T_{PQ} sigma_Q at the p x p Gauss-Legendre nodes of P:
-  - standard p x p GL on Q
+The production solver only ever sees σ at the p_quad GL grid (it is the BIE
+unknown), so every quantity in this figure must use the same information.
+σ_p[i,j] = σ_Q(ns_p[i] L, ns_p[j] L) is sampled analytically once and treated
+as the only available data; the analytic σ_Q is *not* reused anywhere else.
+The "true" integrand on Q is therefore the polynomial interpolant P_σ
+defined by tensor-product barycentric Lagrange on the p_quad GL grid, and
+the panel-pair integral is the integral of K · P_σ over Q.
+
+For each d, evaluate D^T_{PQ} P_σ at the p x p Gauss-Legendre nodes of P:
+  - standard p x p GL on Q  (σ at p_quad nodes = σ_p exactly)
   - dynamically upsampled (p_up >= p, doubling until self-convergence
-    < eps_corr) on Q with sigma_Q sampled analytically
-  - HCubature reference (rtol = 1e-12, atol = 1e-14)
+    < eps_corr): σ at the upsampled GL grid obtained by tensor barycentric
+    Lagrange interpolation of σ_p.
+  - HCubature reference (rtol = 1e-12, atol = 1e-14): integrates K · P_σ
+    over Q with P_σ evaluated pointwise via barycentric Lagrange row
+    evaluation at the cubature points chosen by HCubature. This is the
+    ground-truth panel-pair integral *for the polynomial-σ the solver sees*.
 
 The upsampled order p_up is chosen exactly as in the production code path
 (`check_quad_order3d`):  start at p_up = p, then keep doubling until two
@@ -26,6 +38,8 @@ using FastGaussQuadrature
 using HCubature
 using Serialization
 using Printf
+using BoundaryIntegral
+const BI = BoundaryIntegral
 
 # ---------------------------------------------------------------------------
 # Problem setup
@@ -64,7 +78,9 @@ const hc_max  = 10_000_000
 end
 
 # Target nodes on P: p x p Gauss-Legendre tensor product
-const ns_p, _ws_p = gausslegendre(p_quad)
+const ns_p, ws_p = gausslegendre(p_quad)
+const λ_p        = BI.gl_barycentric_weights(ns_p, ws_p)
+
 function target_nodes()
     pts = Vector{NTuple{3,Float64}}(undef, p_quad * p_quad)
     k = 0
@@ -75,26 +91,49 @@ function target_nodes()
     return pts
 end
 
-# n x n GL approximation of  int_Q K(x, y) sigma(y) dS_y , sigma analytic.
-function gl_quad_apply(x::NTuple{3,Float64}, d::Float64, n::Int)
-    ns, ws = gausslegendre(n)
-    s = 0.0
-    @inbounds for j in 1:n, i in 1:n
-        η1 = ns[i] * L_half
-        η2 = ns[j] * L_half
-        s += ws[i] * ws[j] * σ_Q(η1, η2) * kernel(x, (η1, η2, d))
+# σ on the p_quad GL grid — the only σ data the production solver ever has.
+const sigma_p_grid = let σg = Matrix{Float64}(undef, p_quad, p_quad)
+    for j in 1:p_quad, i in 1:p_quad
+        σg[i, j] = σ_Q(ns_p[i] * L_half, ns_p[j] * L_half)
     end
-    return s * L_half * L_half
+    σg
 end
 
-# Vectorized version: returns I(x_t; n) for every target.
+# Cache: σ at the n×n GL grid, obtained by tensor barycentric-Lagrange
+# interpolation from sigma_p_grid. Computed once per requested n.
+const sigma_interp_cache = Dict{Int, Matrix{Float64}}()
+function sigma_on_gl_grid(n::Int)
+    haskey(sigma_interp_cache, n) && return sigma_interp_cache[n]
+    ns_n, _ = gausslegendre(n)
+    E = BI.interp_matrix_1d_gl(ns_p, ws_p, ns_n)     # n × p_quad
+    σn = E * sigma_p_grid * transpose(E)              # n × n
+    sigma_interp_cache[n] = σn
+    return σn
+end
+
+# σ at an arbitrary reference point (u, v) ∈ [-1, 1]^2, evaluated via
+# barycentric Lagrange. Used by HCubature, which picks its own cubature
+# points and so cannot reuse a precomputed grid.
+function sigma_pointwise(u::Float64, v::Float64)
+    rx = BI.barycentric_row(ns_p, λ_p, u)
+    ry = BI.barycentric_row(ns_p, λ_p, v)
+    s = 0.0
+    @inbounds for j in 1:p_quad, i in 1:p_quad
+        s += sigma_p_grid[i, j] * rx[i] * ry[j]
+    end
+    return s
+end
+
+# n x n GL approximation of int_Q K(x, y) P_σ(y) dS_y with P_σ the polynomial
+# interpolant of σ_p_grid evaluated at the n × n GL grid (via interpolation).
 function gl_quad_apply_all(targets, d::Float64, n::Int)
     ns, ws = gausslegendre(n)
+    σn = sigma_on_gl_grid(n)
     out = zeros(length(targets))
     @inbounds for j in 1:n, i in 1:n
         η1 = ns[i] * L_half
         η2 = ns[j] * L_half
-        w  = ws[i] * ws[j] * σ_Q(η1, η2)
+        w  = ws[i] * ws[j] * σn[i, j]
         y  = (η1, η2, d)
         for (t, x) in pairs(targets)
             out[t] += w * kernel(x, y)
@@ -119,9 +158,12 @@ function adaptive_p_up(targets, d::Float64, eps::Float64, p0::Int, pmax::Int)
     return pmax, prev
 end
 
-# HCubature reference for one target.
+# HCubature reference for one target, integrating K(x, y) · P_σ(y) over Q.
+# P_σ is the polynomial interpolant of σ_p_grid, evaluated pointwise at
+# whatever cubature points HCubature chooses.
 function hcubature_ref(x::NTuple{3,Float64}, d::Float64)
-    f = η -> σ_Q(η[1], η[2]) * kernel(x, (η[1], η[2], d))
+    f = η -> sigma_pointwise(η[1] / L_half, η[2] / L_half) *
+            kernel(x, (η[1], η[2], d))
     val, _ = hcubature(f,
                        (-L_half, -L_half), (L_half, L_half);
                        rtol = hc_rtol, atol = hc_atol, maxevals = hc_max)
@@ -193,7 +235,7 @@ out = (
     d_list         = d_list,
     c_near_list    = collect(c_near_list),
     sigma_label    = "exp(-2 ((y1-0.1)^2 + (y2+0.15)^2))",
-    upsample_mode  = "dynamic doubling, analytic sigma on upsampled GL grid",
+    upsample_mode  = "dynamic doubling, σ interpolated from p_quad GL grid via barycentric Lagrange (both I_up and I_ref)",
     hc_rtol        = hc_rtol,
     hc_atol        = hc_atol,
     targets        = targets,
