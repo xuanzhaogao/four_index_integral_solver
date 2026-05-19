@@ -28,7 +28,7 @@ const x0 = data.source.x0
 # Figure
 # ---------------------------------------------------------------------------
 begin
-    fig = Figure(size = (1000, 450), fontsize = 18)
+    fig = Figure(size = (1000, 400), fontsize = 18)
 
     # Panel (a): 3D cube panelization colored by refinement level
     panel_records = data.panel_records
@@ -71,7 +71,7 @@ begin
     mesh!(ax_a, GeometryBasics.Mesh(verts_all, faces_all);
         color = colors_all, colormap = cmap_a,
         colorrange = (-0.5, lvl_max + 0.5),
-        shading = NoShading)
+        shading = NoShading, rasterize = 4)
     linesegments!(ax_a, edge_segs; color = (:black, 0.45), linewidth = 0.3)
 
     # Source marker (3D) and a thin stem dropped to its projection on +z face
@@ -95,21 +95,27 @@ begin
                 # title  = "(c) RHS interpolation convergence"
                 )
 
-    Ns_a = [r.N for r in data.adaptive]
-    Es_a = [r.Ef for r in data.adaptive]
-    Ns_u = [r.N for r in data.uniform]
-    Es_u = [r.Ef for r in data.uniform]
+    p_palette = cgrad(:viridis, length(data.sweeps) + 1, categorical = true)
+    for (i, sw) in enumerate(data.sweeps)
+        col = p_palette[i]
+        Ns_a = [r.N for r in sw.adaptive]
+        Es_a = [r.Ef for r in sw.adaptive]
+        Ns_u = [r.N for r in sw.uniform]
+        Es_u = [r.Ef for r in sw.uniform]
 
-    scatterlines!(ax_c, Ns_a, Es_a; color = :crimson, marker = :circle,
-                markersize = 12, linewidth = 2, label = "RHS-adaptive")
-    scatterlines!(ax_c, Ns_u, Es_u; color = :royalblue, marker = :rect,
-                markersize = 12, linewidth = 2, label = "uniform")
-    axislegend(ax_c; position = :lb)
+        scatterlines!(ax_c, Ns_a, Es_a; color = col, marker = :circle,
+                      markersize = 11, linewidth = 2,
+                      label = "adaptive, p=$(sw.p)")
+        scatterlines!(ax_c, Ns_u, Es_u; color = col, marker = :rect,
+                      markersize = 10, linewidth = 2, linestyle = :dash,
+                      label = "uniform,  p=$(sw.p)")
+    end
+    axislegend(ax_c; position = :lb, nbanks = 1, labelsize = 12)
 
     colgap!(fig.layout, 1, 6)
     colgap!(fig.layout, 2, 22)
 
-    outpath = joinpath(@__DIR__, "fig2_rhs_adaptive.png")
+    outpath = joinpath(@__DIR__, "figs/fig2_rhs_adaptive.pdf")
     save(outpath, fig, px_per_unit = 4)
     @info "Saved figure" outpath
 

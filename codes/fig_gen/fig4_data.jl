@@ -1,34 +1,16 @@
 #=
-Data generation for Figure 4 (near-field quadrature correction at the
-panel-pair level).
+Data generation for Figure 4.
 
 Two parallel unit panels:
     P = [-1/2, 1/2]^2 x {0},  n_P = e_z   (target)
     Q = [-1/2, 1/2]^2 x {d},              (source, density sigma_Q)
 
-The production solver only ever sees σ at the p_quad GL grid (it is the BIE
-unknown), so every quantity in this figure must use the same information.
-σ_p[i,j] = σ_Q(ns_p[i] L, ns_p[j] L) is sampled analytically once and treated
-as the only available data; the analytic σ_Q is *not* reused anywhere else.
-The "true" integrand on Q is therefore the polynomial interpolant P_σ
-defined by tensor-product barycentric Lagrange on the p_quad GL grid, and
-the panel-pair integral is the integral of K · P_σ over Q.
-
-For each d, evaluate D^T_{PQ} P_σ at the p x p Gauss-Legendre nodes of P:
-  - standard p x p GL on Q  (σ at p_quad nodes = σ_p exactly)
-  - dynamically upsampled (p_up >= p, doubling until self-convergence
-    < eps_corr): σ at the upsampled GL grid obtained by tensor barycentric
-    Lagrange interpolation of σ_p.
-  - HCubature reference (rtol = 1e-12, atol = 1e-14): integrates K · P_σ
-    over Q with P_σ evaluated pointwise via barycentric Lagrange row
-    evaluation at the cubature points chosen by HCubature. This is the
-    ground-truth panel-pair integral *for the polynomial-σ the solver sees*.
-
-The upsampled order p_up is chosen exactly as in the production code path
-(`check_quad_order3d`):  start at p_up = p, then keep doubling until two
-consecutive GL approximations agree to `eps_corr` in the inf-norm over all
-target points.  The same p_up is used for every target on P, matching the
-per-pair convention in the production solver.
+For each p ∈ {4, 6, 8}, sweep d/h ∈ [0.2, 20] and record the relative L2
+error of standard p×p Gauss-Legendre quadrature over Q against the
+polynomial-σ_p interpolant ground truth (HCubature, rtol=1e-12). The
+production solver only sees σ at the p_quad GL grid, so the "true" integrand
+on Q is the tensor barycentric Lagrange interpolant P_σ, and the panel-pair
+integral is the integral of K · P_σ over Q.
 
 Save fig4_data.jls for fig4_plot.jl.
 =#
@@ -44,218 +26,117 @@ const BI = BoundaryIntegral
 # ---------------------------------------------------------------------------
 # Problem setup
 # ---------------------------------------------------------------------------
-const p_quad   = 8
-const eps_corr = 1e-12             # target tolerance for dynamic p_up
-const p_up_max = 512               # safety cap on p_up
+const L_half  = 0.5
+const n_P     = (0.0, 0.0, 1.0)
+σ_Q(η1, η2)   = exp(-η1^2 - η2^2)
 
-const c_near_list = (3, 5, 7)          # integer near-field thresholds
-
-# Panel half-side; both panels are [-1/2, 1/2]^2 in their tangent plane
-const L_half = 0.5
-
-const n_P = (0.0, 0.0, 1.0)        # target normal
-
-# Smooth source density on Q; well resolved by p = 8.
-σ_Q(η1, η2) = exp(-2.0 * ((η1 - 0.1)^2 + (η2 + 0.15)^2))
-
-# d/h sweep:  h = 1/p
-const h_node = 1.0 / p_quad
-const dh_list = collect(10 .^ range(log10(0.2), log10(20.0); length = 25))
-const d_list  = dh_list .* h_node
-
-const hc_rtol = 1e-12
-const hc_atol = 1e-14
-const hc_max  = 10_000_000
-
-# ---------------------------------------------------------------------------
-# Kernel:  K(x, y) = ((x - y) . n_P) / |x - y|^3  / (4 pi)
-# ---------------------------------------------------------------------------
 @inline function kernel(x::NTuple{3,Float64}, y::NTuple{3,Float64})
-    r = (x[1] - y[1], x[2] - y[2], x[3] - y[3])
+    r  = (x[1] - y[1], x[2] - y[2], x[3] - y[3])
     r2 = r[1]*r[1] + r[2]*r[2] + r[3]*r[3]
     invr = 1.0 / sqrt(r2)
     return (r[1]*n_P[1] + r[2]*n_P[2] + r[3]*n_P[3]) * invr^3 / (4π)
 end
 
-# Target nodes on P: p x p Gauss-Legendre tensor product
-const ns_p, ws_p = gausslegendre(p_quad)
-const λ_p        = BI.gl_barycentric_weights(ns_p, ws_p)
+const p_values = [4, 6, 8]
+const dh_list  = collect(10 .^ range(log10(0.2), log10(20.0); length = 25))
+const hc_rtol  = 1e-12
+const hc_atol  = 1e-14
+const hc_max   = 10_000_000
 
-function target_nodes()
-    pts = Vector{NTuple{3,Float64}}(undef, p_quad * p_quad)
+# ---------------------------------------------------------------------------
+# Per-p sweep
+# ---------------------------------------------------------------------------
+function sweep_p(p::Int)
+    h_node = 1.0 / p
+    d_list = dh_list .* h_node
+
+    ns_p, ws_p = gausslegendre(p)
+    λ_p        = BI.gl_barycentric_weights(ns_p, ws_p)
+
+    sigma_p = Matrix{Float64}(undef, p, p)
+    for j in 1:p, i in 1:p
+        sigma_p[i, j] = σ_Q(ns_p[i] * L_half, ns_p[j] * L_half)
+    end
+
+    targets = Vector{NTuple{3,Float64}}(undef, p * p)
     k = 0
-    for j in 1:p_quad, i in 1:p_quad
+    for j in 1:p, i in 1:p
         k += 1
-        pts[k] = (ns_p[i] * L_half, ns_p[j] * L_half, 0.0)
+        targets[k] = (ns_p[i] * L_half, ns_p[j] * L_half, 0.0)
     end
-    return pts
-end
+    Nt = length(targets)
 
-# σ on the p_quad GL grid — the only σ data the production solver ever has.
-const sigma_p_grid = let σg = Matrix{Float64}(undef, p_quad, p_quad)
-    for j in 1:p_quad, i in 1:p_quad
-        σg[i, j] = σ_Q(ns_p[i] * L_half, ns_p[j] * L_half)
-    end
-    σg
-end
-
-# Cache: σ at the n×n GL grid, obtained by tensor barycentric-Lagrange
-# interpolation from sigma_p_grid. Computed once per requested n.
-const sigma_interp_cache = Dict{Int, Matrix{Float64}}()
-function sigma_on_gl_grid(n::Int)
-    haskey(sigma_interp_cache, n) && return sigma_interp_cache[n]
-    ns_n, _ = gausslegendre(n)
-    E = BI.interp_matrix_1d_gl(ns_p, ws_p, ns_n)     # n × p_quad
-    σn = E * sigma_p_grid * transpose(E)              # n × n
-    sigma_interp_cache[n] = σn
-    return σn
-end
-
-# σ at an arbitrary reference point (u, v) ∈ [-1, 1]^2, evaluated via
-# barycentric Lagrange. Used by HCubature, which picks its own cubature
-# points and so cannot reuse a precomputed grid.
-function sigma_pointwise(u::Float64, v::Float64)
-    rx = BI.barycentric_row(ns_p, λ_p, u)
-    ry = BI.barycentric_row(ns_p, λ_p, v)
-    s = 0.0
-    @inbounds for j in 1:p_quad, i in 1:p_quad
-        s += sigma_p_grid[i, j] * rx[i] * ry[j]
-    end
-    return s
-end
-
-# n x n GL approximation of int_Q K(x, y) P_σ(y) dS_y with P_σ the polynomial
-# interpolant of σ_p_grid evaluated at the n × n GL grid (via interpolation).
-function gl_quad_apply_all(targets, d::Float64, n::Int)
-    ns, ws = gausslegendre(n)
-    σn = sigma_on_gl_grid(n)
-    out = zeros(length(targets))
-    @inbounds for j in 1:n, i in 1:n
-        η1 = ns[i] * L_half
-        η2 = ns[j] * L_half
-        w  = ws[i] * ws[j] * σn[i, j]
-        y  = (η1, η2, d)
-        for (t, x) in pairs(targets)
-            out[t] += w * kernel(x, y)
+    @inline function sigma_pointwise(u::Float64, v::Float64)
+        rx = BI.barycentric_row(ns_p, λ_p, u)
+        ry = BI.barycentric_row(ns_p, λ_p, v)
+        s = 0.0
+        @inbounds for j in 1:p, i in 1:p
+            s += sigma_p[i, j] * rx[i] * ry[j]
         end
+        return s
     end
-    return out .* (L_half * L_half)
-end
 
-# Adaptive upsampling: doubling p_up until ||I(2p) - I(p)||_inf < eps_corr,
-# matching the production check_quad_order3d criterion (one p_up per pair).
-function adaptive_p_up(targets, d::Float64, eps::Float64, p0::Int, pmax::Int)
-    prev = gl_quad_apply_all(targets, d, p0)
-    p_try = p0
-    while p_try < pmax
-        curr = gl_quad_apply_all(targets, d, 2 * p_try)
-        if maximum(abs.(curr .- prev)) < eps
-            return p_try, prev
+    function I_std_at_d(d::Float64)
+        out = zeros(Nt)
+        @inbounds for j in 1:p, i in 1:p
+            η1 = ns_p[i] * L_half
+            η2 = ns_p[j] * L_half
+            w  = ws_p[i] * ws_p[j] * sigma_p[i, j]
+            y  = (η1, η2, d)
+            for t in 1:Nt
+                out[t] += w * kernel(targets[t], y)
+            end
         end
-        prev = curr
-        p_try *= 2
+        return out .* (L_half * L_half)
     end
-    return pmax, prev
-end
 
-# HCubature reference for one target, integrating K(x, y) · P_σ(y) over Q.
-# P_σ is the polynomial interpolant of σ_p_grid, evaluated pointwise at
-# whatever cubature points HCubature chooses.
-function hcubature_ref(x::NTuple{3,Float64}, d::Float64)
-    f = η -> sigma_pointwise(η[1] / L_half, η[2] / L_half) *
-            kernel(x, (η[1], η[2], d))
-    val, _ = hcubature(f,
-                       (-L_half, -L_half), (L_half, L_half);
-                       rtol = hc_rtol, atol = hc_atol, maxevals = hc_max)
-    return val
-end
-
-# ---------------------------------------------------------------------------
-# Sweep
-# ---------------------------------------------------------------------------
-const targets = target_nodes()
-const Nt = length(targets)
-
-I_std = zeros(Nt, length(d_list))
-I_up  = zeros(Nt, length(d_list))
-I_ref = zeros(Nt, length(d_list))
-p_up_used = zeros(Int, length(d_list))
-
-@info "Running fig4 sweep" p_quad eps_corr Nd=length(d_list)
-for (kd, d) in enumerate(d_list)
-    t0 = time()
-    I_std[:, kd] .= gl_quad_apply_all(targets, d, p_quad)
-    p_up_used[kd], I_up_kd = adaptive_p_up(targets, d, eps_corr, p_quad, p_up_max)
-    I_up[:, kd] .= I_up_kd
-    @inbounds for it in 1:Nt
-        I_ref[it, kd] = hcubature_ref(targets[it], d)
+    function I_ref_at_d(d::Float64)
+        out = zeros(Nt)
+        for t in 1:Nt
+            x = targets[t]
+            f = η -> sigma_pointwise(η[1] / L_half, η[2] / L_half) *
+                    kernel(x, (η[1], η[2], d))
+            val, _ = hcubature(f,
+                               (-L_half, -L_half), (L_half, L_half);
+                               rtol = hc_rtol, atol = hc_atol, maxevals = hc_max)
+            out[t] = val
+        end
+        return out
     end
-    err_std = norm(I_std[:, kd] - I_ref[:, kd]) / norm(I_ref[:, kd])
-    err_up  = norm(I_up[:,  kd] - I_ref[:, kd]) / norm(I_ref[:, kd])
-    @info @sprintf("  d/h = %7.3f   d = %.4f   p_up = %3d   E_std = %.3e   E_up = %.3e   (%.2fs)",
-                   dh_list[kd], d, p_up_used[kd], err_std, err_up, time() - t0)
-end
 
-# ---------------------------------------------------------------------------
-# Errors and corrected curves
-# ---------------------------------------------------------------------------
-E_std = [norm(I_std[:, k] - I_ref[:, k]) / norm(I_ref[:, k]) for k in 1:length(d_list)]
-E_up  = [norm(I_up[:,  k] - I_ref[:, k]) / norm(I_ref[:, k]) for k in 1:length(d_list)]
-
-E_corr = Dict{Int,Vector{Float64}}()
-for c in c_near_list
-    Ec = similar(E_std)
-    for k in 1:length(d_list)
-        Ec[k] = (dh_list[k] <= c) ? E_up[k] : E_std[k]
+    E_std = zeros(length(d_list))
+    for (k, d) in enumerate(d_list)
+        t0 = time()
+        I_s = I_std_at_d(d)
+        I_r = I_ref_at_d(d)
+        E_std[k] = norm(I_s - I_r) / norm(I_r)
+        @info @sprintf("  p=%d  d/h=%7.3f  d=%.4f  E_std=%.3e  (%.2fs)",
+                       p, dh_list[k], d, E_std[k], time() - t0)
     end
-    E_corr[c] = Ec
+    return (p = p, h_node = h_node, d_list = d_list, E_std = E_std)
 end
 
-# Panel (b) data: direct standard-GL error at d = c · h for each integer c.
-# This is the actual residual the uncorrected "far" region contributes right
-# at the near-field threshold — no log-grid binning bias.
-const c_scan   = collect(3:15)
-E_std_at_c     = zeros(length(c_scan))
-@info "Panel (b): direct E_std evaluation at d = c·h" c_scan h_node
-for (i, c) in enumerate(c_scan)
-    d_c     = c * h_node
-    I_std_c = gl_quad_apply_all(targets, d_c, p_quad)
-    I_ref_c = [hcubature_ref(targets[t], d_c) for t in 1:Nt]
-    E_std_at_c[i] = norm(I_std_c - I_ref_c) / norm(I_ref_c)
-    @info @sprintf("  c = %2d   d = %.4f   E_std(c·h) = %.3e",
-                   c, d_c, E_std_at_c[i])
+# ---------------------------------------------------------------------------
+# Run sweep
+# ---------------------------------------------------------------------------
+results = NamedTuple[]
+for p in p_values
+    @info "================= p = $p ================="
+    push!(results, sweep_p(p))
 end
 
 # ---------------------------------------------------------------------------
 # Save
 # ---------------------------------------------------------------------------
 out = (
-    p_quad         = p_quad,
-    eps_corr       = eps_corr,
-    p_up_max       = p_up_max,
-    p_up_used      = p_up_used,
-    h_node         = h_node,
-    dh_list        = dh_list,
-    d_list         = d_list,
-    c_near_list    = collect(c_near_list),
-    sigma_label    = "exp(-2 ((y1-0.1)^2 + (y2+0.15)^2))",
-    upsample_mode  = "dynamic doubling, σ interpolated from p_quad GL grid via barycentric Lagrange (both I_up and I_ref)",
-    hc_rtol        = hc_rtol,
-    hc_atol        = hc_atol,
-    targets        = targets,
-    I_std          = I_std,
-    I_up           = I_up,
-    I_ref          = I_ref,
-    E_std          = E_std,
-    E_up           = E_up,
-    E_corr         = E_corr,
-    c_scan          = c_scan,
-    E_std_at_c      = E_std_at_c,
-    geometry = (
-        P = "[-1/2, 1/2]^2 x {0}",
-        Q = "[-1/2, 1/2]^2 x {d}",
-        n_P = n_P,
-    ),
+    p_values    = p_values,
+    dh_list     = dh_list,
+    sweeps      = results,
+    L_half      = L_half,
+    n_P         = n_P,
+    sigma_label = "exp(-y1^2 - y2^2)",
+    hc_rtol     = hc_rtol,
+    hc_atol     = hc_atol,
 )
 
 datapath = joinpath(@__DIR__, "fig4_data.jls")
@@ -264,9 +145,11 @@ open(datapath, "w") do io
 end
 @info "Saved data" datapath bytes=stat(datapath).size
 
-println("\n=== d/h    p_up   E_std       E_up        E_corr(c=5)   E_corr(c=8) ===")
-for k in 1:length(d_list)
-    @printf("  %7.3f  %4d   %.3e   %.3e   %.3e     %.3e\n",
-            dh_list[k], p_up_used[k],
-            E_std[k], E_up[k], E_corr[5][k], E_corr[8][k])
+println("\n=== d/h   ", join((@sprintf("E_std(p=%d)", p) for p in p_values), "    "), " ===")
+for k in 1:length(dh_list)
+    line = @sprintf("  %7.3f", dh_list[k])
+    for r in results
+        line *= @sprintf("   %.3e", r.E_std[k])
+    end
+    println(line)
 end

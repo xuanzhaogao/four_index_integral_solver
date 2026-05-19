@@ -1,124 +1,182 @@
 #=
-Figure 4 plot script. Loads fig4_data.jls and writes fig4_near_correction.png.
+Figure 4 plot script.
 
-Layout:
-  (a) E_near(d/h):  standard p x p GL  vs  near-field-corrected (c = 5, 8),
-                    with the dynamically-upsampled curve as a floor reference
-  (b) max residual error left in d/h > c by the corrected scheme, vs c
+Left  panel: Bernstein-ellipses picture in the (x_t, z_t) plane at y_t = 0.
+             Same density σ_Q and panel Q = [-1/2, 1/2]² × {0} as the right
+             panel; same Laplace double-layer kernel as fig4_data.jl.
+             Filled contours = log10|I_n - I_ref| for n = max(p_values);
+             black contour lines = the Bernstein-radius prediction ρ^{-2n}
+             rescaled from the [-1/2, 1/2] panel to the canonical [-1, 1]
+             Bernstein reference (s = η / L_half).
+Right panel: standard p×p GL near-field error E_std vs d/h for
+             p ∈ {4, 6, 8}, loaded from fig4_data.jls.
 =#
 
 using Serialization
+using FastGaussQuadrature
 using CairoMakie
 using LaTeXStrings
 using Printf
 
+# ---------------------------------------------------------------------------
+# Right-panel data (precomputed by fig4_data.jl)
+# ---------------------------------------------------------------------------
 const datapath = joinpath(@__DIR__, "fig4_data.jls")
-const data = open(deserialize, datapath, "r")
+const data     = open(deserialize, datapath, "r")
 
-const p_quad   = data.p_quad
-const eps_corr = data.eps_corr
-const dh       = data.dh_list
-const Estd     = data.E_std
-const Eup      = data.E_up
-const Ecorr    = data.E_corr
-const c_scan   = data.c_scan
-# Direct standard-GL error at d = c·h for each c. This is the residual the
-# uncorrected far region contributes right at the near-field threshold,
-# evaluated without log-grid binning bias.
-const Eresid_c = data.E_std_at_c
+const dh        = data.dh_list
+const p_values  = sort(collect(data.p_values))
+const sweeps    = Dict(s.p => s for s in data.sweeps)
+const L_half    = data.L_half
 
+# ---------------------------------------------------------------------------
+# Shared density / kernel (must match fig4_data.jl)
+# ---------------------------------------------------------------------------
+σ_Q(η1, η2) = exp(-η1^2 - η2^2)
+
+@inline function dt_kernel(xt, yt, zt, y1, y2)
+    r2 = (xt - y1)^2 + (yt - y2)^2 + zt^2
+    invr = 1.0 / sqrt(r2)
+    # n_P = (0, 0, 1); source at z = 0, target at (xt, yt, zt). So
+    #   (x - y) · n_P = zt - 0 = zt.
+    return zt * invr^3 / (4π)
+end
+
+# Source integral over y ∈ [-L_half, L_half]² × {0}, evaluated at the
+# target (xt, yt, zt). The n-point GL quadrature samples η = s·L_half with
+# s ∈ [-1, 1] and weights ws.
+function integrate_dt(xs_s, ws_s, xt, yt, zt)
+    res = 0.0
+    @inbounds for j in eachindex(xs_s)
+        η2 = xs_s[j] * L_half
+        wy = ws_s[j]
+        for i in eachindex(xs_s)
+            η1 = xs_s[i] * L_half
+            res += σ_Q(η1, η2) * ws_s[i] * wy *
+                   dt_kernel(xt, yt, zt, η1, η2)
+        end
+    end
+    return res * L_half * L_half
+end
+
+function bernstein_rho_from_pole(z::Complex)
+    s = sqrt(z*z - one(real(z)))
+    return max(abs(z + s), abs(z - s))
+end
+
+# ---------------------------------------------------------------------------
+# Bernstein contour computation (LHS)
+# ---------------------------------------------------------------------------
+const n_bern  = maximum(p_values)
+const yt_bern = 0.0
+const n_ref   = 64
+
+# Larger plot window than the panel itself (panel sits in [-L_half, L_half]).
+const xa, xb = -3.0, 3.0
+const za, zb = -2.0, 2.0
+const xt_s   = collect(range(xa, xb; length = 220))
+const zt_s   = collect(range(za, zb; length = 160))
+
+xs_ref, ws_ref = gausslegendre(n_ref)
+xs_n,  ws_n    = gausslegendre(n_bern)
+
+res_ref  = Matrix{Float64}(undef, length(xt_s), length(zt_s))
+res_n    = Matrix{Float64}(undef, length(xt_s), length(zt_s))
+err_pred = Matrix{Float64}(undef, length(xt_s), length(zt_s))
+
+for j in eachindex(zt_s), i in eachindex(xt_s)
+    xt = xt_s[i]; zt = zt_s[j]
+    res_ref[i, j] = integrate_dt(xs_ref, ws_ref, xt, yt_bern, zt)
+    res_n[i, j]   = integrate_dt(xs_n,  ws_n,  xt, yt_bern, zt)
+
+    # Bernstein analysis in reference s ∈ [-1, 1] (s = η / L_half).
+    # Pole of K(·, ·, zt) in complex η_1, with η_2 real and bounded by
+    # [-L_half, L_half], is at η_1 = xt ± i·sqrt((yt - η_2)² + zt²).
+    # In s_1 = η_1 / L_half: s_1^pole = (xt + i·sqrt(...)) / L_half.
+    # ρ_1 = min over s_2 ∈ [-1, 1] of |s_1^pole + sqrt((s_1^pole)² - 1)|.
+    rho_x_min = Inf
+    rho_y_min = Inf
+    for s2 in -1.0:0.1:1.0
+        η2 = s2 * L_half
+        s_pole_x = (xt + im * sqrt((yt_bern - η2)^2 + zt^2)) / L_half
+        s_pole_y = (yt_bern + im * sqrt((xt - η2)^2 + zt^2)) / L_half
+        rho_x_min = min(rho_x_min, bernstein_rho_from_pole(s_pole_x))
+        rho_y_min = min(rho_y_min, bernstein_rho_from_pole(s_pole_y))
+    end
+    err_pred[i, j] = max(rho_x_min^(-2 * n_bern), rho_y_min^(-2 * n_bern))
+end
+
+# Use relative error so the colormap is comparable across kernels.
+denom    = maximum(abs.(res_ref))
+log_true = log10.(abs.(res_n .- res_ref) ./ denom .+ eps())
+log_pred = log10.(err_pred .+ eps())
+
+# ---------------------------------------------------------------------------
+# Figure
+# ---------------------------------------------------------------------------
 begin
-    fig = Figure(size = (1000, 450), fontsize = 18)
+    fig = Figure(size = (1000, 400), fontsize = 18)
 
-    # ---------------------------------------------------------------------
-    # Panel (a): E_near(d/h)
-    # ---------------------------------------------------------------------
+    # Panel (a): Bernstein ellipses -------------------------------------------------
+    levels_log = -15.0:2.0:1.0
+
     ax_a = Axis(fig[1, 1];
+                aspect = DataAspect(),
+                xlabel = L"x_t",
+                ylabel = L"z_t",
+                # title  = L"\log_{10}\,|I_{%$n_bern} - I_{\mathrm{ref}}| / \max|I_{\mathrm{ref}}|,\ y_t = 0"
+                )
+
+    hm = contourf!(ax_a, xt_s, zt_s, log_true;
+                   levels = levels_log, colormap = :viridis, rasterize = 4)
+    # contour!(ax_a, xt_s, zt_s, log_pred;
+    #          levels = levels_log,
+    #          color = :black, linewidth = 1.4)
+    # Mark the integration interval [-L_half, L_half] at z = 0
+    lines!(ax_a, [-L_half, L_half], [0.0, 0.0];
+           color = :red, linewidth = 3)
+
+    xlims!(ax_a, -2, 2)
+    ylims!(ax_a, -2, 2)
+
+    Colorbar(fig[1, 2], hm; label = L"\log_{10}\,\mathcal{E}", width = 12)
+
+    # Panel (b): E_std vs d/h for p = 4, 6, 8 ---------------------------------------
+    ax_b = Axis(fig[1, 3];
                 xscale = log10, yscale = log10,
-                xlabel = L"d / h",
+                xlabel = L"d",
                 ylabel = L"\mathcal{E}_{\mathrm{near}}")
-                # xticks = ([0.2, 0.5, 1, 2, 5, 10, 20],
-                          # ["0.2","0.5","1","2","5","10","20"]))
 
     floor_y = 1e-16
     clip(y) = max(y, floor_y)
 
-    scatterlines!(ax_a, dh, clip.(Estd);
-                  color = :crimson, marker = :rect,
-                  markersize = 12, linewidth = 2,
-                  label = L"standard $8 \times 8$ GL")
+    p_palette = cgrad(:viridis, length(p_values) + 1, categorical = true)
+    markers   = [:circle, :rect, :utriangle]
+    for (i, p) in enumerate(p_values)
+        sw  = sweeps[p]
+        col = p_palette[i]
+        scatter!(ax_b, 2 * dh / p, clip.(sw.E_std);
+                      color = col, marker = markers[i],
+                      markersize = 11, label = L"p = %$p")
 
-    # Iterate over the c values present in the saved E_corr dict. Sorted so
-    # color/marker assignment is stable across runs.
-    corr_styles = [(:royalblue, :circle), (:seagreen, :diamond),
-                   (:darkorange, :utriangle), (:purple, :star5)]
-    for (i, cc) in enumerate(sort(collect(keys(Ecorr))))
-        col, mk = corr_styles[mod1(i, length(corr_styles))]
-        scatterlines!(ax_a, dh, clip.(Ecorr[cc]);
-                      color = col, marker = mk,
-                      markersize = 12, linewidth = 2,
-                      label = L"corrected, $c = %$cc$")
+        f_temp = x -> (x + sqrt(1 + x^2))^(-2 * p + 2)
+        lines!(ax_b, 2 * dh / p, f_temp.(2 * dh / p);
+               color = col, linewidth = 1.5, linestyle = :dash)
     end
+    axislegend(ax_b; position = :rt)
+    ylims!(ax_b, 1e-15, 1e2)
 
-    # eps_str = @sprintf("%.0e", eps_corr)
-    # lines!(ax_a, dh, clip.(Eup);
-    #        color = (:gray, 0.6), linewidth = 1.5, linestyle = :dash,
-    #        label = L"dynamic $p_{\mathrm{up}}$ ($\varepsilon = %$(eps_str)$)")
+    text!(ax_b, L"\mathcal{O}\left(\left(d + \sqrt{1 + d^2}\right)^{-2p + 2}\right)"; position = (10^(-1.4), 1e-8),
+          fontsize = 18, color = :black)
 
-    axislegend(ax_a; position = :rt) 
+    colgap!(fig.layout, 1, 6)
+    colgap!(fig.layout, 2, 28)
 
-    # ---------------------------------------------------------------------
-    # Panel (b): residual error in d/h > c (uncorrected far region)
-    # ---------------------------------------------------------------------
-    ax_b = Axis(fig[1, 2];
-                xlabel = L"$c$",
-                ylabel = L"\mathcal{E}_{\mathrm{std}}",
-                yscale = log10,
-                xticks = (c_scan, string.(c_scan)))
-
-    scatterlines!(ax_b, c_scan, max.(Eresid_c, 1e-16);
-                  color = :crimson, marker = :circle,
-                  markersize = 12, linewidth = 2,
-                  label = L"E_{\mathrm{std}}")
-
-    # Linear fit on the semi-log plane: log10(E) ≈ a + b·c. The slope b is
-    # decades-per-unit-c, i.e. 10^b is the per-step decay ratio.
-    # Restrict to the decay regime (drop points within one decade of the
-    # observed floor) so the flattening at large c doesn't blunt the slope.
-    fit_mask = isfinite.(Eresid_c) .& (Eresid_c .> 0)
-    floor_obs = minimum(Eresid_c[fit_mask])
-    fit_mask .&= Eresid_c .> 10 * floor_obs
-    cs_fit   = Float64.(c_scan[fit_mask])
-    ys_fit   = log10.(Eresid_c[fit_mask])
-    n_fit    = length(cs_fit)
-    c_mean   = sum(cs_fit) / n_fit
-    y_mean   = sum(ys_fit) / n_fit
-    b_slope  = sum((cs_fit .- c_mean) .* (ys_fit .- y_mean)) /
-               sum((cs_fit .- c_mean).^2)
-    a_int    = y_mean - b_slope * c_mean
-    c_line   = range(minimum(cs_fit), maximum(cs_fit); length = 64)
-    y_line   = 10 .^ (a_int .+ b_slope .* c_line)
-    slope_str  = @sprintf("%.2f", b_slope)
-    fit_label  = LaTeXString("fit: slope = " * slope_str * " per unit \$c\$")
-    # lines!(ax_b, c_line, y_line;
-    #        color = :black, linestyle = :dash, linewidth = 1.5,
-    #        label = fit_label)
-    # axislegend(ax_b; position = :rt, framevisible = false)
-    # @info "Panel (b) linear fit" slope = b_slope intercept = a_int
-
-    # for (cc, col, lab) in ((5, :royalblue, L"c = 5"),
-    #                         (8, :seagreen,  L"c = 8"))
-    #     vlines!(ax_b, [cc]; color = (col, 0.7),
-    #             linestyle = :dash, linewidth = 1.5)
-    #     text!(ax_b, lab; position = (cc + 0.15, 5e-2),
-    #           fontsize = 16, color = col)
-    # end
-
-    colgap!(fig.layout, 1, 30)
-
-    outpath = joinpath(@__DIR__, "fig4_near_correction.png")
+    outpath = joinpath(@__DIR__, "figs/fig4_near_correction.pdf")
     save(outpath, fig; px_per_unit = 4)
-    @info "Saved figure" outpath
+    png_out = replace(outpath, ".pdf" => ".png")
+    save(png_out, fig; px_per_unit = 4)
+    @info "Saved figure" outpath png_out
 
     fig
 end

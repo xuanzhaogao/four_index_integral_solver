@@ -24,17 +24,13 @@ const err_fmm_n   = data.err_fmm_n
 const err_tkm_eta = data.err_tkm_eta
 const n_for_eta   = data.n_for_eta
 
-const eps_colors = Dict(
-    eps_list[1] => :crimson,
-    eps_list[2] => :royalblue,
-    eps_list[3] => :seagreen,
-    eps_list[4] => :purple,
-)
+const eps_palette = cgrad(:viridis, length(eps_list) + 1, categorical = true)
+const eps_colors  = Dict(eps_list[i] => eps_palette[i] for i in 1:length(eps_list))
 
 eps_label(eps) = L"\varepsilon = 10^{%$(round(Int, log10(eps)))}"
 
 begin
-    fig = Figure(size = (1000, 450), fontsize = 18)
+    fig = Figure(size = (1000, 400), fontsize = 18)
 
     floor_y = 1e-16
     clip(y) = max(y, floor_y)
@@ -88,9 +84,11 @@ begin
 
     colgap!(fig.layout, 1, 30)
 
-    outpath = joinpath(@__DIR__, "fig5_tkm_validation.png")
+    outpath = joinpath(@__DIR__, "figs/fig5_tkm_validation.pdf")
     save(outpath, fig; px_per_unit = 4)
-    @info "Saved figure" outpath
+    png_out = replace(outpath, ".pdf" => ".png")
+    save(png_out, fig; px_per_unit = 4)
+    @info "Saved figure" outpath png_out
 
     fig
 end
