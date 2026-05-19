@@ -2,14 +2,11 @@
 Figure 4 plot script.
 
 Left  panel: Bernstein-ellipses picture in the (x_t, z_t) plane at y_t = 0.
-             Same density σ_Q and panel Q = [-1/2, 1/2]² × {0} as the right
+             Same density σ_Q and panel Q = [-1, 1]² × {0} as the right
              panel; same Laplace double-layer kernel as fig4_data.jl.
-             Filled contours = log10|I_n - I_ref| for n = max(p_values);
-             black contour lines = the Bernstein-radius prediction ρ^{-2n}
-             rescaled from the [-1/2, 1/2] panel to the canonical [-1, 1]
-             Bernstein reference (s = η / L_half).
-Right panel: standard p×p GL near-field error E_std vs d/h for
-             p ∈ {4, 6, 8}, loaded from fig4_data.jls.
+             Filled contours = log10|I_n - I_ref| for n = max(p_values).
+Right panel: standard p×p GL near-field error E_std vs the absolute gap d
+             for p ∈ {4, 6, 8}, loaded from fig4_data.jls.
 =#
 
 using Serialization
@@ -24,7 +21,7 @@ using Printf
 const datapath = joinpath(@__DIR__, "fig4_data.jls")
 const data     = open(deserialize, datapath, "r")
 
-const dh        = data.dh_list
+const d_list    = data.d_list
 const p_values  = sort(collect(data.p_values))
 const sweeps    = Dict(s.p => s for s in data.sweeps)
 const L_half    = data.L_half
@@ -35,11 +32,9 @@ const L_half    = data.L_half
 σ_Q(η1, η2) = exp(-η1^2 - η2^2)
 
 @inline function dt_kernel(xt, yt, zt, y1, y2)
+    # Laplace single-layer kernel 1/(4π r) — matches fig4_data.jl.
     r2 = (xt - y1)^2 + (yt - y2)^2 + zt^2
-    invr = 1.0 / sqrt(r2)
-    # n_P = (0, 0, 1); source at z = 0, target at (xt, yt, zt). So
-    #   (x - y) · n_P = zt - 0 = zt.
-    return zt * invr^3 / (4π)
+    return 1.0 / (4π * sqrt(r2))
 end
 
 # Source integral over y ∈ [-L_half, L_half]² × {0}, evaluated at the
@@ -72,10 +67,10 @@ const yt_bern = 0.0
 const n_ref   = 64
 
 # Larger plot window than the panel itself (panel sits in [-L_half, L_half]).
-const xa, xb = -3.0, 3.0
-const za, zb = -2.0, 2.0
-const xt_s   = collect(range(xa, xb; length = 220))
-const zt_s   = collect(range(za, zb; length = 160))
+const xa, xb = -3.5, 3.5
+const za, zb = -3.0, 3.0
+const xt_s   = collect(range(xa, xb; length = 240))
+const zt_s   = collect(range(za, zb; length = 200))
 
 xs_ref, ws_ref = gausslegendre(n_ref)
 xs_n,  ws_n    = gausslegendre(n_bern)
@@ -136,8 +131,8 @@ begin
     lines!(ax_a, [-L_half, L_half], [0.0, 0.0];
            color = :red, linewidth = 3)
 
-    xlims!(ax_a, -2, 2)
-    ylims!(ax_a, -2, 2)
+    xlims!(ax_a, -3.5, 3.5)
+    ylims!(ax_a, -3, 3)
 
     Colorbar(fig[1, 2], hm; label = L"\log_{10}\,\mathcal{E}", width = 12)
 
@@ -152,21 +147,29 @@ begin
 
     p_palette = cgrad(:viridis, length(p_values) + 1, categorical = true)
     markers   = [:circle, :rect, :utriangle]
+    # Canonical Bernstein prediction: ρ^(-2p)/(ρ²-1), confirmed by the
+    # fixed-d / sweep-p diagnostic in fig4_pscan.jl. The per-p constants
+    # below are calibrated at d ≈ 1 (well-resolved, above the HCubature
+    # floor); the d-dependence of the actual prefactor is more complex,
+    # so the dashed lines drift from the data at the extremes.
+    factors = [1.1, 2.0, 2.6]
     for (i, p) in enumerate(p_values)
         sw  = sweeps[p]
         col = p_palette[i]
-        scatter!(ax_b, 2 * dh / p, clip.(sw.E_std);
+        scatter!(ax_b, d_list, clip.(sw.E_std);
                       color = col, marker = markers[i],
                       markersize = 11, label = L"p = %$p")
 
-        f_temp = x -> (x + sqrt(1 + x^2))^(-2 * p + 2)
-        lines!(ax_b, 2 * dh / p, f_temp.(2 * dh / p);
+        f_temp = x -> (x + sqrt(1 + x^2))^(- 2 * p) / ((x + sqrt(1 + x^2))^2 - 1) / factors[i]
+        lines!(ax_b, d_list, f_temp.(d_list);
                color = col, linewidth = 1.5, linestyle = :dash)
     end
     axislegend(ax_b; position = :rt)
-    ylims!(ax_b, 1e-15, 1e2)
+    ylims!(ax_b, 1e-16, 1e0)
+    xlims!(ax_b, 10^(-1.1), 10^(1.1))
 
-    text!(ax_b, L"\mathcal{O}\left(\left(d + \sqrt{1 + d^2}\right)^{-2p + 2}\right)"; position = (10^(-1.4), 1e-8),
+    text!(ax_b, L"O\left( \frac{\rho^{- 2p}}{\rho^2 - 1} \right)";
+          position = (10^(-1.0), 1e-12),
           fontsize = 18, color = :black)
 
     colgap!(fig.layout, 1, 6)

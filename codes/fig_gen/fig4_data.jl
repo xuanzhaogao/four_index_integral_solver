@@ -26,19 +26,20 @@ const BI = BoundaryIntegral
 # ---------------------------------------------------------------------------
 # Problem setup
 # ---------------------------------------------------------------------------
-const L_half  = 0.5
+const L_half  = 1.0
 const n_P     = (0.0, 0.0, 1.0)
 σ_Q(η1, η2)   = exp(-η1^2 - η2^2)
 
 @inline function kernel(x::NTuple{3,Float64}, y::NTuple{3,Float64})
-    r  = (x[1] - y[1], x[2] - y[2], x[3] - y[3])
-    r2 = r[1]*r[1] + r[2]*r[2] + r[3]*r[3]
-    invr = 1.0 / sqrt(r2)
-    return (r[1]*n_P[1] + r[2]*n_P[2] + r[3]*n_P[3]) * invr^3 / (4π)
+    # Laplace single-layer kernel 1/(4π r). No normal-derivative prefactor;
+    # the singular structure is the algebraic branch r² = 0 of order 1/2.
+    r2 = (x[1]-y[1])^2 + (x[2]-y[2])^2 + (x[3]-y[3])^2
+    return 1.0 / (4π * sqrt(r2))
 end
 
 const p_values = [4, 6, 8]
-const dh_list  = collect(10 .^ range(log10(0.2), log10(20.0); length = 25))
+# Common absolute d sweep across all p (replaces the per-p d/h sweep).
+const d_list   = collect(10 .^ range(-1.0, 1.0; length = 25))
 const hc_rtol  = 1e-12
 const hc_atol  = 1e-14
 const hc_max   = 10_000_000
@@ -47,9 +48,6 @@ const hc_max   = 10_000_000
 # Per-p sweep
 # ---------------------------------------------------------------------------
 function sweep_p(p::Int)
-    h_node = 1.0 / p
-    d_list = dh_list .* h_node
-
     ns_p, ws_p = gausslegendre(p)
     λ_p        = BI.gl_barycentric_weights(ns_p, ws_p)
 
@@ -105,15 +103,20 @@ function sweep_p(p::Int)
     end
 
     E_std = zeros(length(d_list))
+    E_abs = zeros(length(d_list))
+    R_ref = zeros(length(d_list))
     for (k, d) in enumerate(d_list)
         t0 = time()
         I_s = I_std_at_d(d)
         I_r = I_ref_at_d(d)
-        E_std[k] = norm(I_s - I_r) / norm(I_r)
-        @info @sprintf("  p=%d  d/h=%7.3f  d=%.4f  E_std=%.3e  (%.2fs)",
-                       p, dh_list[k], d, E_std[k], time() - t0)
+        E_abs[k] = norm(I_s - I_r)
+        R_ref[k] = norm(I_r)
+        E_std[k] = E_abs[k] / R_ref[k]
+        @info @sprintf("  p=%d  d=%.4f  E_abs=%.3e  E_std=%.3e  (%.2fs)",
+                       p, d, E_abs[k], E_std[k], time() - t0)
     end
-    return (p = p, h_node = h_node, d_list = d_list, E_std = E_std)
+    return (p = p, d_list = d_list, E_std = E_std, E_abs = E_abs,
+            R_ref = R_ref, sigma_p = sigma_p)
 end
 
 # ---------------------------------------------------------------------------
@@ -130,7 +133,7 @@ end
 # ---------------------------------------------------------------------------
 out = (
     p_values    = p_values,
-    dh_list     = dh_list,
+    d_list      = d_list,
     sweeps      = results,
     L_half      = L_half,
     n_P         = n_P,
@@ -145,9 +148,9 @@ open(datapath, "w") do io
 end
 @info "Saved data" datapath bytes=stat(datapath).size
 
-println("\n=== d/h   ", join((@sprintf("E_std(p=%d)", p) for p in p_values), "    "), " ===")
-for k in 1:length(dh_list)
-    line = @sprintf("  %7.3f", dh_list[k])
+println("\n=== d       ", join((@sprintf("E_std(p=%d)", p) for p in p_values), "    "), " ===")
+for k in 1:length(d_list)
+    line = @sprintf("  %7.4f", d_list[k])
     for r in results
         line *= @sprintf("   %.3e", r.E_std[k])
     end
