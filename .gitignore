@@ -48,3 +48,6 @@ slides.pdf
 *.fls
 *.fdb_latexmk
 *.vrb
+
+# serialized Julia data (purged from history 2026-06)
+*.jls
