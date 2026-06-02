@@ -1,46 +1,77 @@
 #=
-Figure 4 plot script.
+fig4_plot.jl
 
-Left  panel: Bernstein-ellipses picture in the (x_t, z_t) plane at y_t = 0.
-             Same density σ_Q and panel Q = [-1, 1]² × {0} as the right
-             panel; same Laplace double-layer kernel as fig4_data.jl.
-             Filled contours = log10|I_n - I_ref| for n = max(p_values).
-Right panel: standard p×p GL near-field error E_std vs the absolute gap d
-             for p ∈ {4, 6, 8}, loaded from fig4_data.jls.
+Two-panel figure for Section "Near-field evaluation of layer potentials".
+
+(a)  Pointwise relative quadrature error in the (x_t, z_t) plane at y_t = 0
+     for the standard n x n Gauss-Legendre rule (n = p_target) applied to
+     the diagnostic single-layer integrand on the panel [-1,1]^2 x {0}.
+     Filled contours = actual log_10 (|I_n - I_ref| / max|I_ref|),
+     overlaid line contours = af-Klinteberg prediction of the same quantity
+     using Error estimate 6 (Eq. 81, Klinteberg-Sorgentone-Tornberg 2022)
+     integrated along the slower of the two reference axes.
+
+(b)  E_near vs panel-panel gap d at p = p_target = 8 for
+       - standard p x p Gauss-Legendre rule (degrades for small d),
+       - upsampled rule with p_up dictated by inverting the
+         Bernstein-radius bound  (machine-precision floor in the
+         near regime up to the p_up cap).
+     Loaded from fig4_corr.jls.
 =#
 
+using Base.Threads
 using Serialization
 using FastGaussQuadrature
+using HCubature
+using SpecialFunctions
 using CairoMakie
 using LaTeXStrings
 using Printf
 
 # ---------------------------------------------------------------------------
-# Right-panel data (precomputed by fig4_data.jl)
+# Right-panel data
 # ---------------------------------------------------------------------------
-const datapath = joinpath(@__DIR__, "fig4_data.jls")
-const data     = open(deserialize, datapath, "r")
+const data    = open(deserialize, joinpath(@__DIR__, "fig4_corr.jls"), "r")
+const d_list  = data.d_list
+const E_std   = data.E_std
+const E_corr  = data.E_corr
+const p_targ  = data.p_target
+const eps_tol = data.ε
+const L_half  = data.L_half
 
-const d_list    = data.d_list
-const p_values  = sort(collect(data.p_values))
-const sweeps    = Dict(s.p => s for s in data.sweeps)
-const L_half    = data.L_half
+const rho_star = eps_tol ^ (-1.0 / (2 * p_targ))
 
 # ---------------------------------------------------------------------------
-# Shared density / kernel (must match fig4_data.jl)
+# Density and single-layer kernel (must match fig4_data.jl / fig4_corr.jl).
 # ---------------------------------------------------------------------------
 σ_Q(η1, η2) = exp(-η1^2 - η2^2)
 
-@inline function dt_kernel(xt, yt, zt, y1, y2)
-    # Laplace single-layer kernel 1/(4π r) — matches fig4_data.jl.
+@inline function sl_kernel(xt, yt, zt, y1, y2)
     r2 = (xt - y1)^2 + (yt - y2)^2 + zt^2
     return 1.0 / (4π * sqrt(r2))
 end
 
-# Source integral over y ∈ [-L_half, L_half]² × {0}, evaluated at the
-# target (xt, yt, zt). The n-point GL quadrature samples η = s·L_half with
-# s ∈ [-1, 1] and weights ws.
-function integrate_dt(xs_s, ws_s, xt, yt, zt)
+# n_bern: order of the standard rule for the LHS panel; must match the
+# scatter markers in the RHS panel.
+const n_bern  = p_targ
+const yt_bern = 0.0
+
+# Plot window.
+const xa, xb = -3.5, 3.5
+const za, zb = -3.0, 3.0
+const xt_s   = collect(range(xa, xb; length = 180))
+const zt_s   = collect(range(za, zb; length = 150))
+
+# ---------------------------------------------------------------------------
+# Actual quadrature error on the (x_t, z_t) grid.
+# Standard rule:  p_targ-point Gauss-Legendre (matches RHS panel).
+# Reference:      adaptive cubature via HCubature, with absolute and relative
+#                 tolerance well below the deepest filled contour level
+#                 (10^{-15}); the integrand has only an integrable boundary
+#                 singularity as z_t -> 0 with |x_t| < 1, which the adaptive
+#                 subdivision resolves correctly.
+# ---------------------------------------------------------------------------
+function integrate_gl(xs_s, ws_s, xt, yt, zt)
     res = 0.0
     @inbounds for j in eachindex(xs_s)
         η2 = xs_s[j] * L_half
@@ -48,132 +79,163 @@ function integrate_dt(xs_s, ws_s, xt, yt, zt)
         for i in eachindex(xs_s)
             η1 = xs_s[i] * L_half
             res += σ_Q(η1, η2) * ws_s[i] * wy *
-                   dt_kernel(xt, yt, zt, η1, η2)
+                   sl_kernel(xt, yt, zt, η1, η2)
         end
     end
     return res * L_half * L_half
 end
 
-function bernstein_rho_from_pole(z::Complex)
-    s = sqrt(z*z - one(real(z)))
+function integrate_ref(xt, yt, zt)
+    f = η -> σ_Q(η[1], η[2]) * sl_kernel(xt, yt, zt, η[1], η[2])
+    val, _ = hcubature(f, (-L_half, -L_half), (L_half, L_half);
+                       rtol = 1e-14, atol = 1e-16, maxevals = 50_000_000)
+    return val
+end
+
+xs_n, ws_n = gausslegendre(n_bern)
+
+res_ref = Matrix{Float64}(undef, length(xt_s), length(zt_s))
+res_n   = Matrix{Float64}(undef, length(xt_s), length(zt_s))
+
+# Flatten (i, j) so each thread can grab the next un-claimed cell.
+const total_pts = length(xt_s) * length(zt_s)
+@info "Computing HCubature reference on grid" total_pts threads=Threads.nthreads()
+t_start = time()
+@threads for k in 1:total_pts
+    j, i = divrem(k - 1, length(xt_s)) .+ (1, 1)
+    xt = xt_s[i]; zt = zt_s[j]
+    res_ref[i, j] = integrate_ref(xt, yt_bern, zt)
+    res_n[i, j]   = integrate_gl(xs_n, ws_n, xt, yt_bern, zt)
+end
+@info @sprintf("Reference sweep done in %.1fs", time() - t_start)
+
+const denom = maximum(abs.(res_ref))
+log_true    = log10.(abs.(res_n .- res_ref) ./ denom .+ eps())
+
+# ---------------------------------------------------------------------------
+# af-Klinteberg prediction: Error estimate 6 (Eq. 81) integrated along
+# the slower of the two reference axes.
+#
+# For target x = (xt, yt, zt) and source panel [-L,L]^2 at z = 0:
+#   - s1-axis pole, s2 fixed:  t0(s2) = (xt + i sqrt((yt - L s2)^2 + zt^2)) / L
+#   - s2-axis pole, s1 fixed:  t0(s1) = (yt + i sqrt((xt - L s1)^2 + zt^2)) / L
+#
+# Single-layer kernel ⇒ p_k = 1/2.  Geometry factor G = 1 (flat panel).
+# Smooth factor f = σ_Q / (4π) analytically continued in the polar variable.
+# est(t0, n, p) = (4π / Γ(p)) · (2n+1)^{p-1} / (2 |t0^2 - 1|^p) · ρ(t0)^{-(2n+1)}.
+# ---------------------------------------------------------------------------
+@inline function bernstein_rho(z::Complex)
+    s = sqrt(z * z - one(real(z)))
     return max(abs(z + s), abs(z - s))
 end
 
-# ---------------------------------------------------------------------------
-# Bernstein contour computation (LHS)
-# ---------------------------------------------------------------------------
-const n_bern  = maximum(p_values)
-const yt_bern = 0.0
-const n_ref   = 64
+const p_k     = 0.5
+const n_quad  = 24
+const xs_quad, ws_quad = gausslegendre(n_quad)
+const est_pref = (4π / gamma(p_k)) * (2 * n_bern + 1)^(p_k - 1) / 2
 
-# Larger plot window than the panel itself (panel sits in [-L_half, L_half]).
-const xa, xb = -3.5, 3.5
-const za, zb = -3.0, 3.0
-const xt_s   = collect(range(xa, xb; length = 240))
-const zt_s   = collect(range(za, zb; length = 200))
-
-xs_ref, ws_ref = gausslegendre(n_ref)
-xs_n,  ws_n    = gausslegendre(n_bern)
-
-res_ref  = Matrix{Float64}(undef, length(xt_s), length(zt_s))
-res_n    = Matrix{Float64}(undef, length(xt_s), length(zt_s))
-err_pred = Matrix{Float64}(undef, length(xt_s), length(zt_s))
-
-for j in eachindex(zt_s), i in eachindex(xt_s)
-    xt = xt_s[i]; zt = zt_s[j]
-    res_ref[i, j] = integrate_dt(xs_ref, ws_ref, xt, yt_bern, zt)
-    res_n[i, j]   = integrate_dt(xs_n,  ws_n,  xt, yt_bern, zt)
-
-    # Bernstein analysis in reference s ∈ [-1, 1] (s = η / L_half).
-    # Pole of K(·, ·, zt) in complex η_1, with η_2 real and bounded by
-    # [-L_half, L_half], is at η_1 = xt ± i·sqrt((yt - η_2)² + zt²).
-    # In s_1 = η_1 / L_half: s_1^pole = (xt + i·sqrt(...)) / L_half.
-    # ρ_1 = min over s_2 ∈ [-1, 1] of |s_1^pole + sqrt((s_1^pole)² - 1)|.
-    rho_x_min = Inf
-    rho_y_min = Inf
-    for s2 in -1.0:0.1:1.0
-        η2 = s2 * L_half
-        s_pole_x = (xt + im * sqrt((yt_bern - η2)^2 + zt^2)) / L_half
-        s_pole_y = (yt_bern + im * sqrt((xt - η2)^2 + zt^2)) / L_half
-        rho_x_min = min(rho_x_min, bernstein_rho_from_pole(s_pole_x))
-        rho_y_min = min(rho_y_min, bernstein_rho_from_pole(s_pole_y))
-    end
-    err_pred[i, j] = max(rho_x_min^(-2 * n_bern), rho_y_min^(-2 * n_bern))
+@inline function est_at(t0::Complex)
+    ρ      = bernstein_rho(t0)
+    t2m1   = abs(t0 * t0 - 1)
+    return est_pref / t2m1^p_k * ρ^(-(2 * n_bern + 1))
 end
 
-# Use relative error so the colormap is comparable across kernels.
-denom    = maximum(abs.(res_ref))
-log_true = log10.(abs.(res_n .- res_ref) ./ denom .+ eps())
-log_pred = log10.(err_pred .+ eps())
+# 1D integrand along s2 (for the s1-axis pole) at target (xt, yt, zt).
+@inline function I1_at(xt, yt, zt)
+    res = 0.0
+    @inbounds for k in eachindex(xs_quad)
+        s2 = xs_quad[k]
+        η2 = s2 * L_half
+        t0 = (xt + im * sqrt((yt - η2)^2 + zt^2)) / L_half
+        # σ_Q continued in the first arg: σ_Q(L * t0, η2) = exp(-(L t0)^2 - η2^2)
+        fσ = abs(exp(-(L_half * t0)^2 - η2^2)) / (4π)
+        res += ws_quad[k] * fσ * est_at(t0) * L_half
+    end
+    return res
+end
+
+@inline function I2_at(xt, yt, zt)
+    res = 0.0
+    @inbounds for k in eachindex(xs_quad)
+        s1 = xs_quad[k]
+        η1 = s1 * L_half
+        t0 = (yt + im * sqrt((xt - η1)^2 + zt^2)) / L_half
+        fσ = abs(exp(-η1^2 - (L_half * t0)^2)) / (4π)
+        res += ws_quad[k] * fσ * est_at(t0) * L_half
+    end
+    return res
+end
+
+err_pred = Matrix{Float64}(undef, length(xt_s), length(zt_s))
+for j in eachindex(zt_s), i in eachindex(xt_s)
+    err_pred[i, j] = I1_at(xt_s[i], yt_bern, zt_s[j]) +
+                     I2_at(xt_s[i], yt_bern, zt_s[j])
+end
+log_pred = log10.(err_pred ./ denom .+ eps())
 
 # ---------------------------------------------------------------------------
 # Figure
 # ---------------------------------------------------------------------------
 begin
-    fig = Figure(size = (1000, 400), fontsize = 18)
+    fig = Figure(size = (1050, 420), fontsize = 18)
 
-    # Panel (a): Bernstein ellipses -------------------------------------------------
-    levels_log = -15.0:2.0:1.0
-
+    # ----- Panel (a): actual error + Klinteberg prediction overlay -----
     ax_a = Axis(fig[1, 1];
-                aspect = DataAspect(),
-                xlabel = L"x_t",
-                ylabel = L"z_t",
-                # title  = L"\log_{10}\,|I_{%$n_bern} - I_{\mathrm{ref}}| / \max|I_{\mathrm{ref}}|,\ y_t = 0"
-                )
+                aspect  = DataAspect(),
+                xlabel  = L"x_t",
+                ylabel  = L"z_t")
+
+    levels_log = -10.0:10/6:0.0
 
     hm = contourf!(ax_a, xt_s, zt_s, log_true;
-                   levels = levels_log, colormap = :viridis, rasterize = 4)
-    # contour!(ax_a, xt_s, zt_s, log_pred;
-    #          levels = levels_log,
-    #          color = :black, linewidth = 1.4)
-    # Mark the integration interval [-L_half, L_half] at z = 0
+                   levels   = levels_log,
+                   colormap = :viridis,
+                   rasterize = 4)
+
+    contour!(ax_a, xt_s, zt_s, log_pred;
+             levels    = levels_log,
+             color     = :black,
+             linewidth = 1.3)
+
     lines!(ax_a, [-L_half, L_half], [0.0, 0.0];
            color = :red, linewidth = 3)
 
-    xlims!(ax_a, -3.5, 3.5)
-    ylims!(ax_a, -3, 3)
+    xlims!(ax_a, -2.3, 2.3)
+    ylims!(ax_a, -1.8, 1.8)
 
-    Colorbar(fig[1, 2], hm; label = L"\log_{10}\,\mathcal{E}", width = 12)
+    Colorbar(fig[1, 2], hm;
+             label = L"\log_{10}\,\mathcal{E}",
+             width = 12)
 
-    # Panel (b): E_std vs d/h for p = 4, 6, 8 ---------------------------------------
+    # ----- Panel (b): standard vs upsampled error at p = 8 -----
     ax_b = Axis(fig[1, 3];
-                xscale = log10, yscale = log10,
+                xscale = log10,
+                yscale = log10,
                 xlabel = L"d",
                 ylabel = L"\mathcal{E}_{\mathrm{near}}")
 
-    floor_y = 1e-16
+    floor_y = 1e-17
     clip(y) = max(y, floor_y)
 
-    p_palette = cgrad(:viridis, length(p_values) + 1, categorical = true)
-    markers   = [:circle, :rect, :utriangle]
-    # Canonical Bernstein prediction: ρ^(-2p)/(ρ²-1), confirmed by the
-    # fixed-d / sweep-p diagnostic in fig4_pscan.jl. The per-p constants
-    # below are calibrated at d ≈ 1 (well-resolved, above the HCubature
-    # floor); the d-dependence of the actual prefactor is more complex,
-    # so the dashed lines drift from the data at the extremes.
-    factors = [1.1, 2.0, 2.6]
-    for (i, p) in enumerate(p_values)
-        sw  = sweeps[p]
-        col = p_palette[i]
-        scatter!(ax_b, d_list, clip.(sw.E_std);
-                      color = col, marker = markers[i],
-                      markersize = 11, label = L"p = %$p")
+    scatter!(ax_b, d_list, clip.(E_std);
+             color = (:indigo, 0.85), marker = :circle,
+             markersize = 11, label = "standard")
+    scatter!(ax_b, d_list, clip.(E_corr);
+             color = (:seagreen, 0.95), marker = :utriangle,
+             markersize = 12, label = "upsampled")
 
-        f_temp = x -> (x + sqrt(1 + x^2))^(- 2 * p) / ((x + sqrt(1 + x^2))^2 - 1) / factors[i]
-        lines!(ax_b, d_list, f_temp.(d_list);
-               color = col, linewidth = 1.5, linestyle = :dash)
-    end
-    axislegend(ax_b; position = :rt)
+    hlines!(ax_b, [eps_tol];
+            color = :gray, linestyle = :dash, linewidth = 1.4)
+    # text!(ax_b, L"\varepsilon = 10^{-12}";
+    #       position = (10^(0.55), eps_tol * 2.0),
+    #       fontsize = 14, color = :gray)
+
+    axislegend(ax_b; position = :rt, framevisible = true)
     ylims!(ax_b, 1e-16, 1e0)
     xlims!(ax_b, 10^(-1.1), 10^(1.1))
 
-    text!(ax_b, L"O\left( \frac{\rho^{- 2p}}{\rho^2 - 1} \right)";
-          position = (10^(-1.0), 1e-12),
-          fontsize = 18, color = :black)
-
     colgap!(fig.layout, 1, 6)
-    colgap!(fig.layout, 2, 28)
+    colgap!(fig.layout, 2, 32)
 
     outpath = joinpath(@__DIR__, "figs/fig4_near_correction.pdf")
     save(outpath, fig; px_per_unit = 4)
@@ -183,3 +245,4 @@ begin
 
     fig
 end
+

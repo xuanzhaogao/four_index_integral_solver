@@ -100,16 +100,14 @@ begin
                 xlabel = L"d", ylabel = L"|\sigma|")
 
     colors_a = [:black, :royalblue, :seagreen, :crimson]
-    # for (jy, y_val) in enumerate(profile_ys)
-    #     line = abs.(PROFILE_SIGMA[:, jy])
-    #     keep = isfinite.(line) .& (line .> 0)
-    #     lines!(ax_a, profile_d[keep], line[keep];
-    #            color = colors_a[jy], linewidth = 2,
-    #            label = L"y = %$(round(y_val; digits = 2))")
-    # end
-    # xlims!(ax_a, 1e-2, 1.0)
-    # ylims!(ax_a, 10^(-1), 10^(-0.5))
-    # axislegend(ax_a; position = :lb)
+    for (jy, y_val) in enumerate(profile_ys)
+        line = abs.(PROFILE_SIGMA[:, jy])
+        keep = isfinite.(line) .& (line .> 0)
+        lines!(ax_a, profile_d[keep], line[keep];
+               color = colors_a[jy], linewidth = 2,
+               label = L"y = %$(round(y_val; digits = 2))")
+    end
+    axislegend(ax_a; position = :lb)
 
     # ----- Panel (b): far-field potential self-convergence ----------------
     ax_b = Axis(fig[1, 2];
@@ -146,8 +144,8 @@ begin
 
     colgap!(fig.layout, 1, 30)
 
-    outpath = joinpath(@__DIR__, "fig3_edge_singularity.png")
-    # save(outpath, fig; px_per_unit = 4)
+    outpath = joinpath(@__DIR__, "figs", "fig3_edge_singularity.pdf")
+    save(outpath, fig)
     @info "Saved figure" outpath
 
     fig
