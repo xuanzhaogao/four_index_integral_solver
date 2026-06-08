@@ -1,0 +1,49 @@
+# Graphene home cell = TWO sublattice atoms A (graphene_00001) and B (graphene_00002),
+# each with its 8 surrounding-cell LATTICE images. CUTOFF 3.0 keeps, for each center, only the
+# nearest-neighbor environment (so each center group stays small/fast). Together this gives the
+# on-site (A-A, B-B) and inter-site (A-B) pair densities, on-cell and to nearest cells.
+
+UNITS bohr
+
+BEGIN_DIELECTRICS
+EPS_OUT 1.0
+  0.0 0.0 7.5    90.0 90.0 3.35    3.5
+END_DIELECTRICS
+
+BEGIN_ORBITALS
+# home cell
+  1   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf
+  2   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf
+# A (00001) images in the 8 surrounding cells
+  3   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  1  0 0
+  4   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1  0 0
+  5   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  0  1 0
+  6   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  0 -1 0
+  7   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  1  1 0
+  8   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1 -1 0
+  9   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  1 -1 0
+ 10   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1  1 0
+# B (00002) images in the 8 surrounding cells
+ 11   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE  1  0 0
+ 12   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -1  0 0
+ 13   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE  0  1 0
+ 14   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE  0 -1 0
+ 15   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE  1  1 0
+ 16   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -1 -1 0
+ 17   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE  1 -1 0
+ 18   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -1  1 0
+END_ORBITALS
+
+BEGIN_GROUPING
+CUTOFF 3.0          # nearest-neighbor environment only -> small per-center group
+END_GROUPING
+
+BEGIN_SOLVE
+  N_QUAD 6
+  EDGE_REFINE_LEVEL 2
+  RHS_TOL 1e-3
+  LHS_TOL 1e-5
+  GMRES_RTOL 1e-5
+  SUPPORT_RTOL 1e-4
+  VOLUME_TOL 1e-5
+END_SOLVE

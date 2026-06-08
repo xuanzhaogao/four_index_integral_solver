@@ -1,0 +1,36 @@
+# Orbital 1 (graphene_00001) plus its 8 surrounding-cell images, to form the on-site density
+# rho_11 and the 8 off-site densities rho_{1,1+R} (R = the 8 neighboring lattice cells).
+# Each LATTICE image is an exact integer circshift of the same .xsf on the shared grid.
+
+UNITS bohr
+
+BEGIN_DIELECTRICS
+EPS_OUT 1.0
+  0.0 0.0 7.5    90.0 90.0 3.35    3.5
+END_DIELECTRICS
+
+BEGIN_ORBITALS
+  1   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf
+  2   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  1  0 0
+  3   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1  0 0
+  4   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  0  1 0
+  5   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  0 -1 0
+  6   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  1  1 0
+  7   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1 -1 0
+  8   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE  1 -1 0
+  9   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1  1 0
+END_ORBITALS
+
+BEGIN_GROUPING
+CUTOFF 5.0          # includes all 8 surrounding cells (nearest at 2.465, next at 4.27)
+END_GROUPING
+
+BEGIN_SOLVE
+  N_QUAD 6
+  EDGE_REFINE_LEVEL 2
+  RHS_TOL 1e-3
+  LHS_TOL 1e-5
+  GMRES_RTOL 1e-5
+  SUPPORT_RTOL 1e-4
+  VOLUME_TOL 1e-5
+END_SOLVE

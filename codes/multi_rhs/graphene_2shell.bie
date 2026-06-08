@@ -1,0 +1,73 @@
+UNITS bohr
+
+BEGIN_DIELECTRICS
+EPS_OUT 1.0
+  0.0 0.0 7.5    90.0 90.0 3.35    3.5
+END_DIELECTRICS
+
+BEGIN_ORBITALS
+  1   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf
+  2   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf
+  3   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -2 -2 0
+  4   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -2 -2 0
+  5   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -2 -1 0
+  6   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -2 -1 0
+  7   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -2 0 0
+  8   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -2 0 0
+  9   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -2 1 0
+  10   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -2 1 0
+  11   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -2 2 0
+  12   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -2 2 0
+  13   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1 -2 0
+  14   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -1 -2 0
+  15   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1 -1 0
+  16   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -1 -1 0
+  17   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1 0 0
+  18   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -1 0 0
+  19   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1 1 0
+  20   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -1 1 0
+  21   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE -1 2 0
+  22   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE -1 2 0
+  23   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 0 -2 0
+  24   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 0 -2 0
+  25   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 0 -1 0
+  26   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 0 -1 0
+  27   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 0 1 0
+  28   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 0 1 0
+  29   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 0 2 0
+  30   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 0 2 0
+  31   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 1 -2 0
+  32   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 1 -2 0
+  33   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 1 -1 0
+  34   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 1 -1 0
+  35   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 1 0 0
+  36   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 1 0 0
+  37   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 1 1 0
+  38   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 1 1 0
+  39   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 1 2 0
+  40   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 1 2 0
+  41   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 2 -2 0
+  42   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 2 -2 0
+  43   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 2 -1 0
+  44   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 2 -1 0
+  45   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 2 0 0
+  46   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 2 0 0
+  47   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 2 1 0
+  48   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 2 1 0
+  49   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf   LATTICE 2 2 0
+  50   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf   LATTICE 2 2 0
+END_ORBITALS
+
+BEGIN_GROUPING
+CUTOFF 5.0
+END_GROUPING
+
+BEGIN_SOLVE
+  N_QUAD 6
+  EDGE_REFINE_LEVEL 2
+  RHS_TOL 1e-3
+  LHS_TOL 1e-5
+  GMRES_RTOL 1e-5
+  SUPPORT_RTOL 1e-4
+  VOLUME_TOL 1e-5
+END_SOLVE

@@ -1,0 +1,31 @@
+# Graphene monolayer (production cRPA data, k_323201_nb_144_c_15).
+# Coordinates are in the .xsf native frame (UNITS bohr => no conversion): the sheet sits at
+# z=7.5 (c=15 cell), so the dielectric slab is centered there. Orbital centers default to the
+# density centroid. See scripts/multi_rhs_graphene_5x5x1.jl for the equivalent manual demo.
+
+UNITS bohr
+
+BEGIN_DIELECTRICS
+EPS_OUT 1.0
+# cx cy cz    Lx Ly Lz    eps   (slab spanning the sheet, midplane at z=7.5)
+  0.0 0.0 7.5    90.0 90.0 3.35    3.5
+END_DIELECTRICS
+
+BEGIN_ORBITALS
+  1   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf
+  2   /mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf
+END_ORBITALS
+
+BEGIN_GROUPING
+CUTOFF 5.0          # orbital centers ~1.42 apart -> center 1's group = {1, 2}
+END_GROUPING
+
+BEGIN_SOLVE
+  N_QUAD 6
+  EDGE_REFINE_LEVEL 2     # demo-friendly; production uses 4 (cluster-scale on the L=90 rim)
+  RHS_TOL 1e-3
+  LHS_TOL 1e-5
+  GMRES_RTOL 1e-5
+  SUPPORT_RTOL 1e-4
+  VOLUME_TOL 1e-5
+END_SOLVE
