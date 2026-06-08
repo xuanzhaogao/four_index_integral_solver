@@ -16,8 +16,9 @@ Scripts under `../` (`bench_fmm*.jl`, `bench_per_rhs.jl`, `bench_solve_breakdown
 
 - The solve cost is **almost entirely `lfmm3d`** (94–97 % at 1 thread, 70–85 % at 16). The
   near-correction sparse matmul is **negligible** (<0.5 %); GMRES is small and fixed (~1–3 s).
-- **Batching RHS (`nd`) gives a flat ~3.7× per-RHS FMM win** at any thread count (the tree is
-  built once; `nd=36` costs ~9.7× `nd=1`, not 36×). The full block **solve inherits the same
+- **Batching RHS (`nd`) gives a flat ~3.7× per-RHS FMM win** at any thread count (the per-interaction
+  geometry/operators — `1/r`, Legendre recurrences, M2L operators — are computed once and reused
+  across the `nd` densities; `nd=36` costs ~7–10× `nd=1`, not 36×). The full block **solve inherits the same
   ~4×** — and *only* that: block GMRES does **not** save iterations (`iter = nmv = 7` for every K),
   so the batched FMM is its sole lever.
 - **FMM thread scaling saturates ~32–64 cores and is flat (no real gain) at 96.** 1→96 speedup is
@@ -48,10 +49,32 @@ essentially independent of thread count and N** (clean slab data, N=461k, OMP=1)
 | 16 | 87.46 | 5.47 | 3.49× |
 | 36 | 185.03 | 5.14 | **3.72×** |
 
-Mechanism: one FMM tree build (~75 % of a single `nd=1` call) is shared across the `nd` densities;
-only the far-field/gradient evaluation (~25 %) scales with `nd`. So `t_fmm(nd=36) ≈ 9.7·t_fmm(1)`,
-giving 36/9.7 ≈ 3.7× per RHS, and the ceiling as nd→∞ is ~4× (only the shared 75 % can ever be
-amortized).
+**Mechanism (verified from the FMM3D Fortran, `src/Laplace`).** It is **not** the tree build —
+that is ~2 % (see below). Every FMM phase computes its *per-interaction geometry/operators once*
+and loops `do idim=1,nd` over the densities for cheap multiply-adds. The shared, nd-independent
+work is: the `1/r` distance factors (`cd = inv4pi/sqrt(dd)` in `l3ddirectcg`, the near field), the
+associated-Legendre recurrences (`ylgndrfw` in P2M/L2P), and the **M2L translation operators** —
+all reused across all `nd` densities. Only the coefficient/charge arithmetic scales with `nd`.
+
+Direct phase breakdown (calling `lfmm3d_ndiv`, reading the returned `timeinfo`; N=200k uniform,
+1 thread, eps=1e-4):
+
+| phase | nd=1 (s) | nd=36 (s) | shared `a` | per-RHS `b` |
+|---|--:|--:|--:|--:|
+| P2M | 0.179 | 0.833 | 0.16 | 0.019 |
+| M2M | 0.178 | 2.167 | 0.12 | 0.057 |
+| **M2L** | **2.036** | **15.943** | **1.64** | **0.40** |
+| L2L | 0.166 | 2.082 | 0.11 | 0.055 |
+| L2P | 0.214 | 0.624 | 0.20 | 0.012 |
+| **P2P** | **1.129** | **4.954** | **1.02** | **0.11** |
+| tree+setup | **0.088** | 0.438 | — | — |
+| total | 3.99 | 27.04 | **≈3.34 (84 %)** | **≈0.65** |
+
+So `t_fmm(nd=36) ≈ 6.8·t_fmm(1)` (uniform) — the shared ~84 % is paid once, only the ~16 %
+per-density arithmetic scales. The per-RHS ceiling is `total/b ≈ 6×` (uniform) and ~4× for the
+slab (its heavier near-field/deeper-tree phase mix has a lower shared fraction). Tree construction
+itself is **~0.09 s = 2 %** (the "tree+setup" row grows with nd only because it includes zeroing
+the nd×-larger expansion workspace, not tree building). Harness: `tools/nd_timing.f90`.
 
 ## 2. Thread scaling — FMM kernel (nd=36)
 
@@ -166,7 +189,7 @@ kernel, the tolerance, or the near correction.
 ## 7. Recommendations / next steps
 
 - **Threads:** run FMM at **~32–64 cores**, not 96 (saturates; 96 ≈ 64).
-- **Batch RHS:** always solve co-located densities as a block — a free ~3.7–4× per-RHS (FMM tree
+- **Batch RHS:** always solve co-located densities as a block — a free ~3.7–4× per-RHS (FMM geometry/operators
   built once). Note this is the *only* block-GMRES benefit here; it does not cut iterations.
 - **Always pin `OMP_NUM_THREADS` *and* `OPENBLAS_NUM_THREADS`** in benchmarks — the spurious 18×
   came from leaving them unset, so the FMM/OpenBLAS thread count drifted with problem size.

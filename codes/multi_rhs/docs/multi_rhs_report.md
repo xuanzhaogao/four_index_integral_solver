@@ -167,9 +167,13 @@ FMM*. Two facts pin the mechanism down:
   batched FMM** — one `nd = K` `lfmm3d` per matvec, tree built once: `nd=36` costs ~9.3× `nd=1`,
   i.e. ~3.9× per RHS. Since the FMM is **94–97 %** of the solve (matmul negligible, glue 2–14 %,
   GMRES a fixed ~1–3 s), the whole solve inherits the FMM's ~4×.
-- This is the *same* ~3.7–4× ceiling as the bare FMM kernel (§ `nd` amortization): only the
-  shared FMM tree-build (~75 % of one call) is amortized; the per-density far-field evaluation
-  scales with K and cannot be shared.
+- This is the *same* ~4× ceiling as the bare FMM kernel: ~80–84 % of one `lfmm3d` call is
+  per-interaction geometry/operator work — the `1/r` distance factors (P2P), the Legendre
+  recurrences (P2M/L2P), and the M2L translation operators — which FMM3D computes once and reuses
+  across all K densities (the `do idim=1,nd` inner loop in every kernel); only the per-density
+  coefficient arithmetic scales with K. (Tree construction is ~2 %, *not* the shared cost — the
+  earlier "tree-build ~75 %" framing was wrong; see `performance_findings.md` §1 for the measured
+  per-phase breakdown.)
 
 ![Per-RHS solve time vs number of right-hand sides (pinned threads)](../figs/per_rhs_runtime.png)
 

@@ -20,15 +20,20 @@ Pkg; Pkg.instantiate()'` once to build it (re-`dev`s BoundaryIntegral by path).
 | `bench_per_rhs.jl`, `bench_solve_breakdown.jl` | block-solve per-RHS sweep + instrumented FMM/matmul/glue/GMRES breakdown |
 | `plot_*.jl` | figures (read `data/*.csv`, write `figs/*.png`) |
 | `jobscripts/` | Slurm batch (`ccm`/`genoa`, build-once + array) and shell drivers |
-| `data/` | parsed results (`*.csv`); `data/raw/` = raw Slurm `.out` logs (gitignored) |
+| `data/` | parsed results (`*.csv`), incl. `fmm_phase_breakdown.csv`; `data/raw/` = raw Slurm `.out` logs (gitignored) |
 | `figs/` | generated figures |
 | `docs/` | [`multi_rhs_report.md`](docs/multi_rhs_report.md), [`performance_findings.md`](docs/performance_findings.md) |
+| `tools/` | `nd_timing.f90` — FMM3D phase-timing harness (links an FMM3D checkout; see header) |
 
 ## Key results (see `docs/`)
 
 - **Block multi-RHS**: per-RHS solve amortization **~4×** (K=1→36), tracking the FMM (94–97 % of the
   solve); block GMRES does *not* cut iterations (`iter=nmv=7` ∀K) — the batched `nd=K` FMM is the
   only lever. (An earlier "18×" was an unpinned-threads artifact; corrected.)
+- **Why `nd` batching helps** (FMM3D source + `tools/nd_timing.f90` phase breakdown): each kernel
+  computes the per-interaction geometry/operators once (`1/r`, Legendre recurrences, M2L operators)
+  and loops `do idim=1,nd` for cheap multiply-adds — ~84 % of an `lfmm3d` call is this shared work
+  (M2L + P2P dominate), only ~16 % scales with `nd`. Tree construction is ~2 %.
 - **FMM thread scaling**: saturates ~32–64 cores (96 ≈ 64); 1→96 ≈ 18–20×.
 - **Geometry**: the thin slab interface costs up to **~7×** vs a 3D-uniform cloud (≈2.75× more
   octree work × ≈2.5× worse parallel scaling).
