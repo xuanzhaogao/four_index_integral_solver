@@ -6,91 +6,124 @@
 \lstset{basicstyle=\ttfamily\footnotesize,frame=single,backgroundcolor=\color{black!4}}
 \setlength{\parskip}{2pt}
 \pagestyle{empty}
-\newcommand{\nd}{\texttt{nd}}
+\newcommand{\nt}{\texttt{n\_threads}}
+\newcommand{\nd}{\texorpdfstring{\texttt{nd}}{nd}}
 
 \begin{document}
-\begin{center}{\large\bfseries Performance of the multi-RHS dielectric BIE solver}\\[2pt]
-\small geometry, parallelism, and right-hand-side batching\end{center}
+% \begin{center}{\large\bfseries Performance of the multi-RHS dielectric BIE solver}\end{center}
+
+\title{Performance of the multi-RHS dielectric BIE solver}
+
+\maketitle
 
 \noindent
-FMM3D-accelerated dielectric BIE for monolayer graphene (slab $L{=}90$, $L_z{=}3.35$,
-$\varepsilon_{\mathrm{in}}{=}3.5$). All timings are from exclusive Flatiron \texttt{genoa} nodes
-(96 cores), one node per thread count, with \texttt{OMP\_NUM\_THREADS} \emph{and}
-\texttt{OPENBLAS\_NUM\_THREADS} pinned. Data in \texttt{../data/}, figures in \texttt{../figs/}.
-Throughput $\Theta=N\,\nd/t_{\mathrm{fmm}}$ (M source$\cdot$RHS evals/s); the FMM cost fits
-$t_{\mathrm{fmm}}\approx a+b\,\nd$ ($a$ shared, $b$ per-density).
+
+I benchmarked the performance of the FMM3D more detailedly on the $96$ core genoa nodes, with \texttt{OMP\_NUM\_THREADS} \emph{and} \texttt{OPENBLAS\_NUM\_THREADS} pinned. 
+The major takeaways are listed below:
+\begin{itemize}
+   \item[1.] For highly non-uniform distributions (e.g. slab with edge refinement, see Fig.~\ref{f:interface}), the FMM3D can only reach maximum throughput of about $2.4 M$ eval/s, which is about $7\times$ slower than the uniform distribution under the same settings.
+   \item[2.] For non-uniform distributions, the speedup from threads saturates at about $30\times$, and the speedup from batching $\nd$ saturates at about $2.5\times$ with $\nd=36$.. Combined they reach about $76\times$ maximum speedup.
+   \item[3.] The previous almost linear speedup from $\nd$ was an artifact of thread contamination.
+\end{itemize}
+
+\begin{figure}[htbp]
+   \centering
+   \includegraphics[width=0.6\textwidth]{interface.pdf}
+   \caption{The slab interface geometry used for benchmarking (non-uniform).}
+   \label{f:interface}
+\end{figure}
 
 \section{Uniform vs.\ non-uniform distributions}
-The same FMM kernel was run on the real slab interface and on a 3D-uniform cloud of equal $N$
-(\texttt{fmm\_bench.csv}, \texttt{fmm\_bench\_uniform.csv}). The slab is \textbf{up to $7\times$
-slower}: peak throughput $2.37$ (slab) vs $12.87$ (uniform). The penalty (Table~\ref{t:pen}) grows
-with thread count and factors at $N{=}461\,376$ as
-\[
+
+The same FMM kernel was run on the real slab interface (Fig.~\ref{f:interface}) and on a 3D-uniform cloud of equal $N$. 
+The slab is at most \textbf{$7\times$ slower} than the uniform case: peak throughput $2.37M$ (slab) vs $12.87M$ (uniform), and uniform dominates along every knob (Fig.~\ref{f:tput}). The penalty (Table~\ref{t:pen}) grows with thread count and factors at $N{=}461\,376$ as
+$$
 \underbrace{7.03\times}_{\text{96 thr}}=\underbrace{2.75\times}_{\text{1 thr (extra work)}}\times
 \underbrace{2.54\times}_{\text{scaling gap}},
-\]
+$$
+where the first factor is the extra work from the slab's non-uniform geometry (e.g.\ heavier near field and deeper tree structure), and
 the scaling gap because the slab parallelizes $1\!\to\!96$ by only $20.4\times$ vs the uniform
-$52.0\times$. Cause: FMM3D's cubic octree on a sheet occupying only $L_z/L\approx3.7\%$ of the box
-wastes $\sim$5 levels on empty $z$-space (refining like a 2D quadtree, deeper) and clusters boxes
-into a thin slab that load-balances poorly. (The uniform $N{=}93\,312$ entry is an anomalous
-random-tree outlier, ratio $<1$.)
+$52.0\times$.
 
-\begin{table}[h]\centering\footnotesize
+\begin{table}[htbp]\centering\footnotesize
 \caption{Slab/uniform ratio of $t_{\mathrm{fmm}}$, $\nd{=}36$ (times the slab is slower).}\label{t:pen}
 \begin{tabular}{@{}rcccc@{}}\toprule
 threads & $N{=}33\,696$ & $N{=}93\,312$ & $N{=}215\,136$ & $N{=}461\,376$\\\midrule
-1  & 2.61 & (1.04) & 1.99 & 2.75\\
-32 & 3.56 & (1.35) & 4.23 & 5.09\\
-96 & 3.42 & (1.79) & 5.27 & \textbf{7.03}\\\bottomrule
+1  & $2.61 \times$ & $1.04 \times$ & $1.99 \times$ & $2.75 \times$\\
+32 & $3.56 \times$ & $1.35 \times$ & $4.23 \times$ & $5.09 \times$\\
+96 & $3.42 \times$ & $1.79 \times$ & $5.27 \times$ & $\textbf{7.03} \times$ \\ \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[htbp]\centering
+\includegraphics[width=0.97\textwidth]{fmm_throughput.png}
+\caption{FMM throughput vs.\ $N$, threads, and \nd{} (slab solid red, uniform dashed blue), each
+panel varying one knob (others fixed at 64 threads, $\nd{=}36$, $N{=}461\,376$). Uniform dominates
+in every panel.}\label{f:tput}
+\end{figure}
+
 
 \section{Speedup from threads and \nd}
-Threads and \nd{} are orthogonal levers on the FMM kernel (slab, $N{=}461\,376$, from
-\texttt{fmm\_bench.csv}; see \texttt{../figs/fmm\_bench.png}, \texttt{fmm\_speedup.png}).
-\emph{Batching \nd} amortizes a flat $\sim$3.7$\times$ that plateaus (per-RHS $t_{\mathrm{fmm}}/\nd$:
-$19.10\to7.94\to5.47\to5.14$\,s for $\nd{=}1,4,16,36$ $\Rightarrow$ $1.0,2.4,3.5,\mathbf{3.7}\times$).
-\emph{Threads} give $1\!\to\!96$ speedups of $17.9\times$ ($N{=}33$k) to $20.4\times$
-($N{=}461$k), near-ideal to $\sim$16 threads then saturating---\textbf{96 threads $\approx$ 64}.
-Combined (Table~\ref{t:comb}) they reach $\sim$73$\times$ at $\nd{=}36$/64 threads. These are
-distinct: $\sim$3.7$\times$ (\nd), $\sim$18--20$\times$ (threads), $\sim$73$\times$ (both)---not to
-be conflated.
 
-\begin{table}[h]\centering\footnotesize
-\caption{Combined per-RHS FMM speedup vs.\ $(\nd{=}1,1\,\text{thr})$, slab, $N{=}461\,376$.}\label{t:comb}
-\begin{tabular}{@{}rccccc@{}}\toprule
-threads & 1 & 8 & 16 & 64 & 96\\\midrule
-speedup & $3.7\times$ & $19\times$ & $33\times$ & $\mathbf{73\times}$ & $76\times$\\\bottomrule
-\end{tabular}
-\end{table}
+Fig.~\ref{f:bench} shows the speedup of the FMM kernel, where I fixed $N{=}461\,376$.
+The results are shown in Fig.~\ref{f:bench}.
+For fixed number of threads, the speedup from batching $\nd$ is from~$2.5\times$ to~$3.7\times$, and for fixed $\nd$, the speedup from threads is from~$20\times$ to~$30\times$.
+The peak combined speedup from both is about $76\times$ at $\nd=36$ and 96 threads.
 
-\section{How multi-RHS accelerates the solve}
-The neighbour pair densities $\rho_{ij}=\varphi_i\varphi_j$ are all RHS of the \emph{same} operator
-$A=\tfrac12\gamma^{-1}+D^{\!\top}$, so they are solved by block GMRES with each matvec a single
-$\nd{=}K$ batched FMM. Two levels:
+% Threads and \nd{} are orthogonal levers on the FMM kernel (slab, $N{=}461\,376$, from
+% \texttt{fmm\_bench.csv}; Fig.~\ref{f:bench}).
+% \emph{Batching \nd} amortizes a flat $\sim$3.7$\times$ that plateaus (per-RHS $t_{\mathrm{fmm}}/\nd$:
+% $19.10\to7.94\to5.47\to5.14$\,s for $\nd{=}1,4,16,36$ $\Rightarrow$ $1.0,2.4,3.5,\mathbf{3.7}\times$).
+% \emph{Threads} give $1\!\to\!96$ speedups of $17.9\times$ ($N{=}33$k) to $20.4\times$
+% ($N{=}461$k), near-ideal to $\sim$16 threads then saturating---\textbf{96 threads $\approx$ 64}.
+% Combined (Table~\ref{t:comb}) they reach $\sim$73$\times$ at $\nd{=}36$/64 threads. These are
+% distinct: $\sim$3.7$\times$ (\nd), $\sim$18--20$\times$ (threads), $\sim$73$\times$ (both)---not to
+% be conflated.
 
-\textbf{(i) FMM kernel.} A direct phase breakdown (\texttt{tools/nd\_timing.f90}, $N{=}200$k, 1 thr;
-\texttt{fmm\_phase\_breakdown.csv}, Table~\ref{t:phase}) shows the shared cost is \emph{not} tree
-construction ($\sim$2\%) but per-interaction geometry/operators---the M2L translation operators and
-the $1/r$ near field---computed once and reused across all densities. Every FMM3D kernel does this
-via an inner density loop, e.g.\ the near kernel \texttt{l3ddirectcg}:
+% \begin{table}[ht]\centering\footnotesize
+% \caption{Combined per-RHS FMM speedup vs.\ $(\nd{=}1,1\,\text{thr})$, slab, $N{=}461\,376$.}\label{t:comb}
+% \begin{tabular}{@{}rccccc@{}}\toprule
+% threads & 1 & 8 & 16 & 64 & 96\\\midrule
+% speedup & $3.7\times$ & $19\times$ & $33\times$ & $\mathbf{73\times}$ & $76\times$\\\bottomrule
+% \end{tabular}
+% \end{table}
+
+\begin{figure}[ht]\centering
+\includegraphics[width=0.95\textwidth]{fmm_speedup_grid.pdf}
+\caption{Speedup of the slab FMM kernel at $N{=}461\,376$. \textbf{(a)} per-RHS \nd{} amortization
+$\mathrm{nd}\cdot t(\mathrm{nd}{=}1,T)/t(\mathrm{nd},T)$ vs \nd{}, one curve per thread count $T$
+(each relative to its own $\nd{=}1$; saturates $\sim$3.7$\times$ at 1 thread, lower at high $T$).
+\textbf{(b)} thread speedup $t(1\,\text{thr},\mathrm{nd})/t(T,\mathrm{nd})$ vs threads, one curve per
+\nd{} (saturates $\sim$20$\times$, below the ideal diagonal). \textbf{(c)} combined per-RHS speedup
+$\mathrm{nd}\cdot t(1,1)/t(\mathrm{nd},T)$ over \nd$\times$threads, peaking $\sim$76$\times$.}\label{f:bench}
+\end{figure}
+
+
+\section{How FMM3D accelerates the multi-RHS (\nd) evaluation}
+The $\nd$ density vectors are evaluated in a \emph{single} \texttt{lfmm3d} call. The point is that
+the expensive, geometry-dependent quantities depend only on the source/target/box \emph{positions},
+not on the charges $q$ --- so FMM3D forms each \emph{once} and reuses it across all $\nd$ densities,
+with an inner \texttt{do idim=1,nd} loop doing only cheap multiply--accumulates.
+
+\emph{Near field.} The kernel $1/r$ (the square root and reciprocal) and its gradient factor $-1/r^3$
+are computed once per source--target pair, then applied to all $\nd$ charges (\texttt{l3ddirectcg}):
 \begin{lstlisting}
-cd = inv4pi/sqrt(dd)      ! 1/r : expensive sqrt, ONCE per source-target pair
-do idim = 1,nd            ! densities: only cheap multiply-adds
+cd = inv4pi/sqrt(dd)      ! 1/r : the expensive sqrt+divide, ONCE per source-target pair
+do idim = 1,nd            ! every density reuses cd -- only multiply-adds
    pot(idim,i) = pot(idim,i) + cd*charge(idim,j) ; ...
 enddo
 \end{lstlisting}
-So $\sim$84\% is shared and $\nd{=}36$ costs $6.8\times$ (not $36\times$) one call; the per-RHS
-ceiling is $(a{+}b)/b\approx6\times$ (uniform), $\sim$4$\times$ for the slab's heavier near field.
 
-\textbf{(ii) Block solve.} Instrumented (\texttt{solve\_breakdown.csv}): the FMM is \textbf{94--97\%}
-of the solve, and block GMRES does \textbf{no} iteration saving (\texttt{iter}=\texttt{nmv}=7 for
-$K{=}1$ and $K{=}36$ alike)---its only benefit is the batched FMM. Hence the per-RHS solve
-amortization just \emph{tracks the FMM}: $61.4/15.3=\mathbf{4.0\times}$ (1 thr),
-$11.6/2.54=4.6\times$ (16 thr). The $K$-sweep (Fig.~\ref{f:perrhs}) plateaus at this $\sim$4$\times$
-floor (per-RHS $15.63\to3.62$\,s, $K{=}1\to36$), \emph{not} along $1/K$. (An earlier ``$18\times$''
-was a thread-contamination artifact from unpinned threads; at 1 thread the $K{=}36$ FMM alone is
-537\,s, so its reported 127\,s total was impossible.)
+\emph{Far field.} Likewise the associated-Legendre / spherical-harmonic polynomial recurrences
+(\texttt{ylgndr*}, used to form and evaluate the multipole and local expansions) and the M2L
+translation operators depend only on box geometry and expansion order: computed once per box and
+reused inside a \texttt{do idim=1,nd} loop over the $\nd$ coefficient sets.
+
+A direct phase breakdown (Table~\ref{t:phase}, $N{=}200$k, 1 thread)
+confirms this: $\sim$\textbf{84\%} of a call is shared geometry/operator work (M2L $+$ the $1/r$ P2P
+dominate), tree construction only $\sim$2\%. Only the $\sim$16\% charge-dependent arithmetic scales
+with $\nd$, so $\nd{=}36$ costs $6.8\times$ (not $36\times$) one call --- giving the per-RHS ceiling
+$(a{+}b)/b\approx4\times$ for the slab ($\sim$6$\times$ uniform).
 
 \begin{table}[h]\centering\footnotesize
 \caption{FMM phase times (s); $a{+}b\,\nd$ split. Tree+setup is $\sim$2\%.}\label{t:phase}
@@ -106,15 +139,5 @@ tree+setup & \textbf{0.09} & 0.44 & --- & ---\\\midrule
 total & 3.99 & 27.04 & 3.34\,(84\%) & 0.65\\\bottomrule
 \end{tabular}
 \end{table}
-
-\begin{figure}[h]\centering
-\includegraphics[width=0.62\textwidth]{per_rhs_runtime.png}
-\caption{Per-RHS block-solve time vs.\ $K$ (16 threads): plateaus at the FMM $\sim$4$\times$ floor,
-not the dotted ideal $1/K$. Data: \texttt{../data/per\_rhs.csv}.}\label{f:perrhs}
-\end{figure}
-
-\noindent\textbf{Recommendations.} Run at 32--64 threads (96 buys nothing); always batch co-located
-densities (free $\sim$4$\times$); the thin-slab geometry---not the kernel---is the dominant
-remaining cost.
 
 \end{document}
