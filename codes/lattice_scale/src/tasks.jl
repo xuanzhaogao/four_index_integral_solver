@@ -261,3 +261,41 @@ function _atomic_serialize(path::AbstractString, obj)
     open(io -> serialize(io, obj), tmp, "w")
     mv(tmp, path; force = true)
 end
+
+"""
+    assemble_v(c::Campaign) -> (; max_rel_asym, n)
+
+Final phase (single process, spec §4/§6): gather all V files into the dense
+`n_pairs × n_pairs` matrix (columns keyed by source pair, rows by target pair — the
+SAME pair ordering, from the rho store), write `V_full.jls` and `report.txt` with the
+campaign's built-in accuracy diagnostic max |V - Vᵀ| / max |V| (each entry is computed
+twice, from the two independently adapted interfaces).
+"""
+function assemble_v(c::Campaign)
+    batches = read_manifest(manifest_path(c))
+    store = open(deserialize, rho_store_path(c))
+    pair_ids = store.pair_ids
+    col = Dict(p => i for (i, p) in enumerate(pair_ids))
+    n = length(pair_ids)
+    V = fill(NaN, n, n)
+    for b in batches
+        vr = load_v_rows(v_path(c, b.batch_id))
+        vr.target_pairs == pair_ids || error("V_$(b.batch_id): target ordering mismatch")
+        for (k, sp) in enumerate(vr.source_pairs)
+            V[:, col[sp]] = vr.V[:, k]
+        end
+    end
+    any(isnan, V) && error("assemble_v: missing columns (run eval for all batches first)")
+
+    scale = maximum(abs.(V))
+    max_rel_asym = maximum(abs.(V .- transpose(V))) / scale
+    _atomic_serialize(joinpath(c.root, "V_full.jls"), (; pair_ids, V))
+    open(joinpath(c.root, "report.txt"), "w") do io
+        println(io, "campaign: $(c.name)")
+        println(io, "pairs: $n   batches: $(length(batches))")
+        println(io, "max|V|: $scale")
+        println(io, "max rel asymmetry |V - V'|/max|V|: $max_rel_asym")
+    end
+    @info "assemble_v: done" n max_rel_asym
+    return (; max_rel_asym, n)
+end

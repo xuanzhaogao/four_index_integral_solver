@@ -134,3 +134,22 @@ end
         @test isempty(pending_batches(c, :eval))
     end
 end
+
+@testset "assemble_v + symmetry diagnostic" begin
+    mktempdir() do dir
+        c = load_campaign(write_fixture_campaign(dir))
+        prepare(c); solve_batch(c, 1); solve_batch(c, 2); consolidate(c)
+        eval_batch(c, 1); eval_batch(c, 2)
+        rep = assemble_v(c)
+        @test isfile(joinpath(c.root, "V_full.jls"))
+        @test isfile(joinpath(c.root, "report.txt"))
+        full = open(Serialization.deserialize, joinpath(c.root, "V_full.jls"))
+        @test full.pair_ids == [(1, 1), (1, 2), (2, 2)]
+        @test size(full.V) == (3, 3)
+        @test !any(isnan, full.V)
+        # the diagnostic: relative asymmetry of the dense V (cross-interface check)
+        @test rep.max_rel_asym >= 0
+        @test rep.max_rel_asym < 1e-2          # loose fixture tolerances; sanity only
+        @test isapprox(full.V[1, 2], full.V[2, 1]; rtol = 1e-2)   # cross-interface entry pair
+    end
+end
