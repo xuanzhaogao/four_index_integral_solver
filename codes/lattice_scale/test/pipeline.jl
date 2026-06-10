@@ -17,7 +17,16 @@ include("fixture_campaign.jl")
         br = BatchResult(BoundaryIntegral.BATCH_FORMAT_VERSION, 1, [(1,1),(1,2)],
             [(1,1,1)], [0.1], ones(1, 2), nothing, ones(3, 2), Dict{String,Any}())
         save_batch_result(batch_path(c, 1), br)
-        @test pending_batches(c, :solve) == [2]
+        @test sort(pending_batches(c, :solve)) == [2]
         @test sort(pending_batches(c, :eval)) == [1, 2]  # no V files yet
+
+        # re-running prepare with same params must NOT throw (idempotent)
+        @test prepare(c) isa Vector{BatchSpec}
+
+        # pending_batches without prepare errors out
+        mktempdir() do dir2
+            c2 = load_campaign(write_fixture_campaign(dir2))
+            @test_throws ErrorException pending_batches(c2, :solve)
+        end
     end
 end
