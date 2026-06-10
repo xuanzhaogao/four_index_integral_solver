@@ -18,16 +18,24 @@ recovered by **resubmitting** — completed batches are skipped.
 
 ## Run order
 
+**One-time setup:** submit Slurm jobs from the `codes/lattice_scale` directory so that
+the relative paths `logs/` and `jobscripts/` resolve correctly (Slurm opens `--output`
+before the script body runs).  `logs/` is tracked via `logs/.gitkeep`, so it exists
+after a fresh clone; if you clean-clone onto a new machine run
+`cd codes/lattice_scale` once before any `sbatch`.
+
 1. `julia --project driver.jl campaigns/<c>.toml prepare`        (login/workstation; writes manifest)
 2. Pilot ONE batch on a node — measure before scaling:
    `julia --project driver.jl campaigns/<c>.toml solve --only 1`  (via ssh to an interactive node)
    Note `t_solve`, `dof`, and the batch file size from the stats; size the campaign before step 3.
-3. `sbatch --nodes=<M> jobscripts/solve.sbatch campaigns/<c>.toml`   (**you** submit)
+3. From `codes/lattice_scale`:
+   `sbatch --nodes=<M> jobscripts/solve.sbatch campaigns/<c>.toml`   (**you** submit)
 4. `julia --project driver.jl campaigns/<c>.toml consolidate`        (single node)
 5. Pilot ONE eval — the u_inc/near-correction cost at the full target set is the
    campaign's biggest unknown; measure before committing nodes:
    `julia --project driver.jl campaigns/<c>.toml eval --only 1`
-6. `sbatch --nodes=<M> jobscripts/eval.sbatch campaigns/<c>.toml`     (**you** submit)
+6. From `codes/lattice_scale`:
+   `sbatch --nodes=<M> jobscripts/eval.sbatch campaigns/<c>.toml`     (**you** submit)
 7. `julia --project driver.jl campaigns/<c>.toml assemble` → `V_full.jls` + `report.txt`
 
 Crash/walltime recovery: just resubmit step 3 or 6 — status is file-derived and
