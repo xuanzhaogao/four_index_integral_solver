@@ -80,3 +80,57 @@ end
         @test store.pair_ids == open(Serialization.deserialize, rho_store_path(c)).pair_ids
     end
 end
+
+@testset "eval_batch: V file + plumbing + four_index sanity" begin
+    mktempdir() do dir
+        c = load_campaign(write_fixture_campaign(dir))
+        prepare(c); solve_batch(c, 1); solve_batch(c, 2); consolidate(c)
+        eval_batch(c, 1)
+        @test CampaignLib._is_complete_v(v_path(c, 1))
+        vr = CampaignLib.load_v_rows(v_path(c, 1))
+        @test vr.source_pairs == [(1, 1), (1, 2)]
+        @test vr.target_pairs == [(1, 1), (1, 2), (2, 2)]   # ALL pairs, manifest order
+        @test size(vr.V) == (3, 2)                          # n_target_pairs × K_sources
+
+        br = load_batch_result(batch_path(c, 1))
+        T = open(Serialization.deserialize, targets_path(c))
+        store = open(Serialization.deserialize, rho_store_path(c))
+        temps = CampaignLib.load_templates!(c); dg = temps[1][2]
+        pos = Matrix{Float64}(undef, 3, length(br.gidx))
+        for (r, g) in enumerate(br.gidx)
+            p = BoundaryIntegral.grid_point(dg, g[1], g[2], g[3]); pos[:, r] .= p
+        end
+        srcs = [BoundaryIntegral.VolumeSource(copy(pos), copy(br.weights), br.densities[:, k])
+                for k in 1:2]
+        At, Bt, Ct = BoundaryIntegral.true_cell_vectors(dg)
+        far_pad = c.far_pad_steps * maximum((LinearAlgebra.norm(At)/dg.nx,
+            LinearAlgebra.norm(Bt)/dg.ny, LinearAlgebra.norm(Ct)/dg.nz))
+
+        # (1) PLUMBING (tight): reproduce eval_batch's OWN computation — evaluate Φ at the
+        # shared target set T and contract via store.t_idx/store.tw. Pins source
+        # reconstruction, the target-set Φ evaluation, the contraction indexing, and the
+        # V-file round-trip, independent of TKM's absolute accuracy.
+        ΦT = evaluate_batch_potential(br.interface, br.sigma, srcs, T.positions;
+            lhs_tol = c.solve["lhs_tol"], volume_tol = c.solve["volume_tol"], far_pad = far_pad)
+        V_plumb = [LinearAlgebra.dot(store.tw[kl], view(ΦT, store.t_idx[kl], a))
+                   for kl in 1:length(store.pair_ids), a in 1:2]
+        @test maximum(abs.(vr.V .- V_plumb)) < 1e-10 * max(maximum(abs.(V_plumb)), eps())
+
+        # (2) PHYSICAL SANITY (loose): within-batch block vs four_index_matrix-style
+        # contraction at the batch's OWN grid. The fixture is deliberately under-resolved,
+        # and TKM's k-grid depends on the source+target bbox (Task 4 finding), so
+        # eval-at-T differs from eval-at-own-grid by ~1e-3 here; on production-resolution
+        # data this collapses to ~1e-8. The tight accuracy anchor is Task 16
+        # (scripts/compare_anchor.jl on real Wannier data via the .bie path).
+        Φg = evaluate_batch_potential(br.interface, br.sigma, srcs, pos;
+            lhs_tol = c.solve["lhs_tol"], volume_tol = c.solve["volume_tol"], far_pad = far_pad)
+        V_fi = [LinearAlgebra.dot(br.weights .* br.densities[:, a], Φg[:, bb])
+                for a in 1:2, bb in 1:2]
+        # vr.V rows = target pairs, cols = source pairs; the first 2 target rows are this
+        # batch's pairs, so vr.V[1:2, :] aligns with V_fi[target a, source bb].
+        @test maximum(abs.(vr.V[1:2, :] .- V_fi)) < 1e-2 * maximum(abs.(V_fi))
+
+        eval_batch(c, 2)
+        @test isempty(pending_batches(c, :eval))
+    end
+end

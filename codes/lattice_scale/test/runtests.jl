@@ -1,5 +1,6 @@
 using CampaignLib
 using BoundaryIntegral
+using LinearAlgebra
 using Serialization
 using Test
 

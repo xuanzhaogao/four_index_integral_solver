@@ -61,8 +61,81 @@ function pending_batches(c::Campaign, phase::Symbol)
     error("unknown phase $phase")
 end
 
-# Temporary stub — Task 12 replaces this with a validating loader for V files.
-_is_complete_v(path::AbstractString) = isfile(path)
+const V_FORMAT_VERSION = 1
+
+function save_v_rows(path::AbstractString, batch_id::Int,
+        source_pairs::Vector{Tuple{Int,Int}}, target_pairs::Vector{Tuple{Int,Int}},
+        V::Matrix{Float64}, stats::Dict{String,Any})
+    _atomic_serialize(path, (; version = V_FORMAT_VERSION, batch_id,
+        source_pairs, target_pairs, V, stats))
+end
+
+function load_v_rows(path::AbstractString)
+    vr = open(deserialize, path)
+    vr.version == V_FORMAT_VERSION || error("$path: V format version mismatch")
+    size(vr.V) == (length(vr.target_pairs), length(vr.source_pairs)) ||
+        error("$path: V shape mismatch")
+    return vr
+end
+
+function _is_complete_v(path::AbstractString)
+    isfile(path) || return false
+    try
+        load_v_rows(path)
+        return true
+    catch
+        return false
+    end
+end
+
+"""
+    eval_batch(c::Campaign, batch_id) -> path | nothing
+
+Post-eval phase for one batch (spec §6): rebuild the K sources from the BatchResult,
+evaluate Φ_a = u_inc[ρ_a] + u[σ_a] ONCE at the shared target set T (near/far split in
+`evaluate_batch_potential`), contract against every stored pair density, write the
+K columns of V atomically. Skips if the V file is already complete.
+"""
+function eval_batch(c::Campaign, batch_id::Int)
+    out = v_path(c, batch_id)
+    if _is_complete_v(out)
+        @info "eval_batch: already complete, skipping" batch_id
+        return nothing
+    end
+    t0 = time()
+    br = load_batch_result(batch_path(c, batch_id))
+    T = open(deserialize, targets_path(c))
+    store = open(deserialize, rho_store_path(c))
+    temps = load_templates!(c)
+    dg = temps[1][2]
+
+    K = length(br.pair_ids)
+    pos = Matrix{Float64}(undef, 3, length(br.gidx))
+    for (r, g) in enumerate(br.gidx)
+        p = BoundaryIntegral.grid_point(dg, g[1], g[2], g[3])
+        pos[1, r] = p[1]; pos[2, r] = p[2]; pos[3, r] = p[3]
+    end
+    sources = [VolumeSource(copy(pos), copy(br.weights), br.densities[:, k]) for k in 1:K]
+    At, Bt, Ct = BoundaryIntegral.true_cell_vectors(dg)
+    max_step = maximum((norm(At) / dg.nx, norm(Bt) / dg.ny, norm(Ct) / dg.nz))
+    far_pad = c.far_pad_steps * max_step
+
+    Φ = evaluate_batch_potential(br.interface, br.sigma, sources, T.positions;
+        lhs_tol = c.solve["lhs_tol"], volume_tol = c.solve["volume_tol"],
+        far_pad = far_pad)
+    t_phi = time() - t0
+
+    nP = length(store.pair_ids)
+    V = Matrix{Float64}(undef, nP, K)
+    for kl in 1:nP, a in 1:K
+        V[kl, a] = dot(store.tw[kl], view(Φ, store.t_idx[kl], a))
+    end
+    stats = Dict{String,Any}("t_phi" => t_phi, "t_total" => time() - t0,
+        "n_targets" => size(T.positions, 2), "hostname" => gethostname())
+    save_v_rows(out, batch_id, br.pair_ids, store.pair_ids, V, stats)
+    @info "eval_batch: done" batch_id n_targets=size(T.positions, 2) t_total=stats["t_total"]
+    return out
+end
 
 # OrbitalInstances for the centers referenced by a batch (template grids shared via cache)
 function _batch_instances(c::Campaign, spec::BatchSpec)
