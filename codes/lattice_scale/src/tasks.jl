@@ -104,6 +104,10 @@ function eval_batch(c::Campaign, batch_id::Int)
     end
     t0 = time()
     br = load_batch_result(batch_path(c, batch_id))
+
+    isfile(targets_path(c)) && isfile(rho_store_path(c)) ||
+        error("eval_batch: targets.jls / rho_store.jls not found under $(c.root); run consolidate(c) first")
+
     T = open(deserialize, targets_path(c))
     store = open(deserialize, rho_store_path(c))
     temps = load_templates!(c)
@@ -120,17 +124,19 @@ function eval_batch(c::Campaign, batch_id::Int)
     max_step = maximum((norm(At) / dg.nx, norm(Bt) / dg.ny, norm(Ct) / dg.nz))
     far_pad = c.far_pad_steps * max_step
 
+    t_phi_start = time()
     Φ = evaluate_batch_potential(br.interface, br.sigma, sources, T.positions;
         lhs_tol = c.solve["lhs_tol"], volume_tol = c.solve["volume_tol"],
         far_pad = far_pad)
-    t_phi = time() - t0
+    t_phi = time() - t_phi_start
+    t_setup = t_phi_start - t0
 
     nP = length(store.pair_ids)
     V = Matrix{Float64}(undef, nP, K)
     for kl in 1:nP, a in 1:K
         V[kl, a] = dot(store.tw[kl], view(Φ, store.t_idx[kl], a))
     end
-    stats = Dict{String,Any}("t_phi" => t_phi, "t_total" => time() - t0,
+    stats = Dict{String,Any}("t_setup" => t_setup, "t_phi" => t_phi, "t_total" => time() - t0,
         "n_targets" => size(T.positions, 2), "hostname" => gethostname())
     save_v_rows(out, batch_id, br.pair_ids, store.pair_ids, V, stats)
     @info "eval_batch: done" batch_id n_targets=size(T.positions, 2) t_total=stats["t_total"]
