@@ -24,6 +24,7 @@ end
 function load_campaign(toml_path::AbstractString)
     d = TOML.parsefile(toml_path)
     c, l, di, s = d["campaign"], d["lattice"], d["dielectrics"], d["solve"]
+    haskey(d, "batching") || error("campaign.toml is missing the [batching] section")
     boxes = BoundaryIntegral.BoxGeom[]
     epses = Float64[]
     for row in di["boxes"]
@@ -36,8 +37,8 @@ function load_campaign(toml_path::AbstractString)
     return Campaign(c["name"], c["root"], String.(d["orbitals"]["xsf"]),
         Int(l["nx"]), Int(l["ny"]), Float64(l["neighbor_cutoff"]),
         Float64(get(di, "eps_out", 1.0)), boxes, epses, solve,
-        Int(get(d, "batching", Dict())["n_centers_per_batch"]),
-        Float64(get(d, "eval", Dict("far_pad_steps" => 2.0))["far_pad_steps"]))
+        Int(d["batching"]["n_centers_per_batch"]),
+        Float64(get(get(d, "eval", Dict()), "far_pad_steps", 2.0)))
 end
 
 manifest_path(c::Campaign)  = joinpath(c.root, "manifest.tsv")
