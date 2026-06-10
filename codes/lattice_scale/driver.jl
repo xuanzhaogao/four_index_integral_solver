@@ -11,6 +11,7 @@ using Distributed
 using Pkg
 Pkg.precompile()                      # precompile BEFORE spawning workers (GPFS cache race)
 using CampaignLib
+using ClusterManagers
 
 function _parse_args(args)
     length(args) >= 2 || error("usage: driver.jl <campaign.toml> <phase> [--only ID] [--workers N]")
@@ -19,8 +20,10 @@ function _parse_args(args)
     i = 3
     while i <= length(args)
         if args[i] == "--only"
+            i + 1 <= length(args) || error("--only requires a value")
             only_id = parse(Int, args[i+1]); i += 2
         elseif args[i] == "--workers"
+            i + 1 <= length(args) || error("--workers requires a value")
             nworkers_local = parse(Int, args[i+1]); i += 2
         else
             error("unknown arg $(args[i])")
@@ -34,10 +37,9 @@ function _setup_workers(nworkers_local::Int)
     exe = "--project=$proj"
     glue = get(ENV, "JULIA_GLUE_THREADS", "8")           # Threads.@threads glue loops
     if haskey(ENV, "SLURM_JOB_ID") && parse(Int, get(ENV, "SLURM_NTASKS", "1")) > 1
-        Base.eval(Main, :(using ClusterManagers))
         np = parse(Int, ENV["SLURM_NTASKS"])
         @info "spawning $np Slurm workers (one per task)"
-        addprocs(Main.SlurmManager(np); exeflags = `$exe -t $glue`)
+        addprocs(SlurmManager(np); exeflags = `$exe -t $glue`)
     elseif nworkers_local > 0
         @info "spawning $nworkers_local local workers"
         addprocs(nworkers_local; exeflags = `$exe -t $glue`)
