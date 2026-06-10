@@ -273,6 +273,8 @@ twice, from the two independently adapted interfaces).
 """
 function assemble_v(c::Campaign)
     batches = read_manifest(manifest_path(c))
+    missing_ids = [b.batch_id for b in batches if !_is_complete_v(v_path(c, b.batch_id))]
+    isempty(missing_ids) || error("assemble_v: unevaluated batches: $missing_ids — run eval_batch for each first")
     store = open(deserialize, rho_store_path(c))
     pair_ids = store.pair_ids
     col = Dict(p => i for (i, p) in enumerate(pair_ids))
@@ -290,11 +292,16 @@ function assemble_v(c::Campaign)
     scale = maximum(abs.(V))
     max_rel_asym = maximum(abs.(V .- transpose(V))) / scale
     _atomic_serialize(joinpath(c.root, "V_full.jls"), (; pair_ids, V))
-    open(joinpath(c.root, "report.txt"), "w") do io
+    report = sprint() do io
         println(io, "campaign: $(c.name)")
         println(io, "pairs: $n   batches: $(length(batches))")
         println(io, "max|V|: $scale")
         println(io, "max rel asymmetry |V - V'|/max|V|: $max_rel_asym")
+    end
+    let rp = joinpath(c.root, "report.txt")
+        tmp = string(rp, ".tmp.", getpid(), "_", rand(UInt32))
+        write(tmp, report)
+        mv(tmp, rp; force = true)
     end
     @info "assemble_v: done" n max_rel_asym
     return (; max_rel_asym, n)
