@@ -35,15 +35,17 @@ for p in (2, 4, 6)
 end
 
 # archived no-edge-correction series (errors recomputed vs the converged ref)
-for p in (6,)
+for p in (2, 4, 6)
     s = load_series(joinpath(DATA, "raw", "noedges_run1"), p)
     Ns = [d.N for d in s]
     ev = [abs(d.V - ref.V) / abs(ref.V) for d in s]
     its = [d.niter for d in s]
-    scatterlines!(ax1, Ns, ev; color = (:gray40, 0.9), marker = :utriangle,
-        linestyle = :dash, label = L"p = 6\;\mathrm{(no\;edge\;corr.)}")
-    scatterlines!(ax2, Ns, its; color = (:gray40, 0.9), marker = :utriangle, linestyle = :dash)
+    scatterlines!(ax1, Ns, ev; color = (COL[p], 0.55), marker = :utriangle, linestyle = :dash)
+    scatterlines!(ax2, Ns, its; color = (COL[p], 0.55), marker = :utriangle, linestyle = :dash)
 end
+# legend proxy for the dashed family
+scatterlines!(ax1, [NaN], [NaN]; color = :gray40, marker = :utriangle,
+    linestyle = :dash, label = "no edge corr.")
 
 hlines!(ax1, [1e-4]; color = :black, linestyle = :dot)
 text!(ax1, 3.0e5, 1.22e-4; text = L"\varepsilon = 10^{-4}", fontsize = 12)
