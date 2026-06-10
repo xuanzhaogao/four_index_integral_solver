@@ -21,7 +21,7 @@ end
 
 Base.:(==)(a::CenterInfo, b::CenterInfo) =
     a.id == b.id && a.template_id == b.template_id && a.Rx == b.Rx && a.Ry == b.Ry &&
-    a.steps == b.steps && all(isapprox.(a.center, b.center; atol = 1e-12))
+    a.steps == b.steps && a.center == b.center
 Base.:(==)(a::BatchSpec, b::BatchSpec) =
     a.batch_id == b.batch_id && a.anchors == b.anchors && a.pairs == b.pairs
 
@@ -31,6 +31,7 @@ Base.:(==)(a::BatchSpec, b::BatchSpec) =
 Pure geometry (no file IO): center id = (Ry*nx + Rx)*n_sub + template_id, position =
 template centroid + Rx·a1 + Ry·a2, steps = Rx·steps(a1) + Ry·steps(a2).
 `steps_per_cell` = the per-template-grid steps of (a1, a2) from `lattice_grid_steps`.
+`primvec` rows are the lattice vectors (a1 = primvec[1,:], a2 = primvec[2,:]).
 """
 function enumerate_centers(nx::Int, ny::Int, primvec::AbstractMatrix,
         centroids::Vector{NTuple{3,Float64}}, steps_per_cell::NTuple{2,NTuple{3,Int}})
@@ -48,7 +49,7 @@ function enumerate_centers(nx::Int, ny::Int, primvec::AbstractMatrix,
 end
 
 "Unique pairs (i ≤ j) with center distance ≤ cutoff. On-site pairs (i,i) included."
-function enumerate_pairs(centers::Vector{CenterInfo}, cutoff::Float64)
+function enumerate_pairs(centers::Vector{CenterInfo}, cutoff::Real)
     byid = sort(centers; by = c -> c.id)
     pairs = Tuple{Int,Int}[]
     for (m, ci) in enumerate(byid)
@@ -126,8 +127,9 @@ function read_manifest(path::AbstractString)
     for (n, line) in enumerate(eachline(path))
         n == 1 && continue
         f = split(line, '\t')
-        pairs = [(parse(Int, split(p, ':')[1]), parse(Int, split(p, ':')[2]))
-                 for p in split(f[4], ';')]
+        pairs = isempty(strip(f[4])) ? Tuple{Int,Int}[] :
+            [(parse(Int, split(p, ':')[1]), parse(Int, split(p, ':')[2]))
+             for p in split(f[4], ';')]
         push!(out, BatchSpec(parse(Int, f[1]), parse.(Int, split(f[2], ',')), pairs))
     end
     return out
