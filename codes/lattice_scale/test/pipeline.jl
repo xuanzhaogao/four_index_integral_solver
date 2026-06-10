@@ -42,7 +42,8 @@ end
         @test br.pair_ids == [(1, 1), (1, 2)]
         @test size(br.sigma, 2) == 2
         @test size(br.densities, 2) == 2 && size(br.densities, 1) == length(br.gidx)
-        @test haskey(br.stats, "t_total") && haskey(br.stats, "niter") && haskey(br.stats, "dof")
+        @test all(haskey(br.stats, k) for k in
+                  ("t_setup", "t_assemble", "t_solve", "t_total", "niter", "dof", "n_support", "K", "hostname"))
         @test br.stats["dof"] > 0
         solve_batch(c, 1)                                # idempotent: skips, no error
         @test sort(pending_batches(c, :solve)) == [2]

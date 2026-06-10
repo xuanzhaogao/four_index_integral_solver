@@ -68,7 +68,7 @@ _is_complete_v(path::AbstractString) = isfile(path)
 function _batch_instances(c::Campaign, spec::BatchSpec)
     centers = read_centers(centers_path(c))
     byid = Dict(ct.id => ct for ct in centers)
-    need = unique(reduce(vcat, [[p[1], p[2]] for p in spec.pairs]))
+    need = unique(reduce(vcat, [[p[1], p[2]] for p in spec.pairs]; init = Int[]))
     return Dict(id => OrbitalInstance(id, byid[id].template_id, byid[id].steps) for id in need)
 end
 
@@ -86,24 +86,30 @@ function solve_batch(c::Campaign, batch_id::Int)
         return nothing
     end
     t0 = time()
-    spec = only(filter(b -> b.batch_id == batch_id, read_manifest(manifest_path(c))))
+    found = filter(b -> b.batch_id == batch_id, read_manifest(manifest_path(c)))
+    isempty(found) && error("batch_id=$batch_id not found in manifest $(manifest_path(c))")
+    spec = only(found)
     temps = load_templates!(c)
     grids = [t[2] for t in temps]
     insts = _batch_instances(c, spec)
+    t_setup = time() - t0
 
+    t1 = time()
     b = assemble_lattice_batch(grids, insts, spec.pairs;
         support_rtol = c.solve["support_rtol"])
-    t_asm = time() - t0
+    t_asm = time() - t1
 
+    t2 = time()
     res = solve_dielectric_lattice_batch(c.boxes, c.epses, c.eps_out, b;
         n_quad = Int(c.solve["n_quad"]), rhs_atol = c.solve["rhs_tol"],
         l_ec = campaign_l_ec(c), fmm_tol = c.solve["lhs_tol"],
         up_tol = c.solve["lhs_tol"], max_order = Int(c.solve["max_order"]),
         gmres_rtol = c.solve["gmres_rtol"], max_depth = Int(c.solve["max_depth"]))
+    t_solve = time() - t2
     t_total = time() - t0
 
     stats = Dict{String,Any}(
-        "t_assemble" => t_asm, "t_total" => t_total,
+        "t_setup" => t_setup, "t_assemble" => t_asm, "t_solve" => t_solve, "t_total" => t_total,
         "niter" => res.stats.niter, "dof" => size(res.sigma, 1),
         "n_support" => length(b.gidx), "K" => length(spec.pairs),
         "hostname" => gethostname())
