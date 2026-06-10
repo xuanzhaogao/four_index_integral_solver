@@ -107,10 +107,10 @@ phi-error zones: (i) z = 0.51 plane, x,y ~ U(-0.5, 0.5); (ii) ball r <= 0.1 arou
 
 **System II (6.1.4–7, 6.3.3):** Omega_1 center (-0.5, 0, 0.25) size 1x1x0.5 eps 4;
 Omega_2 center (0.5, 0, 0.25) size 1x1x0.5 eps 12 (shared face x = 0);
-Omega_m center (0, 0, 0.85) size 0.6x0.6x0.2 eps 2 (gap g = 0.1 above substrate
-top z = 0.5). Source Gaussian s = 0.05 at (0, 0, 0.85); target at (0.2, 0, 0.85).
+Omega_m center (0, 0, 0.7) size 0.6x0.6x0.2 eps 2 (gap g = 0.1 above substrate
+top z = 0.5). Source Gaussian s = 0.05 at (0, 0, 0.7); target at (0.2, 0, 0.7).
 Zones: (i) z = 0.51 plane over x,y ~ U(-1,1)x(-0.5,0.5); (ii) ball r <= 0.1 at
-(0,0,0.85); (iii) sphere |x| = 5.
+(0,0,0.7); (iii) sphere |x| = 5.
 
 **6.2/6.4 slab:** slab AxAx0.5 center (0,0,0) eps 10 (A = 10 default); material box
 0.6x0.6x0.2 center (0, 0, 0.4) eps 2 (gap 0.05 above slab top z = 0.25). Source
