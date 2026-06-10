@@ -20,7 +20,7 @@ const CSVPATH = joinpath(DATA, "sweep_slab.csv")
 
 const EPS = 1e-4
 const P_LIST = [2, 4, 6]
-const R_LIST = 1:5
+const R_LIST = 1:6
 # Reference uses correct_edges=true (adaptive quadtree on edge-touching pairs):
 # without it the edge-region quadrature error decays only ~2^-r and the
 # reference would be the least-converged run of the suite (verified 2026-06-10).

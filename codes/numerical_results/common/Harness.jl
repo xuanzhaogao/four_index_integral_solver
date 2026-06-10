@@ -21,7 +21,7 @@ using Dates
 
 export SystemSpec, system1, system2, slab_system,
        gaussian_source, source_grid_n, screened_source,
-       slab_internal, solve_system, eval_phi, eval_V, vacuum_V,
+       slab_internal, system_fig1, solve_system, eval_phi, eval_V, vacuum_V,
        zone_targets, eval_scatter_with_h0,
        uniform_refine, refine_to_dof,
        bernstein_rho_min, run_provenance, append_csv_row, run_cols, times_cols,
@@ -76,6 +76,23 @@ function slab_internal(; L::Float64 = 10.0, Lz::Float64 = 1.0, eps1::Float64 = 1
     SystemSpec("slab_internal_L$(L)_Lz$(Lz)_eps$(eps1)",
         [box((0.0, 0.0, 0.0), L, L, Lz)], [eps1], 1.0,
         (0.0, 0.0, 0.0), s, (0.2, 0.0, 0.0), s)
+end
+
+"""
+6.1 Fig.-1 system (article Fig. 1): a 10 x 10 x 1 material slab placed on top
+of two 10 x 10 x 10 substrate cubes with different permittivities. The cubes
+share the internal face x = 0; the slab sits directly on both cube tops
+(z = 0), centered over the junction line. Gaussian source (s = 0.05) at the
+slab center, fully supported inside the slab.
+"""
+function system_fig1(; eps1::Float64 = 4.0, eps2::Float64 = 12.0,
+                      eps_slab::Float64 = 10.0, s::Float64 = 0.05)
+    SystemSpec("fig1_eps$(eps1)_$(eps2)_$(eps_slab)",
+        [box((-5.0, 0.0, -5.0), 10.0, 10.0, 10.0),   # Omega_1, x in [-10, 0]
+         box((5.0, 0.0, -5.0), 10.0, 10.0, 10.0),    # Omega_2, x in [0, 10]
+         box((0.0, 0.0, 0.5), 10.0, 10.0, 1.0)],     # slab on top, z in [0, 1]
+        [eps1, eps2, eps_slab], 1.0,
+        (0.0, 0.0, 0.5), s, (0.2, 0.0, 0.5), s)
 end
 
 "6.2/6.4 slab: A x A x 0.5 slab (eps 10) + material box (eps 2) at gap g above it."
