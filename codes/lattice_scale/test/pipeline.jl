@@ -51,3 +51,29 @@ end
         @test isempty(pending_batches(c, :solve))
     end
 end
+
+@testset "consolidate" begin
+    mktempdir() do dir
+        c = load_campaign(write_fixture_campaign(dir))
+        prepare(c); solve_batch(c, 1); solve_batch(c, 2)
+        consolidate(c)
+        @test isfile(targets_path(c)) && isfile(rho_store_path(c))
+
+        T = open(Serialization.deserialize, targets_path(c))
+        store = open(Serialization.deserialize, rho_store_path(c))
+        br1 = load_batch_result(batch_path(c, 1))
+        br2 = load_batch_result(batch_path(c, 2))
+
+        @test T.gidx == sort(union(br1.gidx, br2.gidx))          # exact union, sorted
+        @test size(T.positions) == (3, length(T.gidx))
+        @test store.pair_ids == vcat(br1.pair_ids, br2.pair_ids) # batch order
+        # contraction vectors: tw = w .* rho on the pair's own support rows
+        k = 1                                                    # pair (1,1) from batch 1
+        @test store.tw[k] ≈ (br1.weights .* br1.densities[:, 1])
+        # t_idx maps the pair's support into T
+        @test T.gidx[store.t_idx[k]] == br1.gidx
+        # consolidate is idempotent
+        consolidate(c)
+        @test store.pair_ids == open(Serialization.deserialize, rho_store_path(c)).pair_ids
+    end
+end
