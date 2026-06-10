@@ -1,0 +1,39 @@
+# campaigns/lattice_10x10.toml — 10x10 production campaign
+[campaign]
+name = "lattice_10x10"
+root = "/mnt/ceph/users/xgao1/four_index/lattice_10x10"
+
+[orbitals]
+xsf = [
+  "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf",
+  "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf",
+]
+
+[lattice]
+nx = 10
+ny = 10
+neighbor_cutoff = 5.0
+
+[dielectrics]
+eps_out = 1.0
+# VERIFIED (Task 17): 10x10 center cloud x∈[-11.093, 22.186] y∈[0.001, 20.636] bohr + 15 bohr/side margin;
+# Lz=3.35 monolayer sheet at z=7.5. BOX_SUGGEST: cx=5.547 cy=10.318 Lx=63.279 Ly=50.635.
+# Confirm finite-flake slab geometry models intended physics before production.
+boxes = [[5.547, 10.318, 7.5, 63.279, 50.635, 3.35, 3.5]]
+
+[solve]
+n_quad = 6
+edge_refine_level = 2
+rhs_tol = 1e-3
+lhs_tol = 1e-5
+gmres_rtol = 1e-5
+support_rtol = 1e-4
+volume_tol = 1e-5
+max_order = 8
+max_depth = 128
+
+[batching]
+n_centers_per_batch = 1
+
+[eval]
+far_pad_steps = 2.0
