@@ -35,7 +35,7 @@ function main()
         println(io, "END_GROUPING\n\nBEGIN_SOLVE")
         for (k, v) in [("N_QUAD", 6), ("EDGE_REFINE_LEVEL", 2), ("RHS_TOL", 1e-3),
                        ("LHS_TOL", 1e-5), ("GMRES_RTOL", 1e-5), ("SUPPORT_RTOL", 1e-4),
-                       ("VOLUME_TOL", 1e-5)]
+                       ("VOLUME_TOL", 1e-5), ("MAX_ORDER", 8), ("MAX_DEPTH", 128)]
             println(io, "  $k $v")
         end
         println(io, "END_SOLVE")
