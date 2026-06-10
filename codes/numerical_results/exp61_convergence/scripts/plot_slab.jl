@@ -12,7 +12,8 @@ mkpath(FIGS)
 
 ref = load_ref(joinpath(DATA, "raw", "slab_ref.jls"))
 
-load_series(dir, p) = [load_ref(joinpath(dir, "slab_p$(p)_r$(r).jls")) for r in 1:5]
+load_series(dir, p) = [load_ref(joinpath(dir, "slab_p$(p)_r$(r).jls")) for r in 1:6]
+load_series_uc(dir, p) = [load_ref(joinpath(dir, "slab_p$(p)_r$(r).jls")) for r in 1:5]
 
 # Okabe-Ito
 const COL = Dict(2 => "#0072B2", 4 => "#D55E00", 6 => "#009E73")
@@ -36,7 +37,7 @@ end
 
 # archived no-edge-correction series (errors recomputed vs the converged ref)
 for p in (2, 4, 6)
-    s = load_series(joinpath(DATA, "raw", "noedges_run1"), p)
+    s = load_series_uc(joinpath(DATA, "raw", "noedges_run1"), p)
     Ns = [d.N for d in s]
     ev = [abs(d.V - ref.V) / abs(ref.V) for d in s]
     its = [d.niter for d in s]

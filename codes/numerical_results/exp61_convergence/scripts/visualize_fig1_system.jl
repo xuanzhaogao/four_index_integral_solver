@@ -13,8 +13,21 @@ const SYS = system_fig1()
 const FIGS = joinpath(@__DIR__, "..", "figs")
 mkpath(FIGS)
 
-# coarse, non-adaptive build: p = 2, one edge-refinement level
-iface = BI.multi_dielectric_box3d(2, Harness.l_ec_of(SYS, 1), SYS.boxes, SYS.epses, SYS.eps_out)
+# RHS-adaptive build at sweep parameters (set VIZ_ADAPTIVE=0 for the coarse
+# geometry-only mesh): panels refine near the source according to the screened
+# RHS at tolerance eps, exactly as in the benchmark runs.
+const ADAPTIVE = get(ENV, "VIZ_ADAPTIVE", "1") == "1"
+const VIZ_EPS, VIZ_P, VIZ_R = 1e-4, 6, 2
+iface = if ADAPTIVE
+    vs = gaussian_source(SYS.src_center, SYS.src_sigma, VIZ_EPS)
+    svs = Harness.screened_source(SYS, vs)
+    kmax = BI._estimate_tkm3dc_kmax(BI._estimate_source_spacing(svs))
+    BI.multi_dielectric_box3d_rhs_adaptive(VIZ_P, Harness.l_ec_of(SYS, VIZ_R),
+        SYS.boxes, SYS.epses, svs, 1.0, VIZ_EPS, SYS.eps_out;
+        max_depth = 128, tkm_kmax = kmax)
+else
+    BI.multi_dielectric_box3d(2, Harness.l_ec_of(SYS, 1), SYS.boxes, SYS.epses, SYS.eps_out)
+end
 panels = iface.panels
 println("panels: ", length(panels), "   points: ", BI.num_points(iface))
 
@@ -63,7 +76,7 @@ end
 fig = Figure(size = (1000, 620))
 ax = Axis3(fig[1, 1]; aspect = :data, azimuth = 1.72π, elevation = 0.16π,
     title = "Fig.-1 system: 10×10×1 slab (ε=10) on two 10×10×10 cubes (ε=4, ε=12)",
-    xlabel = "x", ylabel = "y", zlabel = "z")
+    titlealign = :left, xlabel = "x", ylabel = "y", zlabel = "z")
 
 const MExt = Base.get_extension(BI, :MakieExt)
 for (k, _) in sort(collect(census))
@@ -78,6 +91,23 @@ for (k, v) in sort(collect(census))
 end
 scatter!(ax, [Point3f(NaN, NaN, NaN)]; color = :red, markersize = 10, label = "source")
 axislegend(ax; position = :rt, framevisible = false, labelsize = 11)
+
+# top view of the slab top face (z = 1): source-driven refinement pattern
+ax2 = Axis(fig[1, 2]; aspect = DataAspect(), xlabel = "x", ylabel = "y",
+    title = ADAPTIVE ? "slab top face (z = 1): RHS-adaptive panels" : "slab top face (z = 1)",
+    width = 280)
+seg = Point2f[]
+for i in eachindex(panels)
+    c = (panels[i].corners[1] .+ panels[i].corners[2] .+ panels[i].corners[3] .+ panels[i].corners[4]) ./ 4
+    abs(c[3] - 1.0) < 1e-9 && abs(panels[i].normal[3]) > 0.999 || continue
+    cs = panels[i].corners
+    for (a, b) in ((1, 2), (2, 3), (3, 4), (4, 1))
+        push!(seg, Point2f(cs[a][1], cs[a][2])); push!(seg, Point2f(cs[b][1], cs[b][2]))
+    end
+end
+linesegments!(ax2, seg; color = COLOR[(1.0, 10.0)], linewidth = 0.7)
+scatter!(ax2, [Point2f(SYS.src_center[1], SYS.src_center[2])]; color = :red, markersize = 10)
+colsize!(fig.layout, 2, Auto(0.45))
 
 save(joinpath(FIGS, "fig61_system_fig1_geometry.png"), fig; px_per_unit = 2)
 save(joinpath(FIGS, "fig61_system_fig1_geometry.pdf"), fig)
