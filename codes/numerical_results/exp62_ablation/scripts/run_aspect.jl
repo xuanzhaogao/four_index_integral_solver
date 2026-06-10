@@ -41,8 +41,8 @@ for A in A_LIST
                    wall = round(time() - t0; digits = 2)))
 
     t0 = time()
-    resR = solve_system(sys; eps = 1e-13, p = 12, r = R + 2, src_margin = 2.5)
-    VR = eval_V(resR; t_out = resR.times, margin = 2.5)
+    resR = solve_system(sys; eps = 1e-13, p = 12, r = R + 2, src_margin = 1.4)
+    VR = eval_V(resR; t_out = resR.times, margin = 1.4)
     append_csv_row(CSVPATH, run_cols(resR; V = VR, variant = "ref", aspect = A,
                    wall = round(time() - t0; digits = 2)))
     @printf("[aspect] A=%g ref    N=%d niter=%d V=%.12e\n", A, resR.N, resR.niter, VR)

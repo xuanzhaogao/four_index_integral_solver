@@ -32,7 +32,7 @@ solve_system(system1(); eps = 1e-2, p = 4, r = 1)
 
 if !isfile(joinpath(DATA, "raw", "edge_ref.jls"))
     println(">>> reference: p=12 eps=1e-13 r=10")
-    one_run(1e-13, 12, 10; margin = 2.5, tag = "ref")
+    one_run(1e-13, 12, 10; margin = 1.4, tag = "ref")
 end
 
 for r in R_LIST

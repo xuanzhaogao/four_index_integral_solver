@@ -19,7 +19,7 @@ const EPS_LIST = [1e-3, 1e-5, 1e-7, 1e-9, 1e-11]
 const P_LIST = [4, 6, 8]
 const R_TEST = 4
 
-const REF = (p = 12, eps = 1e-13, r = R_TEST + 2, margin = 2.5)
+const REF = (p = 12, eps = 1e-13, r = R_TEST + 2, margin = 1.4)
 
 function one_run(sys, eps, p, r; margin = 1.25, tag = "run")
     t_all = time()

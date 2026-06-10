@@ -41,8 +41,8 @@ for eps1 in EPS1_LIST
     flush(stdout)
 
     t0 = time()
-    resR = solve_system(sys; eps = 1e-13, p = 12, r = R + 2, src_margin = 2.5)
-    VR = eval_V(resR; t_out = resR.times, margin = 2.5)
+    resR = solve_system(sys; eps = 1e-13, p = 12, r = R + 2, src_margin = 1.4)
+    VR = eval_V(resR; t_out = resR.times, margin = 1.4)
     append_csv_row(CSVPATH, run_cols(resR; V = VR, eps1 = eps1, gamma = gamma,
                    variant = "ref", wall = round(time() - t0; digits = 2)))
     @printf("[contrast] eps1=%g ref N=%d niter=%d V=%.12e\n", eps1, resR.N, resR.niter, VR)

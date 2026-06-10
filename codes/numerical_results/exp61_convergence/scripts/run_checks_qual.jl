@@ -17,7 +17,9 @@ using FastGaussQuadrature: gausslegendre
 
 const SYS = system2()
 const DATA = joinpath(@__DIR__, "..", "data")
-const EPS, P, R = 1e-9, 8, 4
+const EPS = parse(Float64, get(ENV, "CHK_EPS", "1e-9"))
+const P = parse(Int, get(ENV, "CHK_P", "8"))
+const R = parse(Int, get(ENV, "CHK_R", "4"))
 
 println(">>> warm-up")
 solve_system(system1(); eps = 1e-2, p = 4, r = 1)
@@ -39,50 +41,68 @@ shared_ids = [i for i in eachindex(panels)
 gammas = unique([round((iface.eps_in[i] - iface.eps_out[i]) / (iface.eps_in[i] + iface.eps_out[i]); digits = 8)
                  for i in shared_ids])
 # duplicate-panel scan: identical centers anywhere in Gamma
-dup_count = 0
-let seen = Dict{NTuple{3, Float64}, Int}()
+dup_count = let seen = Dict{NTuple{3, Float64}, Int}(), cnt = 0
     for c in centers
         key = (round(c[1]; digits = 10), round(c[2]; digits = 10), round(c[3]; digits = 10))
-        dup_count += (seen[key] = get(seen, key, 0) + 1) > 1 ? 1 : 0
+        cnt += (seen[key] = get(seen, key, 0) + 1) > 1 ? 1 : 0
     end
+    cnt
 end
 @printf("shared-face panels: %d   gamma values: %s (expected |gamma|=0.5)\n", length(shared_ids), gammas)
 @printf("duplicate-center panels anywhere: %d (expected 0)\n", dup_count)
 
 # ------------------------------------------------------- 6.1.6 transmission
-# 3-node one-sided Lagrange: f(0) ~ 3f(d)-3f(2d)+f(3d); f'(0) ~ (-2.5f(d)+4f(2d)-1.5f(3d))/d
-extrap0(f1, f2, f3) = 3f1 - 3f2 + f3
-deriv0(f1, f2, f3, d) = (-2.5f1 + 4f2 - 1.5f3) / d
+# Generic one-sided FD weights via Vandermonde: sum_i w_i f(t_i) ~ f^(deriv)(0).
+function fd_weights(nodes::Vector{Float64}, deriv::Int)
+    n = length(nodes)
+    Vm = [nodes[j]^k for k in 0:(n - 1), j in 1:n]
+    rhs = zeros(n); rhs[deriv + 1] = factorial(deriv)
+    return Vm \ rhs
+end
 
-"Transmission residuals across a planar interface at x0 along unit normal nrm."
+"Transmission residuals across a planar interface at x0 along unit normal nrm.
+4-node one-sided stencils (O(d^3) derivative); the check itself floors around
+max(d^3 scale, eval_tol/d) — reported alongside."
 function transmission(res, pts0::Vector{NTuple{3, Float64}}, nrm::NTuple{3, Float64},
-                      eps_minus::Float64, eps_plus::Float64; d = 0.01)
+                      eps_minus::Float64, eps_plus::Float64; d = 0.005)
+    nodes = [d, 2d, 3d, 4d]
+    w0 = fd_weights(nodes, 0)    # extrapolate value to 0
+    w1 = fd_weights(nodes, 1)    # derivative at 0
+    nn = length(nodes)
     K = length(pts0)
-    X = Matrix{Float64}(undef, 3, 6K)
-    for (k, x0) in enumerate(pts0), (j, t) in enumerate((d, 2d, 3d, -d, -2d, -3d))
-        X[:, 6(k - 1) + j] .= collect(x0) .+ t .* collect(nrm)
+    X = Matrix{Float64}(undef, 3, 2nn * K)
+    for (k, x0) in enumerate(pts0)
+        for (j, t) in enumerate(nodes)
+            X[:, 2nn * (k - 1) + j] .= collect(x0) .+ t .* collect(nrm)
+            X[:, 2nn * (k - 1) + nn + j] .= collect(x0) .- t .* collect(nrm)
+        end
     end
     phi = eval_phi(res, X)
     jumps = Float64[]; fluxes = Float64[]; phivals = Float64[]; fluxvals = Float64[]
     for k in 1:K
-        fp = phi[(6(k - 1) + 1):(6(k - 1) + 3)]   # +d, +2d, +3d
-        fm = phi[(6(k - 1) + 4):(6(k - 1) + 6)]   # -d, -2d, -3d
-        phi_p = extrap0(fp...); phi_m = extrap0(fm...)
-        dn_p = deriv0(fp..., d)                    # one-sided derivative from + side
-        dn_m = -deriv0(fm..., d)                   # from - side (nodes at -t)
+        fp = phi[(2nn * (k - 1) + 1):(2nn * (k - 1) + nn)]
+        fm = phi[(2nn * (k - 1) + nn + 1):(2nn * k)]
+        phi_p = sum(w0 .* fp); phi_m = sum(w0 .* fm)
+        dn_p = sum(w1 .* fp)                 # d/dn from + side
+        dn_m = -sum(w1 .* fm)                # nodes mirrored -> flip sign
         push!(jumps, abs(phi_p - phi_m)); push!(phivals, abs(phi_m))
         push!(fluxes, abs(eps_plus * dn_p - eps_minus * dn_m)); push!(fluxvals, abs(eps_minus * dn_m))
     end
-    return (; jump_max = maximum(jumps ./ phivals), flux_max = maximum(fluxes ./ fluxvals))
+    # normalize by face-wide flux scale (pointwise |eps dn phi| can vanish by symmetry)
+    return (; jump_max = maximum(jumps ./ phivals),
+            flux_max = maximum(fluxes) / maximum(fluxvals),
+            d = d, floor_est = max(d^3, res.eps / d))
 end
 
-println(">>> 6.1.6 transmission checks (delta = 0.01)")
+println(">>> 6.1.6 transmission checks")
 pts12 = [(0.0, y, z) for (y, z) in zip(range(-0.35, 0.35; length = 8), range(0.08, 0.42; length = 8))]
 t12 = transmission(res, pts12, (1.0, 0.0, 0.0), 4.0, 12.0)          # Omega1 (x<0) -> Omega2 (x>0)
 ptsm = [(x, y, 0.8) for (x, y) in zip(range(-0.22, 0.22; length = 8), range(-0.2, 0.2; length = 8))]
 tm = transmission(res, ptsm, (0.0, 0.0, 1.0), 2.0, 1.0)             # Omega_m top: inside -> vacuum
-@printf("Omega1-Omega2: max|[phi]|/|phi| = %.3e   max|[eps dnphi]|/|.| = %.3e\n", t12.jump_max, t12.flux_max)
-@printf("dOmega_m top : max|[phi]|/|phi| = %.3e   max|[eps dnphi]|/|.| = %.3e\n", tm.jump_max, tm.flux_max)
+@printf("Omega1-Omega2: max|[phi]|/|phi| = %.3e   max|[eps dnphi]|/|.| = %.3e  (check floor ~%.0e)\n",
+        t12.jump_max, t12.flux_max, t12.floor_est)
+@printf("dOmega_m top : max|[phi]|/|phi| = %.3e   max|[eps dnphi]|/|.| = %.3e  (check floor ~%.0e)\n",
+        tm.jump_max, tm.flux_max, tm.floor_est)
 
 # --------------------------------------------- 6.1.6 sigma neutrality + Gauss
 println(">>> sigma body sums + Gauss law")
@@ -107,14 +127,20 @@ function body_charge(bi::Int)
     end
     return Q, npan
 end
+# Expected: bodies without enclosed source -> 0; Omega_m (contains source) ->
+# bound charge q_b = 1 - int rho/eps(x) dx; total far-field monopole
+# int rho_scr + sum sigma = q_free = 1.
+S_scr = sum(res.screened_vs.weights .* res.screened_vs.density)
+expected = (0.0, 0.0, 1.0 - S_scr)
 for (bi, lbl) in zip(1:3, ("Omega1", "Omega2", "Omega_m"))
     Q, npan = body_charge(bi)
-    @printf("  body %-7s : sum sigma dS = %+.3e  (%d panels)\n", lbl, Q, npan)
+    @printf("  body %-7s : sum sigma dS = %+.4e  expected %+.4e  dev %.2e  (%d panels)\n",
+            lbl, Q, expected[bi], abs(Q - expected[bi]), npan)
 end
-@printf("  total Gamma   : sum sigma dS = %+.3e\n", sum(panel_charge))
+@printf("  monopole int rho_scr + sum sigma = %.6f (expected 1)\n", S_scr + sum(panel_charge))
 
-# Gauss law: flux of grad phi through a box of side 4 (vacuum), 4x4 panels/face, central FD
-function gauss_flux(res; L = 4.0, npp = 6, d = 1e-4)
+# Gauss law: flux of grad phi through a box of side 4 (vacuum), GL grid/face, central FD
+function gauss_flux(res; L = 4.0, npp = 10, d = 0.01)
     gl_x, gl_w = gausslegendre(npp)
     pts = NTuple{3, Float64}[]; nrms = NTuple{3, Float64}[]; ws = Float64[]
     for ax in 1:3, sgn in (-1.0, 1.0)
@@ -137,7 +163,7 @@ function gauss_flux(res; L = 4.0, npp = 6, d = 1e-4)
     return sum(ws[k] * (phi[2k - 1] - phi[2k]) / (2d) for k in 1:K)
 end
 flux = gauss_flux(res)
-@printf("  Gauss flux (box side 4): %.6e  -> expected -q_eff (source q=1 in eps_m=2 -> -0.5)\n", flux)
+@printf("  Gauss flux (box side 4): %.6f  expected -1 (free charge)  dev %.2e\n", flux, abs(flux + 1))
 
 # ----------------------------------------------------------- 6.1.5 qualitative
 println(">>> 6.1.5 panelization + sigma line data")
@@ -160,7 +186,7 @@ end
 save_ref(joinpath(DATA, "raw", "checks_qual.jls"), (;
     eps = EPS, p = P, r = R, N = res.N, niter = res.niter,
     shared_count = length(shared_ids), gammas, dup_count,
-    t12, tm, flux,
+    t12, tm, flux, S_scr,
     body_charges = [body_charge(b)[1] for b in 1:3], total_charge = sum(panel_charge),
     panels = pan_rows, sigma_line = line))
 println("CHECKS+QUAL DONE")

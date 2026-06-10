@@ -21,7 +21,7 @@ using Dates
 
 export SystemSpec, system1, system2, slab_system,
        gaussian_source, source_grid_n, screened_source,
-       solve_system, eval_phi, eval_V, vacuum_V,
+       slab_internal, solve_system, eval_phi, eval_V, vacuum_V,
        zone_targets, eval_scatter_with_h0,
        uniform_refine, refine_to_dof,
        bernstein_rho_min, run_provenance, append_csv_row, run_cols, times_cols,
@@ -67,6 +67,15 @@ function system2(; eps1::Float64 = 4.0, eps2::Float64 = 12.0, epsm::Float64 = 2.
          box((0.0, 0.0, zm), 0.6, 0.6, 0.2)],
         [eps1, eps2, epsm], 1.0,
         (0.0, 0.0, zm), s, (0.2, 0.0, zm), s)
+end
+
+"6.1 slab: L x L x Lz slab (eps1) with the Gaussian source fully supported inside.
+Source at the slab center; V-target displaced laterally by 0.2 at the same height."
+function slab_internal(; L::Float64 = 10.0, Lz::Float64 = 1.0, eps1::Float64 = 10.0,
+                        s::Float64 = 0.05)
+    SystemSpec("slab_internal_L$(L)_Lz$(Lz)_eps$(eps1)",
+        [box((0.0, 0.0, 0.0), L, L, Lz)], [eps1], 1.0,
+        (0.0, 0.0, 0.0), s, (0.2, 0.0, 0.0), s)
 end
 
 "6.2/6.4 slab: A x A x 0.5 slab (eps 10) + material box (eps 2) at gap g above it."
@@ -149,6 +158,7 @@ function solve_system(sys::SystemSpec;
     tkm_kmax_override = nothing,
     history::Bool = true,
     gmres_atol::Float64 = 1e-14,
+    gmres_verbose::Int = 0,
 )
     fmm_tol = fmm_tol_of(eps)
     tkm_tol = max(eps, 1e-13)
@@ -208,9 +218,12 @@ function solve_system(sys::SystemSpec;
     # 5. GMRES
     t0 = time()
     sigma, stats = Krylov.gmres(A, rhs; atol = gmres_atol, rtol = eps,
-                                itmax = itmax, history = history, verbose = 0)
+                                itmax = itmax, history = history, verbose = gmres_verbose)
     times["gmres"] = time() - t0
     residual = norm(A * sigma - rhs) / max(norm(rhs), eps_float())
+    @printf("    GMRES: niter=%d  solved=%s  relres=%.3e  t=%.1fs  (%s)\n",
+            stats.niter, stats.solved, residual, times["gmres"], stats.status)
+    flush(stdout)
 
     p_ups = collect(values(nb.upsample))
     return (
@@ -236,15 +249,49 @@ eps_float() = Base.eps(Float64)
 # Evaluation
 # ---------------------------------------------------------------------------
 
-"Incident potential of the screened source at targets (TKM)."
+"""
+Incident potential of the screened source at targets. TKM only for targets
+near/inside the source support; direct smooth-kernel summation outside it
+(TKM's Fourier domain covers sources AND targets, so far targets would blow
+its grid up; outside the support the integrand is smooth and the direct sum
+of the grid charges carries the same quadrature accuracy).
+"""
 function eval_incident(res, targets::Matrix{Float64})
     vs = res.screened_vs
-    vals = BoundaryIntegral.TKM3D.ltkm3dc(
-        res.tkm_tol, vs.positions;
-        charges = vs.weights .* vs.density,
-        targets = targets, pgt = 1, kmax = res.tkm_kmax)
-    vals.ier == 0 || error("TKM3D.ltkm3dc failed with ier=$(vals.ier)")
-    return real.(vals.pottarg)
+    pos = vs.positions
+    q = vs.weights .* vs.density
+    h = BI._estimate_source_spacing(vs)
+    lo = (minimum(@view pos[1, :]), minimum(@view pos[2, :]), minimum(@view pos[3, :])) .- 3h
+    hi = (maximum(@view pos[1, :]), maximum(@view pos[2, :]), maximum(@view pos[3, :])) .+ 3h
+    n = size(targets, 2)
+    far = [!(lo[1] <= targets[1, j] <= hi[1] &&
+             lo[2] <= targets[2, j] <= hi[2] &&
+             lo[3] <= targets[3, j] <= hi[3]) for j in 1:n]
+    out = Vector{Float64}(undef, n)
+    near_ids = findall(!, far)
+    if !isempty(near_ids)
+        vals = BoundaryIntegral.TKM3D.ltkm3dc(
+            res.tkm_tol, pos;
+            charges = q, targets = targets[:, near_ids], pgt = 1, kmax = res.tkm_kmax)
+        vals.ier == 0 || error("TKM3D.ltkm3dc failed with ier=$(vals.ier)")
+        out[near_ids] .= real.(vals.pottarg)
+    end
+    far_ids = findall(far)
+    if !isempty(far_ids)
+        ns = length(q)
+        Base.Threads.@threads for jj in eachindex(far_ids)
+            j = far_ids[jj]
+            acc = 0.0
+            @inbounds for s in 1:ns
+                dx = targets[1, j] - pos[1, s]
+                dy = targets[2, j] - pos[2, s]
+                dz = targets[3, j] - pos[3, s]
+                acc += q[s] / sqrt(dx * dx + dy * dy + dz * dz)
+            end
+            out[j] = acc / (4pi)
+        end
+    end
+    return out
 end
 
 "Scattered potential S[sigma] at targets (post-refined FMM + hcubature near)."
@@ -356,11 +403,13 @@ function zone_targets(sys::SystemSpec; n::Int = 200, seed::Int = SEED_TARGETS)
         rad = 2 * sys.src_sigma * rand(rng)^(1 / 3)
         supp[:, i] .= collect(sys.src_center) .+ rad .* v
     end
-    # far field: sphere of radius 5
+    # far field: sphere at distance 5 beyond the system circumradius
+    rfar = 5.0 + maximum(norm(collect(b.center)) + 0.5 * norm([b.Lx, b.Ly, b.Lz])
+                         for b in sys.boxes)
     far = Matrix{Float64}(undef, 3, n)
     for i in 1:n
         v = randn(rng, 3); v ./= norm(v)
-        far[:, i] .= 5.0 .* v
+        far[:, i] .= rfar .* v
     end
     return (; near, supp, far)
 end
