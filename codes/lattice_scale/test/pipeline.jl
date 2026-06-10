@@ -30,3 +30,23 @@ include("fixture_campaign.jl")
         end
     end
 end
+
+@testset "solve_batch" begin
+    mktempdir() do dir
+        c = load_campaign(write_fixture_campaign(dir))
+        prepare(c)
+        t = @elapsed solve_batch(c, 1)
+        @test isfile(batch_path(c, 1))
+        br = load_batch_result(batch_path(c, 1))
+        @test br.batch_id == 1
+        @test br.pair_ids == [(1, 1), (1, 2)]
+        @test size(br.sigma, 2) == 2
+        @test size(br.densities, 2) == 2 && size(br.densities, 1) == length(br.gidx)
+        @test haskey(br.stats, "t_total") && haskey(br.stats, "niter") && haskey(br.stats, "dof")
+        @test br.stats["dof"] > 0
+        solve_batch(c, 1)                                # idempotent: skips, no error
+        @test sort(pending_batches(c, :solve)) == [2]
+        solve_batch(c, 2)
+        @test isempty(pending_batches(c, :solve))
+    end
+end

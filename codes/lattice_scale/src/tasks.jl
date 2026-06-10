@@ -63,3 +63,53 @@ end
 
 # Temporary stub — Task 12 replaces this with a validating loader for V files.
 _is_complete_v(path::AbstractString) = isfile(path)
+
+# OrbitalInstances for the centers referenced by a batch (template grids shared via cache)
+function _batch_instances(c::Campaign, spec::BatchSpec)
+    centers = read_centers(centers_path(c))
+    byid = Dict(ct.id => ct for ct in centers)
+    need = unique(reduce(vcat, [[p[1], p[2]] for p in spec.pairs]))
+    return Dict(id => OrbitalInstance(id, byid[id].template_id, byid[id].steps) for id in need)
+end
+
+"""
+    solve_batch(c::Campaign, batch_id) -> path | nothing
+
+Solve phase for one batch (spec §5): assemble pair densities on the global grid,
+envelope-refine ONE shared interface, block-GMRES, write the BatchResult atomically.
+Skips (returns nothing) if the output already exists.
+"""
+function solve_batch(c::Campaign, batch_id::Int)
+    out = batch_path(c, batch_id)
+    if isfile(out)
+        @info "solve_batch: already complete, skipping" batch_id
+        return nothing
+    end
+    t0 = time()
+    spec = only(filter(b -> b.batch_id == batch_id, read_manifest(manifest_path(c))))
+    temps = load_templates!(c)
+    grids = [t[2] for t in temps]
+    insts = _batch_instances(c, spec)
+
+    b = assemble_lattice_batch(grids, insts, spec.pairs;
+        support_rtol = c.solve["support_rtol"])
+    t_asm = time() - t0
+
+    res = solve_dielectric_lattice_batch(c.boxes, c.epses, c.eps_out, b;
+        n_quad = Int(c.solve["n_quad"]), rhs_atol = c.solve["rhs_tol"],
+        l_ec = campaign_l_ec(c), fmm_tol = c.solve["lhs_tol"],
+        up_tol = c.solve["lhs_tol"], max_order = Int(c.solve["max_order"]),
+        gmres_rtol = c.solve["gmres_rtol"], max_depth = Int(c.solve["max_depth"]))
+    t_total = time() - t0
+
+    stats = Dict{String,Any}(
+        "t_assemble" => t_asm, "t_total" => t_total,
+        "niter" => res.stats.niter, "dof" => size(res.sigma, 1),
+        "n_support" => length(b.gidx), "K" => length(spec.pairs),
+        "hostname" => gethostname())
+    br = BatchResult(BoundaryIntegral.BATCH_FORMAT_VERSION, batch_id, b.pair_ids,
+        b.gidx, b.weights, b.densities, res.interface, res.sigma, stats)
+    save_batch_result(out, br)
+    @info "solve_batch: done" batch_id dof=stats["dof"] K=stats["K"] t_total
+    return out
+end

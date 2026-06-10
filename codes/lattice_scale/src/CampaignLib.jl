@@ -4,6 +4,7 @@ using BoundaryIntegral
 using LinearAlgebra
 using Printf
 using Serialization
+using Sockets
 using TOML
 
 export Campaign, load_campaign, batch_path, v_path, manifest_path, centers_path,
