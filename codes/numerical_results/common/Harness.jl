@@ -159,6 +159,10 @@ function solve_system(sys::SystemSpec;
     history::Bool = true,
     gmres_atol::Float64 = 1e-14,
     gmres_verbose::Int = 0,
+    # Edge-touching pairs corrected by adaptive quadtree. Without this the
+    # edge-region quadrature error decays only ~2^-r and dominates every
+    # metric (verified on the 6.1 slab, 2026-06-10); also halves N_iter.
+    correct_edges::Bool = true,
 )
     fmm_tol = fmm_tol_of(eps)
     tkm_tol = max(eps, 1e-13)
@@ -201,7 +205,7 @@ function solve_system(sys::SystemSpec;
     t0 = time()
     local nb, corr
     if near_correction
-        nb = BI.build_neighbor_list(interface, max_order, eps)
+        nb = BI.build_neighbor_list(interface, max_order, eps; correct_edges = correct_edges)
         corr = BI.laplace3d_DT_corrections(interface, nb.upsample, nb.adaptive)
     else
         nb = (; upsample = Dict{Tuple{Int, Int}, Int}(), adaptive = Dict{Tuple{Int, Int}, BI.AdaptiveConfig}())
@@ -294,11 +298,13 @@ function eval_incident(res, targets::Matrix{Float64})
     return out
 end
 
-"Scattered potential S[sigma] at targets (post-refined FMM + hcubature near)."
+"Scattered potential S[sigma] at targets (post-refined FMM + hcubature near).
+Includes edge panels in the near corrections (the BI convenience evaluator
+excludes them), matching the edge-corrected operator."
 function eval_scatter(res, targets::Matrix{Float64})
-    op = BI.laplace3d_pottrg_fmm3d_corrected_hcubature(
-        res.interface, targets, res.fmm_tol, res.eps, 5.0)
-    return op * res.sigma
+    h0 = minimum(BI._panel_max_length(p) for p in res.interface.panels)
+    u, _ = eval_scatter_with_h0(res, targets, h0)
+    return u
 end
 
 "Total potential phi = u_inc + S[sigma] at 3xM targets."
@@ -343,7 +349,8 @@ h0 (Inf disables refinement). Inlines laplace3d_pottrg_fmm3d_corrected_hcubature
 Returns (values, stats) where stats has n_refined, n_hcub, t_refine, t_fmm, t_near.
 """
 function eval_scatter_with_h0(res, targets::Matrix{Float64}, h0::Float64;
-                              hcub_atol::Float64 = res.eps, range_factor::Float64 = 5.0)
+                              hcub_atol::Float64 = res.eps, range_factor::Float64 = 5.0,
+                              include_edges::Bool = true)
     interface = res.interface
     n_points = BI.num_points(interface)
     t0 = time()
@@ -364,7 +371,7 @@ function eval_scatter_with_h0(res, targets::Matrix{Float64}, h0::Float64;
     t_fmm = time() - t0
 
     t0 = time()
-    tnl = BI.build_target_neighbor_list(refined, targets, false; range_factor = range_factor)
+    tnl = BI.build_target_neighbor_list(refined, targets, include_edges; range_factor = range_factor)
     n_hcub = isempty(tnl) ? 0 : sum(length(v) for v in values(tnl))
     corr = BI.laplace3d_pottrg_corrections_hcubature(refined, targets, tnl, hcub_atol)
     u .+= corr * sig_ref

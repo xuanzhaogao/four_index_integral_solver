@@ -21,14 +21,17 @@ const CSVPATH = joinpath(DATA, "sweep_slab.csv")
 const EPS = 1e-4
 const P_LIST = [2, 4, 6]
 const R_LIST = 1:5
-const REF = (p = 6, eps = 1e-6, r = 6, margin = 1.4)
+# Reference uses correct_edges=true (adaptive quadtree on edge-touching pairs):
+# without it the edge-region quadrature error decays only ~2^-r and the
+# reference would be the least-converged run of the suite (verified 2026-06-10).
+const REF = (p = 8, eps = 1e-6, r = 6, margin = 1.4, edges = true)
 
 const GMRES_VERBOSE = parse(Int, get(ENV, "GMRES_VERBOSE", "1"))
 
-function one_run(eps, p, r; margin = 1.25, tag = "run")
+function one_run(eps, p, r; margin = 1.25, tag = "run", correct_edges = true)
     t_all = time()
     res = solve_system(SYS; eps = eps, p = p, r = r, src_margin = margin,
-                       gmres_verbose = GMRES_VERBOSE)
+                       gmres_verbose = GMRES_VERBOSE, correct_edges = correct_edges)
     tdict = res.times
     # batched evaluation: V-target grid + all three zone sets in ONE operator
     # (single post-refinement + FMM + hcubature assembly), then split.
@@ -60,8 +63,8 @@ println(">>> warm-up (compile)"); flush(stdout)
 solve_system(slab_internal(); eps = 1e-2, p = 2, r = 1)
 
 if !isfile(joinpath(DATA, "raw", "slab_ref.jls"))
-    println(">>> reference: p=$(REF.p) eps=$(REF.eps) r=$(REF.r)"); flush(stdout)
-    one_run(REF.eps, REF.p, REF.r; margin = REF.margin, tag = "ref")
+    println(">>> reference: p=$(REF.p) eps=$(REF.eps) r=$(REF.r) edges=$(REF.edges)"); flush(stdout)
+    one_run(REF.eps, REF.p, REF.r; margin = REF.margin, tag = "ref", correct_edges = REF.edges)
 end
 
 for p in P_LIST, r in R_LIST
