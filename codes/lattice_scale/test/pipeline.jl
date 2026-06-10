@@ -72,6 +72,9 @@ end
         @test store.tw[k] ≈ (br1.weights .* br1.densities[:, 1])
         # t_idx maps the pair's support into T
         @test T.gidx[store.t_idx[k]] == br1.gidx
+        k2 = length(br1.pair_ids) + 1                  # first pair of batch 2
+        @test store.pair_ids[k2] == br2.pair_ids[1]
+        @test T.gidx[store.t_idx[k2]] == br2.gidx
         # consolidate is idempotent
         consolidate(c)
         @test store.pair_ids == open(Serialization.deserialize, rho_store_path(c)).pair_ids

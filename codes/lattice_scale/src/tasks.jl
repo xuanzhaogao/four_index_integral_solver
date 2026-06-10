@@ -143,11 +143,11 @@ function consolidate(c::Campaign)
     isempty(missing_ids) || error("consolidate: unsolved batches: $missing_ids")
 
     brs = [load_batch_result(batch_path(c, b.batch_id)) for b in batches]
-    gall = NTuple{3,Int}[]
+    gset = Set{NTuple{3,Int}}()
     for br in brs
-        append!(gall, br.gidx)
+        union!(gset, br.gidx)
     end
-    gidx = sort(unique(gall))
+    gidx = sort!(collect(gset))
     rowofg = Dict(g => r for (r, g) in enumerate(gidx))
 
     temps = load_templates!(c)
@@ -166,7 +166,7 @@ function consolidate(c::Campaign)
         rows = [rowofg[g] for g in br.gidx]
         for k in 1:length(br.pair_ids)
             push!(pair_ids, br.pair_ids[k])
-            push!(t_idx, rows)
+            push!(t_idx, copy(rows))
             push!(tw, br.weights .* br.densities[:, k])
         end
     end
