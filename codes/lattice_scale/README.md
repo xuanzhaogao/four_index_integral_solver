@@ -52,3 +52,26 @@ scripts). The FMM saturates ~32–64 cores, so node-sized tasks are the right gr
 The sbatch scripts are templates — **submit them yourself** (`sbatch ...`). The driver
 detects `SLURM_JOB_ID`/`SLURM_NTASKS` and spawns one Julia worker per task via
 `ClusterManagers.SlurmManager`. See https://wiki.flatironinstitute.org/SCC/Software/Slurm.
+
+## Performance / pilot-watch notes
+
+Measured during the mandatory one-batch pilots (run order steps 2 and 5), these set node counts:
+
+- **Eval scattered potential is K separate FMMs.** `eval_batch`'s `evaluate_batch_potential`
+  builds the corrected layer-potential map (FMM + hcubature near-correction) **once** for the
+  target set, then applies it per source column — i.e. K separate `nd=1` FMMs over the full
+  target set, not one batched `nd=K` FMM. The expensive near-correction *setup* is amortized
+  once; the per-column FMM cost is expected (a batched `nd=K` corrected `pottrg` is a future
+  optimization, not a regression). The pilot's eval timing reflects this.
+- **Interface post-refinement vs the target cloud** (`laplace3d_pottrg_fmm3d_corrected_hcubature`)
+  can grow `num_points(interface)` when ~1e7 targets blanket the domain — the biggest eval-cost
+  unknown. Watch the `num of sources: N → M` log line in the pilot.
+- **`consolidate` loads all BatchResults at once** (~20 GB for ~200 batches; fine on a 1.5 TB
+  node). It only reads gidx/weights/densities; σ/interface are loaded but unused.
+
+## Re-preparing invalidates downstream artifacts
+
+`prepare` guards against silently reusing a manifest built with different `nx/ny/cutoff/
+n_centers_per_batch` (via `manifest.params`). If you intentionally re-`prepare` a campaign with
+changed geometry, also delete the stale `targets.jls`, `rho_store.jls`, `batches/`, `V/`, and
+`V_full.jls` under the campaign root — they are tied to the previous pair set.
