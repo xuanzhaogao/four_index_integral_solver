@@ -1,0 +1,122 @@
+# Walltime and peak-RAM benchmark — production pipeline on the real monolayer system
+
+Date: 2026-06-11. Hardware: worker7018 (96-core AMD Genoa, 1.5 TB), 96 Julia
+threads + 96 OpenMP threads. Script: `scripts/run_single_rhs.jl` (commit
+`15bf8fc`), raw record `data/raw/single_rhs_edges1.jls`, log
+`logs/single_rhs.log`.
+
+## What was measured
+
+One full production four-index solve on the **real system**: graphene
+monolayer modeled as a dielectric slab, with the **real Wannier pz orbital**
+(`k_323201_nb_144_c_15/graphene_00001.xsf`, 57 MB) as the source density.
+Single RHS (source = |phi_1|^2), single evaluation (onsite channel: target
+density = source density).
+
+The benchmark inlines `ScreenedOrbitalSolve.solve_screened_mode` stage by
+stage — identical BI calls, identical calibrated parameters as
+`screened_monolayer_hund_calibrated.jl`:
+
+| parameter | value |
+|---|---|
+| slab | L x L x Lz = 90 x 90 x 3.35, eps_in = 3.5 (calibrated), vacuum outside |
+| orbital placement | centroid of \|phi_1\|^2 at (0, 0, Lz/2), production convention (see caveat below) |
+| source_tol | 1e-3 (-> 355,862 truncated grid points, N_phi1 = 78.416205) |
+| panel order / edges | n_quad = 6, edge_refine_level = 4, **correct_edges = true** |
+| tolerances | rhs_tol 1e-3, lhs_tol 1e-5, gmres atol = rtol = 1e-5 |
+| caps | max_order 64, max_depth 12 |
+
+A tiny Gaussian warm-up solve runs through every stage first, so all reported
+times are warm (JIT-free). RAM is tracked two ways, and they agree:
+`Sys.maxrss()` snapshots after each stage (process high-water mark — the
+per-stage *increment* attributes new peak memory to that stage), and an
+OS-level `/usr/bin/time -v` wrapper (18,027,040 kB = 17.19 GiB).
+
+## Headline result
+
+Problem size: **960,768 interface points** (reproduces the 960,552 of the
+production records), 355,862 source = target points. GMRES: 8 iterations,
+relative residual 7.1e-6. Result: u_onsite = 9.8849 eV at eps_in = 3.5
+(production value at eps_in = 2.0 is 12.77 eV — consistent ordering).
+
+| phase | wall | share | breakdown |
+|---|---:|---:|---|
+| load | 3.2 s | 1% | XSF read + tol-truncation (one-time, I/O) |
+| **precompute** | **218.7 s** | **74%** | screened source 0.0 + TKM kmax 0.4 + **interface build 201.4** + LHS near-correction assembly 16.9 |
+| **solve** | **25.3 s** | **9%** | RHS assembly (FMM) 2.2 + GMRES 23.1 |
+| **eval** | **48.6 s** | **16%** | volume potential (TKM) 44.2 + scattered potential (FMM + hcubature) 4.5 |
+| total | 295.8 s (~5 min) | | end-to-end wall 297.8 s; outer wall incl. startup + warm-up 5:25 |
+
+**Peak RAM: 17.2 GB.** Build-up: 1.9 GB baseline after warm-up → 2.0 GB after
+orbital load → **11.0 GB during the interface build** → flat through
+LHS/RHS assembly → **17.2 GB during GMRES** (FMM workspaces over the 0.96M-point
+operator) → flat through evaluation.
+
+Per-stage record (maxrss = high-water mark at end of stage):
+
+| stage | wall (s) | maxrss (GB) | live heap (GB) |
+|---|---:|---:|---:|
+| load (XSF read + truncation) | 3.18 | 2.02 | 0.47 |
+| screened_volume_source | 0.00 | 2.02 | 0.51 |
+| TKM kmax estimate | 0.37 | 2.36 | 0.61 |
+| interface build (RHS-adaptive) | 201.40 | 10.99 | 0.28 |
+| LHS assembly (near corrections) | 16.90 | 10.99 | 3.40 |
+| RHS assembly (FMM) | 2.19 | 10.99 | 3.72 |
+| GMRES solve (8 iters) | 23.11 | 17.19 | 2.28 |
+| eval: volume potential (TKM) | 44.18 | 17.19 | 3.01 |
+| eval: scattered potential (FMM+hcub) | 4.46 | 17.19 | 0.86 |
+
+## Observations
+
+1. **Precompute dominates (74%) and is almost entirely the RHS-adaptive
+   interface build** (201 s of 219 s). This is exactly the RHS-independent
+   part: with the mesh and operator reused, the marginal cost of each
+   additional RHS is solve + eval ≈ 74 s — a ~4x amortization already at the
+   second right-hand side. This is the quantitative anchor for the multi-RHS
+   amortization story.
+2. **Evaluation cost is the bare interaction, not the screening.** The TKM
+   volume potential (u_int, present even in vacuum) costs 44 s; the BIE
+   scattered-potential evaluation adds only 4.5 s. The dielectric correction
+   is nearly free at evaluation time.
+3. **The near-correction assembly is subdominant** — 16.9 s (~6%) even with
+   edge correction enabled at this extreme slab aspect ratio (90:90:3.35).
+   (6.1 showed edge correction is load-bearing for accuracy; here it is also
+   cheap.)
+4. **Parallel efficiency is the optimization target.** Average CPU
+   utilization was 2326% of 9600% (~24 of 96 cores) — the interface build's
+   panelwise adaptive recursion is the serial bottleneck. Halving precompute
+   would nearly halve total wall.
+5. **Memory is modest**: 17.2 GB peak for a ~1M-DOF production solve, far
+   below the worker's 1.5 TB; the two RSS measures (in-process and OS) agree
+   to 3 digits.
+
+## Caveat: orbital z-placement in the production geometry
+
+All monolayer production scripts shift the orbital centroid to
+`z_center = Lz/2` and the docstring describes this as "slab midplane" — but
+both `screened_volume_source(Lx, Ly, Lz, ...)` and
+`single_dielectric_box3d_rhs_adaptive` build the slab **centered at the
+origin** (z in [-Lz/2, +Lz/2]). The carbon plane therefore sits on the slab's
+**top face**, with roughly half the pz density outside the dielectric. The
+eps_in = 3.5 calibration was performed in this same geometry, so production
+results are internally consistent; but if midplane was the intent,
+`z_center` should be 0 and the calibration would shift. This benchmark
+mirrors production as-is — the cost numbers are unaffected by the choice.
+
+## Validation
+
+- Smoke configuration (coarse tolerances, same geometry + real orbital):
+  216,000 interface points, 11.4 s total, 3.5 GB peak, u_onsite = 10.37 eV —
+  consistent with the production-tolerance result.
+- N_phi1 = 78.416205 and the interface size reproduce the production CSV
+  records exactly / to 0.02%.
+- GMRES residual 7.1e-6 at the 1e-5 target; u_onsite ordering vs the
+  eps_in = 2.0 production value is physically correct.
+
+## Follow-ups (not yet run)
+
+- `CORRECT_EDGES=0` single row for the legacy-config comparison.
+- Multi-RHS sweep reusing interface + LHS: total time vs number of RHS
+  (the phase split here already provides the per-RHS marginal cost).
+- If precompute matters for the paper's cost model: profile/parallelize the
+  adaptive interface build.
