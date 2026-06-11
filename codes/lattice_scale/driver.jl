@@ -11,6 +11,10 @@ Pkg.precompile()                          # must be BEFORE loading Distributed/S
 
 using BoundaryIntegral, Distributed, SlurmClusterManager
 
+# Julia 1.12 fully buffers stdout/stderr when redirected to a file (sbatch logs),
+# so nothing appears until process exit — flush every 2 s to keep the log live.
+Timer(_ -> (flush(stdout); flush(stderr)), 2; interval = 2)
+
 function _parse_args(args)
     length(args) >= 2 ||
         error("usage: driver.jl <campaign.toml> <phase> [--only ID] [--workers N]")
