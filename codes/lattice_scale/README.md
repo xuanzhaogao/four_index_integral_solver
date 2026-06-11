@@ -3,7 +3,7 @@
 Spec: BoundaryIntegral.jl `docs/superpowers/specs/2026-06-10-multinode-lattice-campaign-design.md`.
 Plan: BoundaryIntegral.jl `docs/superpowers/plans/2026-06-10-multinode-lattice-campaign.md`.
 
-CampaignLib `dev`s `BoundaryIntegral.jl` (branch `multi_rhs`). Build the env once:
+This env `dev`s `BoundaryIntegral.jl` (branch multi_rhs). Build the env once:
 `julia --project -e 'using Pkg; Pkg.instantiate()'`.
 
 ## Pipeline
@@ -51,7 +51,7 @@ scripts). The FMM saturates ~32–64 cores, so node-sized tasks are the right gr
 
 The sbatch scripts are templates — **submit them yourself** (`sbatch ...`). The driver
 detects `SLURM_JOB_ID`/`SLURM_NTASKS` and spawns one Julia worker per task via
-`ClusterManagers.SlurmManager`. See https://wiki.flatironinstitute.org/SCC/Software/Slurm.
+`SlurmClusterManager.SlurmManager`. See https://wiki.flatironinstitute.org/SCC/Software/Slurm.
 
 ## Performance / pilot-watch notes
 
