@@ -251,3 +251,48 @@ routes targets as follows, with no size-based switching:
 
 The deleted direct-sum kernels remain available in git history if a
 small-batch fast path is ever wanted again.
+
+## Profiling + cache_fft optimization (2026-06-11, commits 3b0a519 / 810d736)
+
+Step-by-step profiling (`scripts/profile_field_path.jl`) localized the
+remaining cost: every FINUFFT type-2 exec re-does the FFT of the FIXED
+coefficient grid (0.4 s pot / 0.85 s grad per call, independent of target
+count — 2k and 356k targets identical), and FINUFFT auto-selects the fast
+small-upsampling FFT at tol 1e-4 already (forcing upsampfac 2.0 is ~20x
+WORSE: 73 s vs 3.7 s type-1), so the FFT-per-exec was the only lever left.
+
+**cache_fft mode** (optional, default off): at construction, deconvolve the
+coefficients by the ES-kernel Fourier factors, bfft once onto a padded
+(x1.25) fine grid, store the grids (coefficient arrays dropped); per
+evaluation, in-box targets are interpolated natively in threaded Julia using
+TKM3D's spread-only kernel machinery. (FINUFFT's own spreadinterponly exec
+was validated as numerically correct but rejected: finufft 2.5.x
+value-initializes its nf-sized internal workspace on every exec, making it
+grid-bound anyway. The native interpolation matches FINUFFT's
+spreadinterponly exec to 1.4e-8.) Review-hardened: interpolation kernel
+parameters frozen in the struct at construction; the TKM3D private-API
+surface (8 underscore functions + TKM3D.FFTW) is documented in-code and
+should be promoted to a public TKM3D spread-interp API before wide use.
+
+Production-scale results (`scripts/bench_cache_fft.jl`, idle worker, 96
+threads; mesh identical at 960,768 points; u_int agreement 5.0e-7):
+
+| stage | standard field | cache_fft field | vs ORIGINAL production |
+|---|---:|---:|---:|
+| field construction (once) | 3.8 s | 7.3 s | — |
+| adaptive mesh build | (9-24 s) | **2.4 s** | 200.2 s -> **85x** |
+| RHS assembly | 3.2 s | 0.85 s | |
+| u_int volume potential | 0.42 s | **0.03 s** | 43.5 s -> **1450x** |
+
+Memory: cached grids ~2x the coefficient arrays (~8 GB at production);
+construction transient ~16 GB (documented in the docstring).
+
+Updated end-to-end single-RHS projection with cache_fft: load 3.1 + field
+7.3 + build 2.4 + LHS 16.9 + RHS 0.9 + GMRES 23.1 + u_int 0.03 + u_scatter
+4.5 ≈ **58 s vs 296 s (~5x)** — and the RHS-independent precompute drops
+from 219 s to ~10 s, so the multi-RHS marginal cost is now GMRES-dominated.
+
+Earlier profile-run caveats: the 23.7 s build / erratic FMM-floor numbers in
+the profiling run were contaminated by ~10 cores of external load on the
+worker; the 18 s "scale" reading was a script artifact (untyped global
+closure), the real constructor scaling loop is 0.4 s.
