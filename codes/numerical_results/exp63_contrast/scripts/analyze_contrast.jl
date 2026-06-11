@@ -2,8 +2,8 @@
 # eps2's own reference (p = 8, eps = 1e-6, r = 6). Prints accuracy / N_iter /
 # DOF per run, writes data/contrast_errors.csv.
 
-include(joinpath(@__DIR__, "..", "..", "common", "Harness.jl"))
-using .Harness
+include(joinpath(@__DIR__, "..", "..", "common", "Lite.jl"))
+using .Lite
 using Printf
 
 const DATA = joinpath(@__DIR__, "..", "data")

@@ -2,8 +2,8 @@
 # (b) GMRES iterations vs DOF per eps2 (references as open markers at r = 6).
 # Output: figs/fig63_contrast.pdf
 
-include(joinpath(@__DIR__, "..", "..", "common", "Harness.jl"))
-using .Harness
+include(joinpath(@__DIR__, "..", "..", "common", "Lite.jl"))
+using .Lite
 using CairoMakie, LaTeXStrings
 
 const DATA = joinpath(@__DIR__, "..", "data")
@@ -36,13 +36,17 @@ for (i, e2) in enumerate(e2s)
     g = (e2 - 4.0) / (e2 + 4.0)
     lab = L"\varepsilon_2 = %$(round(Int, e2))\;(\gamma_{12} = %$(round(g; digits = 2)))"
     scatterlines!(ax1, Ns, ev; color = col(i), marker = :circle, label = lab)
-    scatterlines!(ax2, Ns, [t.niter for t in ts]; color = col(i), marker = :circle, label = lab)
+    scatterlines!(ax2, Ns, [t.niter for t in ts]; color = col(i), marker = :circle)
     scatter!(ax2, [rf.N], [rf.niter]; color = :transparent,
         strokecolor = col(i), strokewidth = 1.5, marker = :utriangle, markersize = 11)
 end
 hlines!(ax1, [1e-4]; color = :black, linestyle = :dot)
-text!(ax1, 2.0e5, 1.15e-4; text = L"\varepsilon = 10^{-4}", fontsize = 12)
-axislegend(ax1; position = :lb, framevisible = false, labelsize = 10)
+text!(ax1, 2.0e5, 1.2e-4; text = L"\varepsilon = 10^{-4}", fontsize = 12)
+scatter!(ax2, [NaN], [NaN]; color = :transparent, strokecolor = :black,
+    strokewidth = 1.5, marker = :utriangle, markersize = 11,
+    label = "reference (p = 8, r = 6)")
+ylims!(ax2, 12, 68)
+axislegend(ax1; position = :rt, framevisible = false, labelsize = 10)
 axislegend(ax2; position = :lt, framevisible = false, labelsize = 10)
 
 save(joinpath(FIGS, "fig63_contrast.pdf"), fig)
