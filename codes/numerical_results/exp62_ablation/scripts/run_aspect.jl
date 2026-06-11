@@ -1,6 +1,10 @@
 # 6.2.3 — aspect-ratio sweep: slab A x A x 0.5, A in {1, 5, 10, 20, 50},
-# fixed gap 0.05, eps = 1e-9, p = 8. Variants A (full) and B (no correction),
-# with a per-aspect reference (p=12, eps=1e-13, r=6, finer grids).
+# fixed gap 0.05, eps = 1e-4, p = 6, r = 4 (regime set with 6.1). Variants
+# A (full) and B (no correction), per-aspect reference (p=8, eps=1e-6, r=6,
+# finer grids, edge-corrected).
+#
+# Run:  GMRES_VERBOSE=0 JULIA_NUM_THREADS=96 OMP_NUM_THREADS=96 \
+#         julia --project=. exp62_ablation/scripts/run_aspect.jl
 
 include(joinpath(@__DIR__, "..", "..", "common", "Harness.jl"))
 using .Harness
@@ -9,11 +13,11 @@ using Printf
 
 const DATA = joinpath(@__DIR__, "..", "data")
 const CSVPATH = joinpath(DATA, "aspect.csv")
-const EPS, P, R = 1e-9, 8, 4
+const EPS, P, R = 1e-4, 6, 4
 const A_LIST = [1.0, 5.0, 10.0, 20.0, 50.0]
 
-println(">>> warm-up")
-solve_system(system1(); eps = 1e-2, p = 4, r = 1)
+println(">>> warm-up"); flush(stdout)
+solve_system(slab_internal(); eps = 1e-2, p = 2, r = 1)
 
 for A in A_LIST
     donefile = joinpath(DATA, "raw", "aspect_A$(A).jls")
@@ -41,7 +45,7 @@ for A in A_LIST
                    wall = round(time() - t0; digits = 2)))
 
     t0 = time()
-    resR = solve_system(sys; eps = 1e-13, p = 12, r = R + 2, src_margin = 1.4)
+    resR = solve_system(sys; eps = 1e-6, p = 8, r = R + 2, src_margin = 1.4)
     VR = eval_V(resR; t_out = resR.times, margin = 1.4)
     append_csv_row(CSVPATH, run_cols(resR; V = VR, variant = "ref", aspect = A,
                    wall = round(time() - t0; digits = 2)))
