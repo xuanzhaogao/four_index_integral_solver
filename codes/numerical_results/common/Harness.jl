@@ -25,7 +25,7 @@ export SystemSpec, system1, system2, slab_system,
        zone_targets, eval_scatter_with_h0,
        uniform_refine, refine_to_dof,
        bernstein_rho_min, run_provenance, append_csv_row, run_cols, times_cols,
-       save_ref, load_ref, FMM_FLOOR
+       save_ref, load_ref, remap_eps, FMM_FLOOR
 
 const FMM_FLOOR = 1e-14          # FMM3D saturates at ~3e-14 rel. error (verified in smoke test)
 const SEED_TARGETS = 20260609
@@ -134,6 +134,22 @@ end
 "Per-point dielectric screening rho -> rho/eps(x) (multi-box aware)."
 function screened_source(sys::SystemSpec, vs::BI.VolumeSource{Float64, 3})
     return BI.screened_volume_source(sys.boxes, sys.epses, sys.eps_out, vs, BI.SharpScreening())
+end
+
+"""
+New DielectricInterface sharing `interface.panels`, with the per-panel
+permittivities remapped through `mapping` (old value => new value; values not
+in `mapping` pass through). For contrast sweeps on a FIXED mesh (6.3): the
+RHS-adaptive thresholds are absolute and the screened source scales like 1/m
+under joint permittivity scaling, so rebuilding the mesh per contrast would
+coarsen it with m and conflate discretization with conditioning. The remapped
+interface must not create eps_in == eps_out panels (degenerate diagonal).
+"""
+function remap_eps(interface::BI.DielectricInterface, mapping::AbstractDict{Float64, Float64})
+    ein = [get(mapping, e, e) for e in interface.eps_in]
+    eout = [get(mapping, e, e) for e in interface.eps_out]
+    any(ein .== eout) && error("remap_eps: degenerate panel with eps_in == eps_out")
+    return BI.DielectricInterface(interface.panels, ein, eout)
 end
 
 # ---------------------------------------------------------------------------
