@@ -191,11 +191,37 @@ call at 356k targets -> one type-2 exec), taking the projected total to
 ~70 s — a ~4x end-to-end speedup, and the per-RHS marginal cost drops
 accordingly for the multi-RHS story.
 
-## Proposed upstream change (BI.jl, via git worktree per workflow rule)
+## Upstream implementation: measured (2026-06-11, branch feature/precomputed-volume-field)
 
-A `PrecomputedVolumeField` object: fixed box from the density (+ margin),
-stored scaled coefficients (+ gradient coefficients), a persistent type-2
-plan; consumed by `single_dielectric_box3d_rhs_adaptive`,
-`rhs_dielectric_box3d_*`, and `evaluate_volume_potential`. Direct threaded
-summation for targets outside the box (exact; replaces per-call lfmm3d at
-these batch sizes). Not yet implemented — awaiting go-ahead.
+Implemented in a BI.jl worktree (`~/codes/BoundaryIntegral.jl-wt-pvf`, 11
+commits, insertion-only, 33 new tests; plan
+`docs/superpowers/plans/2026-06-11-precomputed-volume-field.md`): exported
+`PrecomputedVolumeField`, `volume_field_potential`, `volume_field_gradient`,
+`rhs_dielectric_box3d_field`, plus a field overload of
+`single_dielectric_box3d_rhs_adaptive`. Production-scale benchmark of the
+REAL branch code (`scripts/bench_field_path.jl`, worker7018, 96 threads,
+same-session A/B, raw record `data/raw/bench_field_path.jls`):
+
+|  | production path | field path | speedup |
+|---|---:|---:|---:|
+| field construction (once) | — | 4.6 s | |
+| adaptive mesh build | 200.2 s | **9.0 s** | **22.2x** (14.7x incl. construction) |
+| RHS assembly | 3.3 s (FMM) | 5.0 s | 0.7x (see note) |
+| u_int volume potential (356k targets) | 43.5 s (ltkm3dc) | **0.39 s** | **111x** |
+
+- Mesh equality: exact — 960,768 points on both paths.
+- u_int agreement: 4.0e-5 relative. Peak RSS 15.0 GB (incl. both paths).
+- RHS note: the field assembly is slightly slower at 960k interface targets
+  (most fall outside the near box -> large direct sum) and deviates 4.7e-3
+  from the FMM reference — but that deviation is dominated by the PRODUCTION
+  path's own error: `Rhs_dielectric_box3d_fmm3d` treats the density as point
+  charges even for panels touching the support, while the field's spectral
+  near evaluation resolves the continuous density (the same effect measured
+  in the unit tests, where the point-sum reference is 2-5% off near the
+  support). The field RHS is the more accurate of the two.
+- Projected end-to-end single RHS with the field path: load 3.1 + field 4.6
+  + build 9.0 + LHS 16.9 + RHS 3.3 + GMRES 23.1 + u_int 0.4 + u_scatter 4.5
+  ≈ **65 s vs 296 s (~4.5x)**.
+
+Status: branch ready to merge (final review passed; live checkout untouched);
+merging is the user's call.
