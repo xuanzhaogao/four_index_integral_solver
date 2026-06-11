@@ -14,6 +14,7 @@ mkpath(FIGS)
 
 e2s = sort([parse(Float64, match(r"^ratio_ref_e2_(.+)\.jls$", f).captures[1])
             for f in readdir(RAW) if occursin(r"^ratio_ref_e2_.*\.jls$", f)])
+e2s = filter(!=(2.0), e2s)        # eps2 = 2 excluded from the figure (kept in data/CSV)
 rs_of(e2) = sort([parse(Int, match(r"_r(\d+)\.jls$", f).captures[1])
                   for f in readdir(RAW) if startswith(f, "ratio_test_e2_$(e2)_r")])
 
