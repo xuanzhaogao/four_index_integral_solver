@@ -1,5 +1,6 @@
 # 6.3 figure: (a) V-error vs DOF, one curve per eps2 (p = 6, r = 1..5);
-# (b) GMRES iterations vs DOF per eps2 (references as open markers at r = 6).
+# (b) GMRES iterations vs DOF per eps2 (references as open markers at r = 6);
+# (c) screening curve V/V_vac vs eps2 (reference values).
 # Output: figs/fig63_contrast.pdf
 
 include(joinpath(@__DIR__, "..", "..", "common", "Lite.jl"))
@@ -20,7 +21,9 @@ rs_of(e2) = sort([parse(Int, match(r"_r(\d+)\.jls$", f).captures[1])
 const COLS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00"]
 col(i) = COLS[mod1(i, length(COLS))]
 
-fig = Figure(size = (820, 330))
+Vvac = load_ref(joinpath(RAW, "v_vacuum.jls")).Vvac
+
+fig = Figure(size = (1180, 330))
 ax1 = Axis(fig[1, 1]; xscale = log10, yscale = log10,
     xlabel = L"\mathrm{DOF}\; N", ylabel = L"|V - V_\mathrm{ref}| / |V_\mathrm{ref}|",
     title = "(a) convergence vs contrast (p = 6), ε = 10⁻⁴")
@@ -48,6 +51,15 @@ scatter!(ax2, [NaN], [NaN]; color = :transparent, strokecolor = :black,
 ylims!(ax2, 12, 68)
 axislegend(ax1; position = :rt, framevisible = false, labelsize = 10)
 axislegend(ax2; position = :lt, framevisible = false, labelsize = 10)
+
+ax3 = Axis(fig[1, 3]; xscale = log10,
+    xlabel = L"\varepsilon_2", ylabel = L"V / V_\mathrm{vac}",
+    title = "(c) screening", xticks = (e2s, [L"%$(round(Int, e))" for e in e2s]))
+refsV = [load_ref(joinpath(RAW, "ratio_ref_e2_$(e2).jls")).V for e2 in e2s]
+scatterlines!(ax3, e2s, refsV ./ Vvac; color = "#0072B2", marker = :circle)
+for (i, e2) in enumerate(e2s)
+    scatter!(ax3, [e2], [refsV[i] / Vvac]; color = col(i), marker = :circle, markersize = 11)
+end
 
 save(joinpath(FIGS, "fig63_contrast.pdf"), fig)
 save(joinpath(FIGS, "fig63_contrast.png"), fig; px_per_unit = 2)
