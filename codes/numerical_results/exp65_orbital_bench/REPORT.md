@@ -225,3 +225,29 @@ same-session A/B, raw record `data/raw/bench_field_path.jls`):
 
 Status: branch ready to merge (final review passed; live checkout untouched);
 merging is the user's call.
+
+## Evaluation-routing policy (decision note, 2026-06-11)
+
+Per user decision (commit `cc6a749`), `PrecomputedVolumeField` evaluation
+routes targets as follows, with no size-based switching:
+
+- **Inside the field box (near the density): always the TKM spectral path**
+  (type-2 NUFFT on the stored, truncated-kernel-scaled coefficients). This is
+  a correctness requirement, not a performance choice: near the support, any
+  point-charge representation of the density (direct summation or FMM) carries
+  the quadrature error of the source grid — measured 2-5% on the test
+  Gaussian, and the dominant part of the 4.7e-3 RHS deviation observed against
+  `Rhs_dielectric_box3d_fmm3d` at production scale. Only the spectral
+  evaluation resolves the continuous density there.
+- **Outside the box: always FMM** (`lfmm3d` at the field tolerance). For
+  well-separated targets the exact point sum and FMM agree within tolerance,
+  so correctness is equivalent; FMM is asymptotically scalable in the batch
+  size (the direct sum used previously is faster below ~3e5 targets/batch
+  because each lfmm3d call rebuilds the source tree, ~1.4 s at 356k sources,
+  but becomes quadratic beyond). Cost consequence at production scale: the
+  adaptive build pays the FMM setup floor on the depths that have far targets
+  (~1.4 s x ~6 depths), and the 960k-target RHS assembly gets faster
+  (FMM 3.3 s vs direct 5.0 s).
+
+The deleted direct-sum kernels remain available in git history if a
+small-batch fast path is ever wanted again.
