@@ -118,5 +118,84 @@ mirrors production as-is — the cost numbers are unaffected by the choice.
 - `CORRECT_EDGES=0` single row for the legacy-config comparison.
 - Multi-RHS sweep reusing interface + LHS: total time vs number of RHS
   (the phase split here already provides the per-RHS marginal cost).
-- If precompute matters for the paper's cost model: profile/parallelize the
-  adaptive interface build.
+
+---
+
+# Addendum (2026-06-11): mesh-generation deep dive and the precompute-once fix
+
+Script: `scripts/bench_meshgen.jl` (raw record `data/raw/bench_meshgen.jls`,
+log `logs/bench_meshgen.log`). Three parts: (A) instrumented replication of
+the production adaptive build, (B) component microbenchmarks, (C) prototype
+of the proposed strategy — fix the near-evaluation region from the density,
+precompute type-1 NUFFT + diagonal kernel scaling once, type-2 per round.
+
+## Where the 201 s actually goes (part A)
+
+Part A reproduces the production build exactly: 200.7 s vs 201.4 s, same
+final mesh (26,688 panels = 960,768 points), 9 refinement depths.
+
+| component | total | notes |
+|---|---:|---|
+| **ltkm3dc near calls** | **188 s (94%)** | 8 calls x ~23.5 s, **flat whether 14 or 4,352 targets are evaluated** |
+| lfmm3d far calls | 12.5 s | also per-call setup dominated (B1: ~1.4-1.7 s/call nearly independent of target count) |
+| KDTree classify | 0.5 s | negligible (build over 356k points: 0.03 s) |
+| interpolation checks | ~0 s | |
+
+The hypothesis is confirmed: the cost is the repeated per-call setup of the
+volume-field evaluation over the full 356k-point density — dominated by the
+TKM path (type-1 NUFFT + kernel scaling + gradient coefficients + FFT
+planning, redone from scratch at every depth because the Fourier box depends
+on the per-call target set).
+
+Decomposed single-call stages on a FIXED box (B4, kmax = 40.21, modes
+(441, 401, 353) = 6.2e7, coeff 0.93 GB): type-1 3.5 s + scale 0.4 s + grad
+coeffs 0.3 s + type-2 (ntrans=3, plan+exec) ~1.0 s ≈ 5.2 s — vs 23.5 s per
+ltkm3dc call. The ~18 s/call gap is per-call overhead inside ltkm3dc;
+the likely mechanism (inference, consistent with all measurements): the
+target-dependent box gives different FFT grid dimensions every call, so
+FINUFFT/FFTW re-plans and re-allocates the ~5e8-point upsampled grid each
+time (including one plan that is created and never executed on the
+gradient-only path), whereas the fixed-box prototype plans the same
+dimensions every round (FFTW wisdom reuse) and pays ~1 s. Worth a profile
+when upstreaming.
+
+Two side findings:
+- `estimate_kcut3dc(1e-4)` finds **no usable spectral cutoff** (kcut ≈
+  Nyquist): the screened density is discontinuous at the slab faces (the
+  orbital straddles the top face in this geometry) and has nuclear cusps, so
+  its spectrum has no tail below the grid Nyquist. The production
+  kmax = 40.21 (grid-spacing Nyquist) is the right operating point — and
+  part C validates it to 1.4e-5.
+- The threaded direct sum runs at 7.3e10 pairs/s (B3): 356k sources x 10k
+  targets in 0.05 s. At these batch sizes the far path needs no FMM at all.
+
+## The proposed strategy works (part C)
+
+Fixed near box B = density bbox + 5h margin; type-1 + truncated-kernel
+scaling + spectral gradient coefficients precomputed ONCE on B's
+target-independent Fourier box (4.1 s, 6.2e7 modes); per depth: type-2 NUFFT
+at the targets inside B (~0.9 s/depth) + direct threaded sum outside
+(~0.02 s/depth). Replaying the identical refinement path:
+
+|  | current (part A) | precompute-once (part C) |
+|---|---:|---:|
+| adaptive-build evaluation | 200.7 s | **12.4 s** (4.1 precompute + 8.3 eval) |
+| max RHS deviation | — | 8.0e-5 abs = **1.4e-5 rel** (budget: rhs_atol 1e-3) |
+| refinement-decision flips | — | **0** (identical mesh) |
+
+**16x on the dominant phase.** Projected single-RHS totals if upstreamed:
+precompute 219 s -> ~30 s (interface 201 -> 12; LHS assembly 17 s unchanged),
+end-to-end 296 s -> ~107 s. The same precomputed coefficients can also serve
+the evaluation phase's volume potential (currently a separate 44 s ltkm3dc
+call at 356k targets -> one type-2 exec), taking the projected total to
+~70 s — a ~4x end-to-end speedup, and the per-RHS marginal cost drops
+accordingly for the multi-RHS story.
+
+## Proposed upstream change (BI.jl, via git worktree per workflow rule)
+
+A `PrecomputedVolumeField` object: fixed box from the density (+ margin),
+stored scaled coefficients (+ gradient coefficients), a persistent type-2
+plan; consumed by `single_dielectric_box3d_rhs_adaptive`,
+`rhs_dielectric_box3d_*`, and `evaluate_volume_potential`. Direct threaded
+summation for targets outside the box (exact; replaces per-call lfmm3d at
+these batch sizes). Not yet implemented — awaiting go-ahead.
