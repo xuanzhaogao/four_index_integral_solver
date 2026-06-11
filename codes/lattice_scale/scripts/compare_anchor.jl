@@ -1,61 +1,115 @@
-# Cross-check (spec §8.1): the campaign's WITHIN-BATCH V entries for the batch anchored
-# at center 1 must match the existing .bie path (four_index_integrals with circshift
-# LATTICE images) to solver tolerance. Run on a compute node AFTER demo_2x2 finished
-# solve+consolidate+eval:   julia --project scripts/compare_anchor.jl
+# scripts/compare_anchor.jl — cross-check in-memory vs batched four-index integrals.
 #
-# CAVEAT: the .bie LATTICE path wraps on the 5x5 template grid; the campaign translates.
-# Within a 2x2 flake all shifts are <= 1 cell with the orbital mid-grid, so wrap effects
-# sit below support_rtol = 1e-4. If the comparison fails, FIRST check whether the .bie
-# group/centroid conventions place center 1's partners identically (print both center lists).
-using CampaignLib, BoundaryIntegral, Printf
+# Compares two independent computation paths for the demo_2x2 campaign:
+#   1. In-memory: four_index_integrals(toml) — runs all solves in a single process,
+#      no disk I/O, all phases in RAM.
+#   2. Batched (file-based): reads the V_full.tsv produced by the full
+#      prepare→solve→consolidate→eval→assemble pipeline.
+#
+# Run after the full pipeline has completed:
+#   julia --project scripts/compare_anchor.jl [--toml campaigns/demo_2x2.toml]
+#
+# If V_full.tsv is not present, only the in-memory result is printed (no comparison).
+using BoundaryIntegral, Printf, LinearAlgebra
+
+function parse_v_tsv(path::AbstractString)
+    # Header: i j k l V
+    # Returns pair_ids (unique (i,j) pairs, sorted by first appearance as row) and V matrix.
+    rows = Tuple{Int,Int}[]
+    cols = Tuple{Int,Int}[]
+    entries = Dict{Tuple{NTuple{2,Int}, NTuple{2,Int}}, Float64}()
+    for (n, line) in enumerate(eachline(path))
+        n == 1 && continue   # skip header
+        f = split(line, '\t')
+        length(f) == 5 || continue
+        i, j, k, l = parse(Int, f[1]), parse(Int, f[2]), parse(Int, f[3]), parse(Int, f[4])
+        v = parse(Float64, f[5])
+        entries[((i, j), (k, l))] = v
+        (i, j) in rows || push!(rows, (i, j))
+        (k, l) in cols || push!(cols, (k, l))
+    end
+    rows == cols || @warn "compare_anchor: row/col pair sets differ"
+    pair_ids = rows
+    n = length(pair_ids)
+    idx = Dict(p => i for (i, p) in enumerate(pair_ids))
+    V = fill(NaN, n, n)
+    for ((ij, kl), v) in entries
+        r = get(idx, ij, 0); c = get(idx, kl, 0)
+        r > 0 && c > 0 && (V[r, c] = v)
+    end
+    return pair_ids, V
+end
 
 function main()
-    c = load_campaign(joinpath(@__DIR__, "..", "campaigns", "demo_2x2.toml"))
-    centers = read_centers(centers_path(c))
-    spec = first(read_manifest(manifest_path(c)))            # batch anchored at center 1
-    vr = CampaignLib.load_v_rows(v_path(c, spec.batch_id))
-
-    # build the equivalent .bie (center 1 + its batch partners as LATTICE images of the
-    # SAME templates) in a temp dir, run the reference path
-    byid = Dict(ct.id => ct for ct in centers)
-    partners = sort(unique(reduce(vcat, [[p[1], p[2]] for p in spec.pairs])))
-    bie = tempname() * ".bie"
-    open(bie, "w") do io
-        println(io, "UNITS bohr\n\nBEGIN_DIELECTRICS\nEPS_OUT 1.0")
-        b = c.boxes[1]
-        @printf(io, "  %.3f %.3f %.3f    %.3f %.3f %.3f    %.3f\n",
-            b.center..., b.Lx, b.Ly, b.Lz, c.epses[1])
-        println(io, "END_DIELECTRICS\n\nBEGIN_ORBITALS")
-        for id in partners
-            ct = byid[id]
-            println(io, "  $id   $(c.xsf[ct.template_id])   LATTICE $(ct.Rx) $(ct.Ry) 0")
-        end
-        println(io, "END_ORBITALS\n\nBEGIN_GROUPING")
-        println(io, "  1 : $(join([p[2] for p in spec.pairs], ' '))")
-        println(io, "END_GROUPING\n\nBEGIN_SOLVE")
-        for (k, v) in [("N_QUAD", 6), ("EDGE_REFINE_LEVEL", 2), ("RHS_TOL", 1e-3),
-                       ("LHS_TOL", 1e-5), ("GMRES_RTOL", 1e-5), ("SUPPORT_RTOL", 1e-4),
-                       ("VOLUME_TOL", 1e-5), ("MAX_ORDER", 8), ("MAX_DEPTH", 128)]
-            println(io, "  $k $v")
-        end
-        println(io, "END_SOLVE")
+    toml = joinpath(@__DIR__, "..", "campaigns", "demo_2x2.toml")
+    for (i, arg) in enumerate(ARGS)
+        arg == "--toml" && i < length(ARGS) && (toml = ARGS[i+1])
     end
-    ref = four_index_integrals(bie, 1)
+    toml = abspath(toml)
 
-    # compare the shared entries (campaign rows for this batch's own pairs)
-    rowof = Dict(p => i for (i, p) in enumerate(vr.target_pairs))
-    worst = 0.0
-    for (a, pa) in enumerate(spec.pairs)
-        for (b2, pb) in enumerate(spec.pairs)
-            v_c = vr.V[rowof[pa], b2]
-            v_r = ref.V[a, b2]
-            rel = abs(v_c - v_r) / max(abs(v_r), 1e-300)
-            worst = max(worst, rel)
-            @printf("%-14s %-14s  campaign % .6e   ref % .6e   rel %.2e\n",
-                "$(pa)", "$(pb)", v_c, v_r, rel)
+    @info "compare_anchor: in-memory solve" toml
+    t0 = time()
+    res = four_index_integrals(toml)
+    t_mem = time() - t0
+    @info "in-memory done" t=round(t_mem; digits=1) n_pairs=length(res.pair_ids) size_V=size(res.V)
+
+    # Symmetry of the in-memory result
+    scale_mem = maximum(abs.(res.V))
+    asym_mem  = maximum(abs.(res.V .- transpose(res.V))) / scale_mem
+    @printf("In-memory max|V| = %.6e   max rel asymmetry = %.3e\n", scale_mem, asym_mem)
+
+    # Print in-memory matrix (small campaigns only)
+    if length(res.pair_ids) <= 30
+        println("\nIn-memory V matrix (pair_ids = $(res.pair_ids)):")
+        for r in axes(res.V, 1)
+            for c in axes(res.V, 2)
+                @printf("  %10.4e", res.V[r, c])
+            end
+            println()
         end
     end
-    @printf("\nworst relative difference: %.3e  (expect <~ 1e-2 at these tolerances)\n", worst)
+
+    # Compare against batched V_full.tsv if present
+    c = load_campaign(toml)
+    tsv_path = joinpath(c.root, "V_full.tsv")
+    if !isfile(tsv_path)
+        @info "V_full.tsv not found — skipping batched comparison" tsv_path
+        @info "Run the full pipeline first: prepare → solve → consolidate → eval → assemble"
+        return
+    end
+
+    @info "Loading batched V_full.tsv" tsv_path
+    bat_pairs, V_bat = parse_v_tsv(tsv_path)
+
+    # Align pair ordering
+    if res.pair_ids != bat_pairs
+        @warn "Pair id ordering differs between in-memory and batched; realigning."
+    end
+    mem_idx = Dict(p => i for (i, p) in enumerate(res.pair_ids))
+    bat_idx = Dict(p => i for (i, p) in enumerate(bat_pairs))
+    common = intersect(res.pair_ids, bat_pairs)
+    length(common) == length(res.pair_ids) == length(bat_pairs) ||
+        @warn "Pair sets not identical" n_mem=length(res.pair_ids) n_bat=length(bat_pairs) n_common=length(common)
+
+    n = length(common)
+    V_m = Matrix{Float64}(undef, n, n)
+    V_b = Matrix{Float64}(undef, n, n)
+    for (r, pr) in enumerate(common), (cc, pc) in enumerate(common)
+        V_m[r, cc] = res.V[mem_idx[pr], mem_idx[pc]]
+        V_b[r, cc] = V_bat[bat_idx[pr], bat_idx[pc]]
+    end
+
+    scale = maximum(abs.(V_b))
+    diff  = maximum(abs.(V_m .- V_b))
+    rel   = diff / max(scale, eps())
+    asym_bat = maximum(abs.(V_b .- transpose(V_b))) / scale
+
+    println("\n--- Comparison: in-memory vs batched ---")
+    @printf("max|V_batched|        = %.6e\n", scale)
+    @printf("max|V_mem - V_bat|    = %.6e\n", diff)
+    @printf("max rel diff          = %.3e   (expect < ~1e-2 at production tols)\n", rel)
+    @printf("batched rel asymmetry = %.3e\n", asym_bat)
+    @printf("in-mem rel asymmetry  = %.3e\n", asym_mem)
 end
 
 main()

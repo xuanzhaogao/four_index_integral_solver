@@ -1,17 +1,67 @@
-# campaigns/demo_2x2.toml — correctness anchor (spec §8.1): 2x2 cells, real orbitals
-[campaign]
+# campaigns/demo_2x2.toml — correctness anchor (spec §8.1): 2x2 graphene supercell.
+# 8 orbitals: 2 sublattice types × Rx∈{0,1} × Ry∈{0,1}.
+# Positions = sublattice density centroid + Rx*a1 + Ry*a2 (bohr).
+# a1 = [2.465, 0, 0], a2 = [-1.2325, 2.1347526, 0] (graphene hexagonal lattice).
 name = "demo_2x2"
-root = "/mnt/ceph/users/xgao1/four_index/demo_2x2"
-
-[orbitals]
-xsf = [
+root = "/mnt/ceph/users/xgao1/four_index/demo_2x2_new"
+templates = [
   "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf",
   "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf",
 ]
 
-[lattice]
-nx = 2
-ny = 2
+# Rx=0 Ry=0
+[[orbital]]
+type = 1
+x = 0.00093991
+y = 0.00092506
+z = 7.49999990
+
+[[orbital]]
+type = 2
+x = -0.00013665
+y = 1.42319335
+z = 7.49999990
+
+# Rx=1 Ry=0
+[[orbital]]
+type = 1
+x = 2.46593991
+y = 0.00092506
+z = 7.49999990
+
+[[orbital]]
+type = 2
+x = 2.46486335
+y = 1.42319335
+z = 7.49999990
+
+# Rx=0 Ry=1
+[[orbital]]
+type = 1
+x = -1.23156009
+y = 2.13567766
+z = 7.49999990
+
+[[orbital]]
+type = 2
+x = -1.23263665
+y = 3.55794595
+z = 7.49999990
+
+# Rx=1 Ry=1
+[[orbital]]
+type = 1
+x = 1.23343991
+y = 2.13567766
+z = 7.49999990
+
+[[orbital]]
+type = 2
+x = 1.23236335
+y = 3.55794595
+z = 7.49999990
+
+[pairing]
 neighbor_cutoff = 2.6        # nn + same-cell sublattice pairs (a = 2.465, intra-cell 1.42)
 
 [dielectrics]
