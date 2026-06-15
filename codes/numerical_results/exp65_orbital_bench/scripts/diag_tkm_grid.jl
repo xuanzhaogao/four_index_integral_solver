@@ -3,7 +3,7 @@
 # and decompose the old call cold-vs-warm and type-1-vs-type-2.
 #
 #   JULIA_NUM_THREADS=96 OMP_NUM_THREADS=96 \
-#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl-wt-pvf \
+#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl \
 #       exp65_orbital_bench/scripts/diag_tkm_grid.jl
 
 using BoundaryIntegral

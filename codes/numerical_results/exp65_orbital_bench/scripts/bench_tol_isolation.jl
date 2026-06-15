@@ -11,7 +11,7 @@
 # e.g. for a FINUFFT bug report).
 #
 #   JULIA_NUM_THREADS=96 OMP_NUM_THREADS=96 \
-#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl-wt-pvf \
+#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl \
 #       exp65_orbital_bench/scripts/bench_tol_isolation.jl
 
 using BoundaryIntegral

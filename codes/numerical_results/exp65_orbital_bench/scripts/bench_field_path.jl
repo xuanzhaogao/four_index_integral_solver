@@ -4,7 +4,7 @@
 # loaded without touching the live checkout or the shared numerical_results env:
 #
 #   JULIA_NUM_THREADS=96 OMP_NUM_THREADS=96 \
-#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl-wt-pvf \
+#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl \
 #       exp65_orbital_bench/scripts/bench_field_path.jl
 #
 # Measures (96 threads, production parameters identical to run_single_rhs.jl):

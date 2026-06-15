@@ -7,7 +7,7 @@
 # calibrated parameters. All warm; on a clean idle node.
 #
 #   JULIA_NUM_THREADS=96 OMP_NUM_THREADS=96 \
-#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl-wt-pvf \
+#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl \
 #       exp65_orbital_bench/scripts/bench_full_field.jl
 # env: CACHE_FFT (default 1), CORRECT_EDGES (default 1)
 

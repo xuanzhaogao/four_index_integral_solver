@@ -6,7 +6,7 @@
 # Cross-check: the instrumented sum must equal the real ltkm3dc(pgt=1) call.
 #
 #   JULIA_NUM_THREADS=96 OMP_NUM_THREADS=96 \
-#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl-wt-pvf \
+#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl \
 #       exp65_orbital_bench/scripts/diag_ltkm_internal.jl
 
 using BoundaryIntegral

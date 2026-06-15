@@ -4,7 +4,7 @@
 # silently killed julia on two nodes). All timings WARM.
 #
 #   JULIA_NUM_THREADS=96 OMP_NUM_THREADS=96 \
-#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl-wt-pvf \
+#     julia --project=/mnt/home/xgao1/codes/BoundaryIntegral.jl \
 #       exp65_orbital_bench/scripts/diag_ltkm_decomp.jl
 
 using BoundaryIntegral
