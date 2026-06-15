@@ -345,3 +345,51 @@ because every call rebuilt the source spectrum (type-1) and read it out
 (type-2) — two full NUFFT passes on a grid that is the SAME size as (slightly
 smaller than) the field's. The field pays the forward pass once; cache_fft
 additionally pre-FFTs so even the read-out is interpolation-only (0.10 s).
+
+## ROOT CAUSE of the slow ltkm3dc: a FFTW 96-thread pathology (2026-06-15)
+
+The "why is each old call ~50 s" investigation finally resolved by
+instrumenting `_ltkm3dc_eval` internally and sweeping the FINUFFT thread count
+on one idle node (`diag_ltkm_internal.jl`, worker7001). The decomposition is
+now internally consistent (sum ~= the real full call):
+
+```
+REAL ltkm3dc(pgt=1) full call, 96 threads:  54.3 s
+box        nthreads   type-1    scale    type-2    sum
+field        96        3.61      0.44     0.43      4.47
+field         1        2.77      0.44     2.26      5.48
+ltkm3dc      96       27.51      0.35    27.23     55.09   <- the 54 s
+ltkm3dc      16        0.48      0.36     0.42      1.26    <- 43x faster
+ltkm3dc       1        1.96      0.35     1.90      4.22
+```
+
+**It is a FFTW multithreading pathology, not tol, grid size, or even grid
+dimensions per se.** On the ltkm3dc per-call box's mode grid (413,375,325) the
+FFT at 96 threads costs 27 s per transform but only 0.48 s at 16 threads — a
+~57x slowdown from using MORE threads (FFTW picks a pathological plan for
+those upsampled dimensions at high thread count). The field box (441,401,353)
+does not trigger it (4.5 s at any thread count). The full 54 s call is exactly
+type-1 + type-2, both hitting the pathology.
+
+**Corrections to earlier claims in this report (the headline factors were
+inflated by this bug):**
+- The earlier "tol effect" paragraph is WRONG — `bench_tol_isolation.jl`
+  showed tol 1e-3 ~= 1e-4 at fixed grid; tol is irrelevant. The real lever is
+  the FFTW thread count.
+- The u_int "1450x / 137x / 111x" figures were dominated by this 96-thread
+  pathology in the OLD path. A thread-capped old ltkm3dc u_int is ~1.3 s, not
+  ~50 s. The field's TRUE u_int advantage over a correct old path is the reuse
+  factor (type-1 done once) ~= 3x, plus cache_fft's interp-only read-out.
+- The 9.5-22x adaptive-build speedups are likely ALSO partly this bug (the
+  VolumeSource build's per-depth ltkm3dc near-evals can hit pathological
+  per-depth boxes) and should be re-measured with a thread cap before being
+  quoted. The field/cache_fft absolute build times (21 s / 4 s) stand; the
+  *ratio* to the old path needs the thread-capped baseline.
+
+**Actionable fix (independent of PVF; do in a TKM3D worktree per the workflow
+rule):** cap the FINUFFT `nthreads` (~16) inside `ltkm3dc`/`_ltkm3dc_eval`
+(or choose mode-grid dimensions that thread well). This turns the 54 s call
+into ~1.3 s (43x) and speeds up the ENTIRE existing pipeline, not just the
+field path. The field path remains valuable for its structural reuse and
+because its box dimensions avoid the pathology by construction — but the
+dramatic speedup numbers must be re-baselined against a thread-fixed ltkm3dc.
