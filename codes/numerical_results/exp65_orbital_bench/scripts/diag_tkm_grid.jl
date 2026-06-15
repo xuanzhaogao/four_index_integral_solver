@@ -64,10 +64,9 @@ lo, Lo, dko, nko = grid_of(ob, kmax)
 say(">>> OLD per-call box combined(src,trg), kmax=", round(kmax;digits=2), ":  lengths ", round.(lo;digits=2),
     "  diag ", round(Lo;digits=2), "  -> modes ", nko, " = ", prod(nko))
 
-# OLD if kmax had defaulted to estimate_kcut3dc (NOT what production did, for contrast)
-kc = TKM.estimate_kcut3dc(src; charges = q, tol = FMM_TOL)
-say(">>> (contrast) estimate_kcut3dc(tol=", FMM_TOL, ") kcut=", round(kc.kcut;digits=1),
-    "  -> combined-box modes would be ", ntuple(d -> length(TKM.centered_mode_axis(dko[d], kc.kcut)), 3))
+# (contrast, from earlier bench_meshgen run: estimate_kcut3dc(tol=1e-4) -> kcut=2201,
+#  which on the combined box would be ~24000^3 ~ 1e13 modes; production avoids this
+#  by passing kmax=40.2 explicitly. Not recomputed here — it OOM'd this script.)
 
 # ---- timing: cold vs warm, decomposed ----
 say(">>> timing the OLD u_int call: ltkm3dc(src, targets=trg, kmax=", round(kmax;digits=2), ", pgt=1)")
