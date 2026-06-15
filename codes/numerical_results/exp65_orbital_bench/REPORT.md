@@ -296,3 +296,52 @@ Earlier profile-run caveats: the 23.7 s build / erratic FMM-floor numbers in
 the profiling run were contaminated by ~10 cores of external load on the
 worker; the 18 s "scale" reading was a script artifact (untyped global
 closure), the real constructor scaling loop is 0.4 s.
+
+## Slurm-validated numbers + warm ltkm3dc decomposition (2026-06-15)
+
+Three jobs on dedicated **exclusive** genoa nodes (`slurm/pvf_{field,cache,
+decomp}.sbatch`), all warm. These supersede the interactive worker numbers
+(which drifted with node load):
+
+**Field A/B (worker7020, exclusive):** field construction 3.9 s; adaptive
+build 20.7 s (field) vs 195.5 s (VolumeSource) = **9.5x**, mesh identical
+(960768); RHS 2.5 s (field) vs 0.7 s (FMM); **u_int 0.40 s (field) vs 42.5 s
+(old ltkm3dc) = 106x**; u_int agreement 4.0e-5; peak 14 GB.
+
+**cache_fft (worker7093, exclusive):** standard u_int 0.42 s -> **cached
+u_int 0.10 s**; cached adaptive build **4.1 s**; cached vs standard agreement
+5.0e-7; peak 27 GB.
+
+**Decomposition of the warm old ltkm3dc u_int (worker7095, exclusive):**
+full call **42.6 s**, and it splits cleanly as **type-1 NUFFT ~21.5 s +
+type-2 NUFFT ~21.3 s** (forward build of the spectrum + inverse read-out to
+targets), scaling negligible. So the old per-call cost is exactly TWO full
+NUFFT passes over the ~5e7-mode grid. The field does the type-1 ONCE at
+construction and replaces the per-call type-2 with a 0.40 s stored-coefficient
+read-out.
+
+Two honesty notes on the decomposition script (`diag_ltkm_decomp.jl`):
+1. Its standalone "scale loop" (51 s) is a TYPE-UNSTABLE top-level-global
+   artifact, not a real cost — inside the typed `_ltkm3dc_eval` the scaling is
+   ~1-2 s, which is why type-1 + type-2 alone (~42.8 s) already equals the full
+   call (42.6 s). The "sum of decomposed (94 s) > full (42.6 s)" line is
+   entirely this artifact; it is NOT contention (it reproduced on a clean
+   exclusive node).
+2. **Unresolved, flagged honestly:** the per-NUFFT cost is strongly
+   tolerance-dependent in a counterintuitive direction. At the production
+   u_int tol (volume_tol = rhs_tol = **1e-3**) each NUFFT is ~21 s; at the
+   field's tol (**1e-4**) the type-1 is 3.9 s and the type-2 is 0.4 s — i.e.
+   the TIGHTER tolerance is ~5-50x FASTER here, at the same auto upsampfac
+   (1.25; forced 2.0 is 64 s). This means part of the field's u_int advantage
+   is that it operates at 1e-4 while the legacy `evaluate_volume_potential`
+   path runs ltkm3dc at 1e-3. Actionable corollary: calling the OLD u_int at
+   tol 1e-4 should itself be several-fold faster (~8 s vs 42 s) — worth a
+   one-line change in the legacy path independent of the field work. The root
+   cause of the tol-1e-3-slower-than-1e-4 behavior (a FINUFFT spread/FFT
+   heuristic quirk near 1e-3) is not yet isolated.
+
+Net, grid-independent and node-independent conclusion: the old runs were slow
+because every call rebuilt the source spectrum (type-1) and read it out
+(type-2) — two full NUFFT passes on a grid that is the SAME size as (slightly
+smaller than) the field's. The field pays the forward pass once; cache_fft
+additionally pre-FFTs so even the read-out is interpolation-only (0.10 s).
