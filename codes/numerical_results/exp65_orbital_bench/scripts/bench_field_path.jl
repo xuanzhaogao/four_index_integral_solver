@@ -43,13 +43,22 @@ line(lbl, t) = (println("  ", rpad(lbl, 46), lpad(string(r2(t)), 8), " s   maxrs
 
 println("threads = ", Threads.nthreads(), "   run_vs = ", RUN_VS); flush(stdout)
 
-# warm-up: tiny Gaussian through every NEW code path (JIT)
-println(">>> warm-up"); flush(stdout)
+# warm-up: tiny Gaussian through every code path, OLD and NEW (JIT).
+# Both the production ltkm3dc u_int call and Rhs_dielectric_box3d_fmm3d are
+# warmed here so the headline comparison is steady-state (the earlier 43.5 s
+# u_int number was a COLD ltkm3dc first call — this removes that artifact).
+println(">>> warm-up (old + new paths)"); flush(stdout)
 let g = BI.GaussianVolumeSource((0.0, 0.0, 0.0), 0.3, 8, 1e-3)
+    gpos = Matrix{Float64}(g.positions)
+    gq = g.weights .* g.density
+    gk = BI._estimate_tkm3dc_kmax(BI._estimate_source_spacing(g))
     f = PrecomputedVolumeField(g; tol = 1e-3)
     iface = BI.single_dielectric_box3d_rhs_adaptive(5.0, 5.0, 1.0, 2, f, 1.0, 0.6, 1e-2, EPS_IN, EPS_OUT, Float64; max_depth = 4)
     rhs_dielectric_box3d_field(iface, f, 1.0)
-    volume_field_potential(f, Matrix{Float64}(g.positions[:, 1:50]))
+    volume_field_potential(f, gpos[:, 1:50])
+    # OLD paths:
+    BI.TKM3D.ltkm3dc(1e-2, gpos; charges = gq, targets = gpos[:, 1:50], pgt = 1, kmax = gk)
+    BI.Rhs_dielectric_box3d_fmm3d(iface, g, 1.0, 1e-2)
     RUN_VS && BI.single_dielectric_box3d_rhs_adaptive(5.0, 5.0, 1.0, 2, g, 1.0, 0.6, 1e-2, EPS_IN, EPS_OUT, Float64; max_depth = 4)
 end
 println("  warm-up done   baseline maxrss ", rss(), " GB"); flush(stdout)
