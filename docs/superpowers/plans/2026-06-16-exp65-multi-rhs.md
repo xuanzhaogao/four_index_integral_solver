@@ -350,7 +350,11 @@ for cutoff in CUTOFFS
     t_precompute = tof("envelope + tkm kmax") + tof("interface build (envelope)") +
                    tof("batched LHS operator")
     t_solve_block = tof("RHS assembly (batched nd=K)") + tof("block GMRES")
-    t_solve_seq = tof("sequential (1 op + K gmres)")
+    t_seq_op = tof("sequential LHS operator")
+    # end-to-end solve cost vs t_solve_block; both exclude the 1-time LHS op build.
+    # t_solve_seq = K RHS builds + K gmres;  t_solve_block = 1 batched RHS + block gmres
+    # (so the speedup reflects both RHS batching and block GMRES).
+    t_solve_seq = tof("sequential K gmres")
     t_eval = tof("eval + contract (four_index_matrix)")
 
     @printf("  K=%d  interface points %d  src %d  niter %d  block_resid %.2e\n",
@@ -369,10 +373,10 @@ for cutoff in CUTOFFS
            niter = res.niter, block_resid = res.block_resid, seq_agree = res.seq_agree,
            max_rel_asym = res.max_rel_asym, v11_raw = res.v11_raw,
            u_onsite_ev = res.u_onsite_ev, V = res.V,
-           t_precompute, t_solve_block, t_solve_seq, t_eval, t_total,
+           t_precompute, t_solve_block, t_seq_op, t_solve_seq, t_eval, t_total,
            stages = copy(stages), rss_baseline_gb = RSS_BASELINE, rss_peak_gb = rss_gb(),
            nthreads = Threads.nthreads(), hostname = gethostname())
-    serialize(joinpath(DATA, "raw", "multi_rhs_K$(res.K).jls"), out)
+    serialize(joinpath(DATA, "raw", "multi_rhs_K$(res.K)_cut$(cutoff).jls"), out)
     push!(RESULTS, out)
 end
 
@@ -393,13 +397,13 @@ let csv = joinpath(DATA, "multi_rhs.csv")
     open(csv, "a") do io
         newfile && println(io, join(["hostname", "nthreads", "smoke", "correct_edges",
             "cutoff", "K", "n_points", "n_src", "niter", "block_resid", "seq_agree",
-            "max_rel_asym", "t_precompute", "t_solve_block", "t_solve_seq", "t_eval",
-            "t_total", "rss_peak_gb", "u_onsite_ev"], ","))
+            "max_rel_asym", "t_precompute", "t_solve_block", "t_seq_op", "t_solve_seq",
+            "t_eval", "t_total", "rss_peak_gb", "u_onsite_ev"], ","))
         for r in RESULTS
             println(io, join(string.([r.hostname, r.nthreads, r.smoke, r.correct_edges,
                 r.cutoff, r.K, r.n_points, r.n_src, r.niter, r.block_resid, r.seq_agree,
-                r.max_rel_asym, r.t_precompute, r.t_solve_block, r.t_solve_seq, r.t_eval,
-                r.t_total, r.rss_peak_gb, r.u_onsite_ev]), ","))
+                r.max_rel_asym, r.t_precompute, r.t_solve_block, r.t_seq_op, r.t_solve_seq,
+                r.t_eval, r.t_total, r.rss_peak_gb, r.u_onsite_ev]), ","))
         end
     end
     println("saved CSV -> $csv")
