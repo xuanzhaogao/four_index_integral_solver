@@ -178,3 +178,88 @@ if GEOM_ONLY
     println("GEOM ONLY DONE")
     exit(0)
 end
+
+@printf("threads = %d   correct_edges = %s   smoke = %s   cutoffs = %s\n",
+        Threads.nthreads(), CORRECT_EDGES, SMOKE, CUTOFFS)
+flush(stdout)
+
+# warm-up: compile every stage on the smallest (K=1) real batch, un-recorded.
+println(">>> warm-up (K=1 batch through every stage)"); flush(stdout)
+let (bw, pw) = build_geometry(0.0)
+    tw = @elapsed run_pipeline(bw, pw, NamedTuple[]; record = false)
+    @printf("  warm-up: %.1f s   baseline maxrss %.2f GB\n", tw, rss_gb())
+end
+const RSS_BASELINE = rss_gb()
+
+const RESULTS = NamedTuple[]
+for cutoff in CUTOFFS
+    println("=" ^ 72)
+    @printf(">>> cutoff = %.2f bohr  (L=%g Lz=%g eps_in=%g)\n", cutoff, L, LZ, EPS_IN)
+    flush(stdout)
+    b, pairs = build_geometry(cutoff)
+    stages = NamedTuple[]
+    t_total = @elapsed res = run_pipeline(b, pairs, stages; record = true)
+
+    tof(lbl) = first(s.t for s in stages if s.label == lbl)
+    t_precompute = tof("envelope + tkm kmax") + tof("interface build (envelope)") +
+                   tof("batched LHS operator")
+    t_solve_block = tof("RHS assembly (batched nd=K)") + tof("block GMRES")
+    t_seq_op = tof("sequential LHS operator")
+    # end-to-end solve cost vs t_solve_block; both exclude the 1-time LHS op build.
+    # t_solve_seq = K RHS builds + K gmres;  t_solve_block = 1 batched RHS + block gmres
+    # (so the speedup reflects both RHS batching and block GMRES).
+    t_solve_seq = tof("sequential K gmres")
+    t_eval = tof("eval + contract (four_index_matrix)")
+
+    @printf("  K=%d  interface points %d  src %d  niter %d  block_resid %.2e\n",
+            res.K, res.n_points, res.n_src, res.niter, res.block_resid)
+    @printf("  seq_agree %.2e  max_rel_asym %.2e  u_onsite = %.4f eV\n",
+            res.seq_agree, res.max_rel_asym, res.u_onsite_ev)
+    @printf("  precompute %.1f s | block solve %.1f s (vs seq %.1f s, %.2fx) | eval %.1f s | total %.1f s\n",
+            t_precompute, t_solve_block, t_solve_seq,
+            t_solve_seq / max(t_solve_block, eps()), t_eval, t_total)
+    @printf("  per-RHS marginal (block solve+eval)/K = %.1f s   peak RSS %.2f GB\n",
+            (t_solve_block + t_eval) / res.K, rss_gb())
+
+    out = (; smoke = SMOKE, correct_edges = CORRECT_EDGES, cutoff,
+           L, Lz = LZ, eps_in = EPS_IN, eps_out = EPS_OUT,
+           K = res.K, pairs = res.pairs, n_points = res.n_points, n_src = res.n_src,
+           niter = res.niter, block_resid = res.block_resid, seq_agree = res.seq_agree,
+           max_rel_asym = res.max_rel_asym, v11_raw = res.v11_raw,
+           u_onsite_ev = res.u_onsite_ev, V = res.V,
+           t_precompute, t_solve_block, t_seq_op, t_solve_seq, t_eval, t_total,
+           stages = copy(stages), rss_baseline_gb = RSS_BASELINE, rss_peak_gb = rss_gb(),
+           nthreads = Threads.nthreads(), hostname = gethostname())
+    serialize(joinpath(DATA, "raw", "multi_rhs_K$(res.K)_cut$(cutoff).jls"), out)
+    push!(RESULTS, out)
+end
+
+# summary table + CSV
+println("=" ^ 72)
+@printf("%-4s %-8s %-9s %-7s %-7s %-7s %-7s %-7s %-9s %-9s\n",
+        "K", "n_pts", "precomp", "blk", "seq", "spdup", "eval", "tot", "perRHS", "peakGB")
+for r in RESULTS
+    @printf("%-4d %-8d %-9.1f %-7.1f %-7.1f %-7.2f %-7.1f %-7.1f %-9.1f %-9.2f\n",
+            r.K, r.n_points, r.t_precompute, r.t_solve_block, r.t_solve_seq,
+            r.t_solve_seq / max(r.t_solve_block, eps()), r.t_eval, r.t_total,
+            (r.t_solve_block + r.t_eval) / r.K, r.rss_peak_gb)
+end
+println("=" ^ 72)
+
+let csv = joinpath(DATA, "multi_rhs.csv")
+    newfile = !isfile(csv)
+    open(csv, "a") do io
+        newfile && println(io, join(["hostname", "nthreads", "smoke", "correct_edges",
+            "cutoff", "K", "n_points", "n_src", "niter", "block_resid", "seq_agree",
+            "max_rel_asym", "t_precompute", "t_solve_block", "t_seq_op", "t_solve_seq",
+            "t_eval", "t_total", "rss_peak_gb", "u_onsite_ev"], ","))
+        for r in RESULTS
+            println(io, join(string.([r.hostname, r.nthreads, r.smoke, r.correct_edges,
+                r.cutoff, r.K, r.n_points, r.n_src, r.niter, r.block_resid, r.seq_agree,
+                r.max_rel_asym, r.t_precompute, r.t_solve_block, r.t_seq_op, r.t_solve_seq,
+                r.t_eval, r.t_total, r.rss_peak_gb, r.u_onsite_ev]), ","))
+        end
+    end
+    println("saved CSV -> $csv")
+end
+println("MULTI RHS BENCH DONE")
