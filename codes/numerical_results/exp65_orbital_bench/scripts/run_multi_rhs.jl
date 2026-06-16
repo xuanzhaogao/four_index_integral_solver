@@ -94,6 +94,80 @@ function build_geometry(cutoff::Float64; nrange::Int = 3)
     return b, pairs
 end
 
+# Per-K instrumented pipeline. `stage!` records (label, t, maxrss, live) when record=true.
+function run_pipeline(b, pairs, stages::Vector; record::Bool)
+    note = record ? (l, t) -> begin
+        push!(stages, (; label = l, t, maxrss_gb = rss_gb(), live_gb = live_gb()))
+        @printf("    %-34s %9.2f s   maxrss %6.2f GB   live %6.2f GB\n", l, t, rss_gb(), live_gb())
+        flush(stdout)
+    end : (l, t) -> nothing
+
+    K = length(pairs)
+    l_ec = LZ / 2.0^P.edge_level * 1.01
+    boxes = BI.BoxGeom[(center = (0.0, 0.0, CENTROID[1][3]), Lx = L, Ly = L, Lz = LZ)]
+    epses = Float64[EPS_IN]
+
+    # --- precompute (RHS-independent across the K columns) ---
+    local env, kmax
+    t = @elapsed begin
+        env = BI.envelope_volume_source(b)
+        kmax = BI._estimate_tkm3dc_kmax(env)
+    end
+    note("envelope + tkm kmax", t)
+    local interface
+    t = @elapsed interface = BI.multi_dielectric_box3d_rhs_adaptive(
+        P.n_quad, l_ec, boxes, epses, env, P.rhs_tol;
+        eps_out = EPS_OUT, max_depth = P.max_depth, tkm_kmax = kmax)
+    note("interface build (envelope)", t)
+    local op
+    t = @elapsed op = BI.batched_lhs_dielectric_box3d_fmm3d_corrected(
+        interface, P.lhs_tol, P.lhs_tol, P.max_order; correct_edges = CORRECT_EDGES)
+    note("batched LHS operator", t)
+
+    sources = BI.batch_volume_sources(b)
+
+    # --- solve (scales with K) ---
+    local F
+    t = @elapsed F = BI.rhs_dielectric_box3d_fmm3d(interface, sources, P.rhs_tol)
+    note("RHS assembly (batched nd=K)", t)
+    local sigma_block, bstats
+    t = @elapsed begin
+        sigma_block, bstats = Krylov.block_gmres(op, F;
+            rtol = P.gmres_rtol, atol = P.gmres_atol, itmax = 500)
+    end
+    note("block GMRES", t)
+    block_resid = norm(op * sigma_block - F) / max(norm(F), eps(Float64))
+
+    # --- sequential baseline: same interface, single-RHS operator built ONCE, K gmres ---
+    local lhs_seq
+    t_seq_op = @elapsed lhs_seq = BI.lhs_dielectric_box3d_fmm3d_corrected(
+        interface, P.lhs_tol, P.lhs_tol, P.max_order; correct_edges = CORRECT_EDGES)
+    sigma_seq = Matrix{Float64}(undef, size(sigma_block)...)
+    t_seq_solve = @elapsed for k in 1:K
+        rhs_k = BI.rhs_dielectric_box3d_fmm3d(interface, sources[k], P.rhs_tol)
+        sk, _ = Krylov.gmres(lhs_seq, rhs_k; atol = P.gmres_atol, rtol = P.gmres_rtol)
+        sigma_seq[:, k] = sk
+    end
+    note("sequential LHS operator", t_seq_op)
+    note("sequential K gmres", t_seq_solve)
+    seq_agree = norm(sigma_block - sigma_seq) / max(norm(sigma_block), eps(Float64))
+
+    # --- eval + contraction into V[a,b] (TKM u_inc; 96-thread pathology by design) ---
+    local V
+    t = @elapsed V = BI.four_index_matrix(interface, sources, sigma_block;
+        lhs_tol = P.lhs_tol, volume_tol = VOLUME_TOL, range_factor = 5.0)
+    note("eval + contract (four_index_matrix)", t)
+
+    scaleV = maximum(abs.(V))
+    max_rel_asym = scaleV > 0 ? maximum(abs.(V - V')) / scaleV : 0.0
+    onsite_N = sum(sources[1].weights .* sources[1].density)
+    u_onsite_ev = to_eV(V[1, 1], onsite_N, onsite_N)
+
+    return (; K, n_points = BI.num_points(interface), n_src = size(b.densities, 1),
+            niter = bstats.niter, block_resid, seq_agree, max_rel_asym,
+            v11_raw = V[1, 1], u_onsite_ev, V, pairs)
+end
+
 if GEOM_ONLY
     @printf("smoke=%s  centroid_A=%s  centroid_B=%s\n", SMOKE, CENTROID[1], CENTROID[2])
     for cutoff in CUTOFFS
