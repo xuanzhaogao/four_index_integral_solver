@@ -55,12 +55,13 @@ begin
     fig = Figure(size = (880, 350))
 
     ax1 = Axis(fig[1, 1]; xlabel = xlab, ylabel = "runtime (s)", xticks = K, title = "(a) runtime vs K", xscale = log10, yscale = log10)
-    scatterlines!(ax1, K, t_pre ./ K; color = C[1], marker = :circle, label = "precompute")
-    scatterlines!(ax1, K, t_blk ./ K; color = C[2], marker = :circle, label = "block solve")
-    scatterlines!(ax1, K, t_evl ./ K; color = C[3], marker = :circle, label = "eval (onsite row)")
-    scatterlines!(ax1, K, t_pot ./ K; color = C[5], marker = :circle, label = "eval pottrg build")
-    # scatterlines!(ax1, K, t_tot; color = :black, marker = :rect, linewidth = 2.5,
-    #             label = "total (precompute+block+eval)")
+    # fixed (K-independent) costs as their average level -> dashed hlines
+    hlines!(ax1, [sum(t_pre) / length(t_pre)]; color = C[1], linestyle = :dash, linewidth = 2, label = "precompute (avg)")
+    hlines!(ax1, [sum(t_pot) / length(t_pot)]; color = C[5], linestyle = :dash, linewidth = 2, label = "pottrg build (avg)")
+    # K-dependent costs vs K
+    scatterlines!(ax1, K, t_blk; color = C[2], marker = :circle, label = "block solve")
+    scatterlines!(ax1, K, t_evl; color = C[3], marker = :circle, label = "eval (onsite row)")
+    scatterlines!(ax1, K, t_tot; color = :black, marker = :rect, linewidth = 2, label = "total")
     axislegend(ax1; position = :lt, framevisible = false, labelsize = 9)
 
     ax2 = Axis(fig[1, 2]; xlabel = xlab, ylabel = "peak RSS (GB)", xticks = K, title = "(b) peak memory vs K")
