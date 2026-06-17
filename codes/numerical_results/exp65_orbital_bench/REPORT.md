@@ -608,7 +608,11 @@ per-RHS eval; `data/multi_rhs.csv`, `figs/fig65_multirhs_scaling.{pdf,png}`):
 - With DUCC@96 the **real per-RHS eval is ~3–4 s/pair (flat)** — ~3× below the FFTW@16-capped
   path; the per-K figure shows it flat while precompute and pottrg-build fall as 1/K.
 - **The `pottrg` build (corrected layer-potential map, FMM + hcubature) is now the dominant
-  eval-side cost (~78–172 s, K-independent)** — unaffected by the FFT backend; it is the next
-  thing to cache/optimize (built once, reusable across a shared target set).
+  eval-side cost (~78–172 s).** It is NOT K-independent: the hcubature near-correction count
+  grows with K (12.7k → 37.4k over K=1→19) and the post-refined source count grows
+  (1.12M → 1.41M) — because the envelope-refined interface densifies near the ρ₁₁ targets as
+  more neighbor pairs are added; on top of that trend the adaptive hcubature depth + per-node
+  variation (each cutoff ran on a different node) add the non-monotonic scatter. Unaffected by
+  the FFT backend; it is the next thing to cache/optimize (built once per target set).
 - precompute flat ~35–48 s; block solve ~linear (~6 s/RHS asymptote); peak RAM unchanged
   (block-GMRES driven); u_onsite 7.05–7.09 eV; block_resid ~5e-6.
