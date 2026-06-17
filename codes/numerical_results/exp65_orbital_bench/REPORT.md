@@ -393,3 +393,106 @@ into ~1.3 s (43x) and speeds up the ENTIRE existing pipeline, not just the
 field path. The field path remains valuable for its structural reuse and
 because its box dimensions avoid the pathology by construction — but the
 dramatic speedup numbers must be re-baselined against a thread-fixed ltkm3dc.
+
+---
+
+# Addendum (2026-06-16): multi-RHS — central orbital + lattice neighbors
+
+Script: `scripts/run_multi_rhs.jl` (commit `548343e`), sbatch
+`slurm/pvf_multi_rhs.sbatch`, raw `data/raw/multi_rhs_K*_cut*.jls`, CSV
+`data/multi_rhs.csv`, log `logs/slurm_multi_rhs_6519476.out`. One **exclusive
+genoa node** (worker7001, 96 Julia + 96 OpenMP threads); job 6519476,
+warm + 01:07:47 wall. Same calibrated production parameters as the single-RHS
+benchmark (`n_quad = 6`, edge_refine_level 4, rhs_tol 1e-3, lhs_tol 1e-5,
+gmres 1e-5, max_order 64, **correct_edges = true**).
+
+## What was measured
+
+The multi-RHS path of the revised BI.jl: a central graphene A-sublattice
+Wannier orbital plus its lattice neighbors form **K pair densities**
+`rho = phi_center * phi_neighbor` (onsite included) on **one shared interface**;
+K grows with a neighbor cutoff (graphene shells). Each K is run through the
+production pipeline stage by stage — `assemble_lattice_batch` →
+`multi_dielectric_box3d_rhs_adaptive` (envelope) →
+`batched_lhs_dielectric_box3d_fmm3d_corrected` → `Krylov.block_gmres` →
+`four_index_matrix` (the K×K Coulomb matrix V) — alongside a **sequential
+baseline** (the single-RHS operator built once on the same interface, then K
+independent `Krylov.gmres` solves). Geometry follows the
+`lattice_scale/demo_2x2` convention (box center cz = 7.5, orbital at the slab
+**midplane**), which differs from `run_single_rhs.jl` (top face).
+
+The interface is genuinely production scale — **~960,768 points at every
+cutoff** (reproduces the single-RHS 960,768), independent of K; only the source
+support (n_src 136k → 438k) and K (1 → 19) grow.
+
+## Headline numbers
+
+`block`/`seq` are the **solve** phases (batched RHS + block-GMRES vs K single
+RHS + K gmres), both excluding the one-time LHS operator build (which is
+counted in `precompute`); `spdup = seq/block`. `prod` is the **production
+end-to-end** block path = precompute + block + eval (the sequential baseline is
+a benchmark-only extra and is excluded). Times in seconds.
+
+| cutoff | K | precompute | block | seq | spdup | eval | prod total | per-RHS marginal | peak RAM |
+|---:|--:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0.0 | 1 | 38.9 | 17.5 | 19.6 | 1.12x | 64.5 | 120.9 | 82.0 | 18.5 GB |
+| 1.5 | 4 | 35.6 | 31.4 | 60.7 | 1.93x | 94.6 | 161.6 | 31.5 | 40.6 GB |
+| 2.5 | 10 | 149.2 | 62.3 | 163.0 | 2.61x | 456.8 | 668.3 | 51.9 | 89.6 GB |
+| 2.9 | 13 | 145.3 | 75.5 | 233.9 | 3.10x | 599.1 | 819.9 | 51.9 | 114.8 GB |
+| 3.9 | 19 | 162.2 | 109.9 | 325.7 | 2.96x | 888.2 | 1160.3 | 52.5 | 164.0 GB |
+
+`per-RHS marginal = (block + eval)/K` (cost of one more RHS on a solved batch).
+
+## Observations
+
+1. **Block solve beats K sequential solves, and the win grows with K** —
+   1.12x (K=1, trivially ≈1) → 1.93x → 2.61x → **3.10x** (K=13) → 2.96x (K=19).
+   The batched `nd=K` FMM matvec inside block-GMRES (one tree over the shared
+   interface points serving all K columns) plus the batched RHS assembly
+   amortize the FMM setup that the sequential path pays K times. This is the
+   quantitative payoff of the multi-RHS API: the four-index V row costs ~3x less
+   to solve as a block than column by column.
+
+2. **Precompute is RHS-independent and amortizes across K.** The interface
+   build + LHS operator (~39 s at K=1 up to ~162 s at K=19 — it grows with the
+   source support, not with K per se) is built **once** per batch and serves all
+   K right-hand sides. Run as K independent single-RHS jobs you would pay it K
+   times; here the K=19 precompute (162 s) is amortized to ~8.5 s/RHS.
+
+3. **Evaluation dominates at 96 threads — the documented FFTW pathology.**
+   `four_index_matrix` builds the corrected layer-potential map once, then loops
+   one `TKM3D.ltkm3dc` u_inc call per column; at 96 threads each call hits the
+   ~47 s FFTW pathology (see the 2026-06-15 root-cause section above), so eval
+   scales ~K×47 s and is **77 % of the K=19 production cost** (888 of 1160 s).
+   This was measured as-shipped on purpose. Actionable corollary: capping the
+   FINUFFT thread count (~16) in `ltkm3dc` would cut each call to ~1.3 s, taking
+   the K=19 eval from ~888 s to ~25 s and the production total from ~1160 s to
+   ~300 s — the single highest-leverage fix for the whole multi-RHS pipeline,
+   independent of this benchmark.
+
+4. **Peak RAM grows with K — the block-vs-sequential trade-off.** Peak RSS
+   climbs 18.5 → 164 GB across the sweep, and the per-stage increments pin the
+   jump to **block GMRES** (the K-blocked Krylov subspace over the ~960k-point
+   operator). The sequential path stays near the precompute baseline. 164 GB at
+   K=19 is comfortable on the 1.5 TB node, but the block speedup is bought with
+   memory — relevant if K or the interface grows much larger.
+
+5. **Correctness holds at every K.** Block vs sequential Σ agree to 1e-15 (K=1,
+   identical system) and ~1e-5 (K≥4, at the gmres tol); the four-index matrix is
+   symmetric to `max|V − Vᵀ|/max|V| ≤ 4.3e-6`; block-GMRES residual ~5e-6 at the
+   1e-5 target in 7–8 iterations (no penalty vs single-RHS). The full K×K V for
+   each cutoff is in the `.jls` records.
+
+## Caveats
+
+- **Onsite value differs from the single-RHS 9.88 eV by the z-convention.**
+  `u_onsite` is 7.05–7.09 eV across all cutoffs (stable, as it should be — the
+  onsite element is cutoff-independent). The ~7 eV vs the single-RHS 9.88 eV is
+  the **midplane (here) vs top-face (`run_single_rhs.jl`) orbital placement**;
+  the eps_in = 3.5 calibration shifts with it (see the single-RHS caveat). The
+  *cost* numbers are directly comparable to the single-RHS REPORT (same params,
+  same ~960k interface); the eV value is not, by design.
+- The CSV/jls also record `t_total` (full `run_pipeline` wall, which *includes*
+  the sequential baseline) — the production figures above use `precompute +
+  block + eval`, not `t_total`.
+- Re-running appends to `data/multi_rhs.csv`; delete it first to re-measure.
