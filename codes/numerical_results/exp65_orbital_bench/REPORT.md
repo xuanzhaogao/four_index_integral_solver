@@ -496,3 +496,50 @@ a benchmark-only extra and is excluded). Times in seconds.
   the sequential baseline) — the production figures above use `precompute +
   block + eval`, not `t_total`.
 - Re-running appends to `data/multi_rhs.csv`; delete it first to re-measure.
+
+## UPDATE (2026-06-16): the precompute/eval cost was the FINUFFT 96-thread FFTW pathology — fixed in-function
+
+The OMP=96 numbers above are **inflated by the FFTW 96-thread plan pathology** (the same
+one the single-RHS report found in the eval). Investigation (`scripts/diag_*.jl`):
+
+- **The interface build is NOT algorithmic growth — it's the FFTW thread pathology.**
+  Build of the cutoff-2.5 envelope: **171 s @96 threads → 31 s @64 → 17 s @16**
+  (`diag_build_times.jl`). The lever is `OMP_NUM_THREADS` (FINUFFT/FFTW) alone — Julia and
+  OpenBLAS thread counts are irrelevant. A sampling profile mislabels it (FINUFFT's FFT runs
+  in C/OpenMP worker threads the Julia profiler can't attribute), but the thread-lever test
+  is decisive.
+- **Direct FINUFFT micro-benchmark** (`diag_finufft_fftw.jl`, type-1 on the pathological
+  413×375×325 grid): exec **0.70 s @16 threads vs 27.66 s @96** with `FFTW_ESTIMATE`
+  (FINUFFT's default). `FFTW_MEASURE` fixes the exec (0.51 s @96) but its *planning* costs
+  25 s @16 / 54 s @96 — a net loss unless wisdom is persisted, and useless for the build's
+  varying mode grids. A good plan execs in ~0.5 s at **any** thread count, so capping the
+  FFT threads loses nothing.
+- **`n_src` growth is a truncation effect, not new support** (`diag_support.jl`): the union
+  of pair supports is always ⊆ supp(φ_center); n_src grows 137k→438k because the rss
+  envelope retains φ_center's faint tail (where the neighbor pairs, linear in φ_center, are
+  ~36× the quadratic onsite) — bounded by |supp(φ_center)|. Genuine build growth at a sane
+  thread count is only ~6 s.
+
+**Fix (TKM3D, branch `finufft-nthreads-cap`): cap FINUFFT's `nthreads` IN-FUNCTION inside
+`ltkm3dc`** (default 16, env `TKM3D_FINUFFT_NTHREADS`), threaded into the type-1 `nufft3d1`
+and type-2 plans. This caps *only* the FFT; the FMM (`lfmm3d`, a separate library) keeps the
+full OpenMP pool — strictly better than a global `OMP` cap, which throttles the FMM and (at
+64) still leaves the eval crippled.
+
+Re-run at the production env (JULIA=96, OMP=96) with the in-function cap (worker7122,
+`data/multi_rhs.csv`; OMP=96 baseline preserved as `data/multi_rhs_omp96.csv`):
+
+| K | precompute 96 → fix | eval 96 → fix | block solve 96 → fix | prod total (pre+blk+eval) 96 → fix |
+|--:|--:|--:|--:|--:|
+| 1 | 38.9 → 40.2 | 64.5 → 68.0 | 17.5 → 18.1 | 121 → 126 |
+| 10 | 149.2 → **38.4** | 456.8 → **172.6** | 62.3 → 62.6 | 668 → **274** |
+| 13 | 145.3 → **38.1** | 599.1 → **197.3** | 75.5 → 81.6 | 820 → **317** |
+| 19 | 162.2 → **38.5** | 888.2 → **277.5** | 110 → 114 | 1160 → **430** |
+
+- **Build flat at ~21 s** across all K (was 131–145 s) — precompute now K-independent (~38 s).
+- **Per-K eval 46 → 12 s/K** (the ~34 s/call ltkm3dc pathology removed). The residual eval is
+  now **FMM-bound** (the corrected `pottrg` map build + per-column apply), not FFT — next
+  optimization is a batched `nd=K` corrected `pottrg`.
+- **FMM-based stages unchanged** (block solve 110→114 s) — the cap hit only the FFT.
+- **Correctness identical**: seq_agree 1e-15→1e-5, V-symmetry ≤4.3e-6, u_onsite 7.05–7.09 eV.
+- End-to-end block path at K=19: **2.7× faster** (1160→430 s); precompute 4.2×, eval 3.2×.
