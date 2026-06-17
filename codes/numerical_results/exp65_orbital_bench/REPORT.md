@@ -593,3 +593,22 @@ Wired via FINUFFT.jl's `ducc` branch (runtime `FINUFFT_JL_LIBFINUFFT` override):
 (96 threads): cutoff-2.5 interface build **26.4 s with DUCC@96** vs 171 s FFTW@96 (≈ the
 17 s of the FFTW@16 cap) — the cliff is gone and FINUFFT runs full-width. Both
 `pvf_multi_rhs_array.sbatch` and `pvf_multi_rhs.sbatch` now run on the DUCC backend at OMP=96.
+
+Production results (array job 6521372, DUCC @ OMP=96, eval split into pottrg-build +
+per-RHS eval; `data/multi_rhs.csv`, `figs/fig65_multirhs_scaling.{pdf,png}`):
+
+| K | precompute (s) | pottrg build (s) | block solve (s) | eval/RHS-loop (s) | total (s) | peak RSS (GB) |
+|--:|--:|--:|--:|--:|--:|--:|
+| 1  | 47.6 | 100.2 | 22.8  | 3.9  | 177 | 17.6  |
+| 4  | 35.0 | 77.9  | 34.6  | 9.8  | 161 | 40.0  |
+| 10 | 37.5 | 120.9 | 65.5  | 31.8 | 266 | 89.1  |
+| 13 | 33.1 | 86.0  | 73.1  | 46.8 | 249 | 113.0 |
+| 19 | 39.4 | 172.0 | 112.1 | 75.9 | 415 | 162.7 |
+
+- With DUCC@96 the **real per-RHS eval is ~3–4 s/pair (flat)** — ~3× below the FFTW@16-capped
+  path; the per-K figure shows it flat while precompute and pottrg-build fall as 1/K.
+- **The `pottrg` build (corrected layer-potential map, FMM + hcubature) is now the dominant
+  eval-side cost (~78–172 s, K-independent)** — unaffected by the FFT backend; it is the next
+  thing to cache/optimize (built once, reusable across a shared target set).
+- precompute flat ~35–48 s; block solve ~linear (~6 s/RHS asymptote); peak RAM unchanged
+  (block-GMRES driven); u_onsite 7.05–7.09 eV; block_resid ~5e-6.
