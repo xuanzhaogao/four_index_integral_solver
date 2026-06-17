@@ -3,9 +3,10 @@
 # each on its OWN exclusive 96-core genoa node, run in parallel. Each task runs a SINGLE
 # cutoff (ORBBENCH_CUTOFF) and writes its own per-cutoff record:
 #   data/raw/multi_rhs_K<K>_cut<cutoff>.jls
-# No sequential baseline; the block path is the production path. FINUFFT FFT is capped to 16
-# threads IN-FUNCTION (TKM3D ltkm3dc) to dodge the 96-thread FFTW plan pathology, while
-# OMP=96 keeps the FMM (lfmm3d) full-width.
+# No sequential baseline; the block path is the production path. FINUFFT uses the DUCC FFT
+# backend (no FFTW 96-thread cliff) so it runs at the FULL 96 threads — OMP=96 everywhere
+# (FMM + FINUFFT). Requires BI's env dev'd to the ducc-branch FINUFFT.jl (Pkg.develop
+# path=~/project/finufft_ducc/FINUFFT.jl); the env vars below select the DUCC lib at runtime.
 #
 # Submit (you):   sbatch slurm/pvf_multi_rhs_array.sbatch
 # After ALL 5 tasks finish, gather + plot on a login node / workstation:
@@ -30,7 +31,9 @@ NR=/mnt/home/xgao1/work/four_index_integral_solver/codes/numerical_results
 WT=/mnt/home/xgao1/codes/BoundaryIntegral.jl
 J=/mnt/home/xgao1/.juliaup/bin/julia   # juliaup binary (never module load julia)
 export JULIA_NUM_THREADS=96
-export OMP_NUM_THREADS=96              # full FMM threads; FINUFFT FFT capped in-function (TKM3D)
+export OMP_NUM_THREADS=96              # full threads for both FMM (lfmm3d) and FINUFFT (DUCC)
+export TKM3D_FINUFFT_NTHREADS=0       # 0 = let ltkm3dc's FINUFFT use the full OMP pool (DUCC has no cliff)
+export FINUFFT_JL_LIBFINUFFT=/mnt/home/xgao1/project/finufft_ducc/finufft-2.5.1-ducc/build/libfinufft.so
 
 echo "=== array task $SLURM_ARRAY_TASK_ID  cutoff=$ORBBENCH_CUTOFF  node $(hostname)  $(date) ==="
 $J --project=$WT $NR/exp65_orbital_bench/scripts/run_multi_rhs.jl

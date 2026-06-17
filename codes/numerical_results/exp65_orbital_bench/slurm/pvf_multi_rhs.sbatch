@@ -21,8 +21,10 @@ NR=/mnt/home/xgao1/work/four_index_integral_solver/codes/numerical_results
 WT=/mnt/home/xgao1/codes/BoundaryIntegral.jl
 J=/mnt/home/xgao1/.juliaup/bin/julia          # juliaup binary (never module load julia)
 export JULIA_NUM_THREADS=96
-export OMP_NUM_THREADS=96           # full FMM threads; the FINUFFT FFT is capped in-function (TKM3D ltkm3dc)
-# export TKM3D_FINUFFT_NTHREADS=16 # in-function FFT cap (TKM3D default 16); set 0 for FINUFFT's omp default
+export OMP_NUM_THREADS=96           # full threads for both FMM and FINUFFT (DUCC backend, no cliff)
+export TKM3D_FINUFFT_NTHREADS=0    # let ltkm3dc's FINUFFT use the full OMP pool (DUCC)
+export FINUFFT_JL_LIBFINUFFT=/mnt/home/xgao1/project/finufft_ducc/finufft-2.5.1-ducc/build/libfinufft.so
+# (requires BI's env dev'd to the ducc-branch FINUFFT.jl: Pkg.develop path=~/project/finufft_ducc/FINUFFT.jl)
 
 echo "=== node $(hostname)  cores $(nproc)  $(date) ==="
 $J --project=$WT $NR/exp65_orbital_bench/scripts/run_multi_rhs.jl

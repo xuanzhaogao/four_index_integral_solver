@@ -578,3 +578,18 @@ Results (genoa, one node per cutoff via array job 6521211; `data/multi_rhs.csv`,
   K. End-to-end at K=19 = **422 s on one node** (block path).
 - Each cutoff ran as its own array task in 4–10 min; the 5 ran in **parallel (~10 min wall)**.
 - u_onsite stable at 7.05–7.09 eV across K; block_resid ~5e-6.
+
+## UPDATE (2026-06-17): FINUFFT → DUCC FFT backend (run at full 96 threads, no cliff)
+
+The proper fix for the FFTW 96-thread cliff is a **backend swap**, not the thread cap. FINUFFT
+v2.5.1 built with `-DFINUFFT_USE_DUCC0=ON` (DUCC's FFT instead of FFTW) has **no
+dimension-specific 96-thread pathology** (see `~/project/finufft_ducc/ducc_bench/DUCC_VS_FFTW.md`:
+type-1 on the 413×375×325 grid at 96 threads is 0.56 s with DUCC vs 27.91 s with FFTW, ~50×).
+
+Wired via FINUFFT.jl's `ducc` branch (runtime `FINUFFT_JL_LIBFINUFFT` override): BI's env is
+`Pkg.develop`'d onto `~/project/finufft_ducc/FINUFFT.jl`, and the sbatch sets
+`FINUFFT_JL_LIBFINUFFT=~/project/finufft_ducc/finufft-2.5.1-ducc/build/libfinufft.so` +
+`TKM3D_FINUFFT_NTHREADS=0` so FINUFFT uses the full OMP pool. Validated on worker7122
+(96 threads): cutoff-2.5 interface build **26.4 s with DUCC@96** vs 171 s FFTW@96 (≈ the
+17 s of the FFTW@16 cap) — the cliff is gone and FINUFFT runs full-width. Both
+`pvf_multi_rhs_array.sbatch` and `pvf_multi_rhs.sbatch` now run on the DUCC backend at OMP=96.
