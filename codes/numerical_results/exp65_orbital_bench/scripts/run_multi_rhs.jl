@@ -149,7 +149,11 @@ function run_pipeline(b, pairs, stages::Vector; record::Bool)
     # (fixed phi_1^2 footprint, ~K-independent), so each field eval is over a FIXED target
     # set => eval scales linearly in K (no growing union grid). ltkm3dc self-caps FINUFFT.
     onsite = sources[1]
-    nz = findall(!iszero, onsite.density)
+    # rho_11's SIGNIFICANT support (phi_1^2 down to support_rtol of peak) -- a FIXED ~137k
+    # core, K-independent. NOT findall(!iszero): every union grid point has phi_1 != 0
+    # (union ⊆ supp(phi_1)), so !iszero returns the whole GROWING union grid, making the
+    # pottrg/eval targets scale with K. Thresholding pins the target to phi_1^2's core.
+    nz = findall(>=(P.support_rtol * maximum(abs, onsite.density)), abs.(onsite.density))
     tgt = Matrix{Float64}(onsite.positions[:, nz])
     tw = onsite.weights[nz] .* onsite.density[nz]
     # eval-side PRECOMPUTE: corrected layer-potential map over the fixed rho_11 targets,
