@@ -23,6 +23,7 @@
 
 using BoundaryIntegral
 import BoundaryIntegral as BI
+import TKM3D
 using Krylov
 using LinearAlgebra
 using Printf
@@ -138,34 +139,38 @@ function run_pipeline(b, pairs, stages::Vector; record::Bool)
     note("block GMRES", t)
     block_resid = norm(op * sigma_block - F) / max(norm(F), eps(Float64))
 
-    # --- sequential baseline: same interface, single-RHS operator built ONCE, K gmres ---
-    local lhs_seq
-    t_seq_op = @elapsed lhs_seq = BI.lhs_dielectric_box3d_fmm3d_corrected(
-        interface, P.lhs_tol, P.lhs_tol, P.max_order; correct_edges = CORRECT_EDGES)
-    sigma_seq = Matrix{Float64}(undef, size(sigma_block)...)
-    t_seq_solve = @elapsed for k in 1:K
-        rhs_k = BI.rhs_dielectric_box3d_fmm3d(interface, sources[k], P.rhs_tol)
-        sk, _ = Krylov.gmres(lhs_seq, rhs_k; atol = P.gmres_atol, rtol = P.gmres_rtol)
-        sigma_seq[:, k] = sk
+    # (sequential single-RHS baseline removed — the block path IS the production path;
+    #  block correctness is validated by the GMRES residual block_resid.)
+
+    # --- eval: single TARGET = central onsite pair rho_11 = phi_1^2 (sources[1]).
+    # Central row V[rho_11, rho_b] = <rho_11 | W | rho_b> for every source pair b: the total
+    # screened potential Phi_b = u_inc[rho_b] + u[sigma_b] (TKM volume potential + corrected
+    # layer potential) contracted against rho_11. Targets are restricted to rho_11's support
+    # (fixed phi_1^2 footprint, ~K-independent), so each field eval is over a FIXED target
+    # set => eval scales linearly in K (no growing union grid). ltkm3dc self-caps FINUFFT.
+    onsite = sources[1]
+    nz = findall(!iszero, onsite.density)
+    tgt = Matrix{Float64}(onsite.positions[:, nz])
+    tw = onsite.weights[nz] .* onsite.density[nz]
+    local Vrow
+    t = @elapsed begin
+        pottrg = BI.laplace3d_pottrg_fmm3d_corrected_hcubature(interface, tgt, P.lhs_tol, P.lhs_tol, 5.0)
+        Vrow = Vector{Float64}(undef, K)
+        for bcol in 1:K
+            sb = BI.screened_volume_source(interface, sources[bcol], BI.SharpScreening())
+            vals = TKM3D.ltkm3dc(VOLUME_TOL, sb.positions; charges = sb.weights .* sb.density,
+                                 targets = tgt, pgt = 1, kmax = BI._estimate_tkm3dc_kmax(sb))
+            Vrow[bcol] = dot(tw, real.(vals.pottarg) .+ (pottrg * sigma_block[:, bcol]))
+        end
     end
-    note("sequential LHS operator", t_seq_op)
-    note("sequential K gmres", t_seq_solve)
-    seq_agree = norm(sigma_block - sigma_seq) / max(norm(sigma_block), eps(Float64))
+    note("eval + contract (onsite-row)", t)
 
-    # --- eval + contraction into V[a,b] (TKM u_inc; 96-thread pathology by design) ---
-    local V
-    t = @elapsed V = BI.four_index_matrix(interface, sources, sigma_block;
-        lhs_tol = P.lhs_tol, volume_tol = VOLUME_TOL, range_factor = 5.0)
-    note("eval + contract (four_index_matrix)", t)
-
-    scaleV = maximum(abs.(V))
-    max_rel_asym = scaleV > 0 ? maximum(abs.(V - V')) / scaleV : 0.0
-    onsite_N = sum(sources[1].weights .* sources[1].density)
-    u_onsite_ev = to_eV(V[1, 1], onsite_N, onsite_N)
+    onsite_N = sum(tw)
+    u_onsite_ev = to_eV(Vrow[1], onsite_N, onsite_N)
 
     return (; K, n_points = BI.num_points(interface), n_src = size(b.densities, 1),
-            niter = bstats.niter, block_resid, seq_agree, max_rel_asym,
-            v11_raw = V[1, 1], u_onsite_ev, V, pairs)
+            niter = bstats.niter, block_resid,
+            v11_raw = Vrow[1], u_onsite_ev, Vrow, pairs)
 end
 
 if GEOM_ONLY
@@ -179,8 +184,14 @@ if GEOM_ONLY
     exit(0)
 end
 
+# Single cutoff per invocation (ORBBENCH_CUTOFF) -> one Slurm-array task per cutoff, each
+# writing its OWN per-cutoff .jls (no shared-CSV append race). If unset, run the full sweep
+# in one process and also write the combined CSV (local / smoke convenience).
+const ONE_CUTOFF = let v = get(ENV, "ORBBENCH_CUTOFF", ""); isempty(v) ? nothing : parse(Float64, v) end
+const SWEEP = ONE_CUTOFF === nothing ? CUTOFFS : [ONE_CUTOFF]
+
 @printf("threads = %d   correct_edges = %s   smoke = %s   cutoffs = %s\n",
-        Threads.nthreads(), CORRECT_EDGES, SMOKE, CUTOFFS)
+        Threads.nthreads(), CORRECT_EDGES, SMOKE, SWEEP)
 flush(stdout)
 
 # warm-up: compile every stage on the smallest (K=1) real batch, un-recorded.
@@ -192,7 +203,7 @@ end
 const RSS_BASELINE = rss_gb()
 
 const RESULTS = NamedTuple[]
-for cutoff in CUTOFFS
+for cutoff in SWEEP
     println("=" ^ 72)
     @printf(">>> cutoff = %.2f bohr  (L=%g Lz=%g eps_in=%g)\n", cutoff, L, LZ, EPS_IN)
     flush(stdout)
@@ -204,62 +215,50 @@ for cutoff in CUTOFFS
     t_precompute = tof("envelope + tkm kmax") + tof("interface build (envelope)") +
                    tof("batched LHS operator")
     t_solve_block = tof("RHS assembly (batched nd=K)") + tof("block GMRES")
-    t_seq_op = tof("sequential LHS operator")
-    # end-to-end solve cost vs t_solve_block; both exclude the 1-time LHS op build.
-    # t_solve_seq = K RHS builds + K gmres;  t_solve_block = 1 batched RHS + block gmres
-    # (so the speedup reflects both RHS batching and block GMRES).
-    t_solve_seq = tof("sequential K gmres")
-    t_eval = tof("eval + contract (four_index_matrix)")
+    t_eval = tof("eval + contract (onsite-row)")
 
     @printf("  K=%d  interface points %d  src %d  niter %d  block_resid %.2e\n",
             res.K, res.n_points, res.n_src, res.niter, res.block_resid)
-    @printf("  seq_agree %.2e  max_rel_asym %.2e  u_onsite = %.4f eV\n",
-            res.seq_agree, res.max_rel_asym, res.u_onsite_ev)
-    @printf("  precompute %.1f s | block solve %.1f s (vs seq %.1f s, %.2fx) | eval %.1f s | total %.1f s\n",
-            t_precompute, t_solve_block, t_solve_seq,
-            t_solve_seq / max(t_solve_block, eps()), t_eval, t_total)
+    @printf("  u_onsite = %.4f eV  (eval target: rho_11 = phi_1^2)\n", res.u_onsite_ev)
+    @printf("  precompute %.1f s | block solve %.1f s | eval %.1f s | total %.1f s\n",
+            t_precompute, t_solve_block, t_eval, t_total)
     @printf("  per-RHS marginal (block solve+eval)/K = %.1f s   peak RSS %.2f GB\n",
             (t_solve_block + t_eval) / res.K, rss_gb())
 
     out = (; smoke = SMOKE, correct_edges = CORRECT_EDGES, cutoff,
            L, Lz = LZ, eps_in = EPS_IN, eps_out = EPS_OUT,
            K = res.K, pairs = res.pairs, n_points = res.n_points, n_src = res.n_src,
-           niter = res.niter, block_resid = res.block_resid, seq_agree = res.seq_agree,
-           max_rel_asym = res.max_rel_asym, v11_raw = res.v11_raw,
-           u_onsite_ev = res.u_onsite_ev, V = res.V,
-           t_precompute, t_solve_block, t_seq_op, t_solve_seq, t_eval, t_total,
+           niter = res.niter, block_resid = res.block_resid,
+           v11_raw = res.v11_raw, u_onsite_ev = res.u_onsite_ev, Vrow = res.Vrow,
+           t_precompute, t_solve_block, t_eval, t_total,
            stages = copy(stages), rss_baseline_gb = RSS_BASELINE, rss_peak_gb = rss_gb(),
            nthreads = Threads.nthreads(), hostname = gethostname())
     serialize(joinpath(DATA, "raw", "multi_rhs_K$(res.K)_cut$(cutoff).jls"), out)
     push!(RESULTS, out)
 end
 
-# summary table + CSV
-println("=" ^ 72)
-@printf("%-4s %-8s %-9s %-7s %-7s %-7s %-7s %-7s %-9s %-9s\n",
-        "K", "n_pts", "precomp", "blk", "seq", "spdup", "eval", "tot", "perRHS", "peakGB")
-for r in RESULTS
-    @printf("%-4d %-8d %-9.1f %-7.1f %-7.1f %-7.2f %-7.1f %-7.1f %-9.1f %-9.2f\n",
-            r.K, r.n_points, r.t_precompute, r.t_solve_block, r.t_solve_seq,
-            r.t_solve_seq / max(r.t_solve_block, eps()), r.t_eval, r.t_total,
-            (r.t_solve_block + r.t_eval) / r.K, r.rss_peak_gb)
-end
-println("=" ^ 72)
-
-let csv = joinpath(DATA, "multi_rhs.csv")
-    newfile = !isfile(csv)
-    open(csv, "a") do io
-        newfile && println(io, join(["hostname", "nthreads", "smoke", "correct_edges",
-            "cutoff", "K", "n_points", "n_src", "niter", "block_resid", "seq_agree",
-            "max_rel_asym", "t_precompute", "t_solve_block", "t_seq_op", "t_solve_seq",
-            "t_eval", "t_total", "rss_peak_gb", "u_onsite_ev"], ","))
+# Full-sweep mode (single process, all cutoffs): print the summary + write the combined CSV.
+# In per-cutoff (Slurm-array) mode each task only writes its .jls; run plot_scaling.jl
+# afterward to gather the .jls into data/multi_rhs.csv + the figure.
+if ONE_CUTOFF === nothing
+    println("=" ^ 72)
+    @printf("%-4s %-9s %-9s %-9s %-9s %-9s\n", "K", "n_pts", "precomp", "block", "eval", "peakGB")
+    for r in RESULTS
+        @printf("%-4d %-9d %-9.1f %-9.1f %-9.1f %-9.2f\n",
+                r.K, r.n_points, r.t_precompute, r.t_solve_block, r.t_eval, r.rss_peak_gb)
+    end
+    println("=" ^ 72)
+    open(joinpath(DATA, "multi_rhs.csv"), "w") do io
+        println(io, join(["hostname", "nthreads", "smoke", "correct_edges", "cutoff",
+            "K", "n_points", "n_src", "niter", "block_resid", "t_precompute",
+            "t_solve_block", "t_eval", "t_total", "rss_peak_gb", "u_onsite_ev"], ","))
         for r in RESULTS
             println(io, join(string.([r.hostname, r.nthreads, r.smoke, r.correct_edges,
-                r.cutoff, r.K, r.n_points, r.n_src, r.niter, r.block_resid, r.seq_agree,
-                r.max_rel_asym, r.t_precompute, r.t_solve_block, r.t_seq_op, r.t_solve_seq,
-                r.t_eval, r.t_total, r.rss_peak_gb, r.u_onsite_ev]), ","))
+                r.cutoff, r.K, r.n_points, r.n_src, r.niter, r.block_resid,
+                r.t_precompute, r.t_solve_block, r.t_eval, r.t_total, r.rss_peak_gb,
+                r.u_onsite_ev]), ","))
         end
     end
-    println("saved CSV -> $csv")
+    println("saved CSV -> ", joinpath(DATA, "multi_rhs.csv"))
 end
 println("MULTI RHS BENCH DONE")

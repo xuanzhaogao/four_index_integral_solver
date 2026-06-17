@@ -9,7 +9,7 @@
 # nthreads-cap fix (branch finufft-nthreads-cap) active in the TKM3D the env resolves.
 # Submit yourself:  sbatch slurm/pvf_multi_rhs.sbatch
 #SBATCH --job-name=pvf_multi_rhs
-#SBATCH --partition=gen
+#SBATCH --partition=ccm
 #SBATCH --constraint=genoa
 #SBATCH --nodes=1
 #SBATCH --exclusive

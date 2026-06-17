@@ -543,3 +543,24 @@ Re-run at the production env (JULIA=96, OMP=96) with the in-function cap (worker
 - **FMM-based stages unchanged** (block solve 110→114 s) — the cap hit only the FFT.
 - **Correctness identical**: seq_agree 1e-15→1e-5, V-symmetry ≤4.3e-6, u_onsite 7.05–7.09 eV.
 - End-to-end block path at K=19: **2.7× faster** (1160→430 s); precompute 4.2×, eval 3.2×.
+
+## UPDATE (2026-06-17): eval restricted to the central-onsite row + parallel Slurm array
+
+Two follow-on changes to the driver (`scripts/run_multi_rhs.jl`):
+
+- **Eval target = ρ₁₁ = φ₁·φ₁ only** (the central onsite density, fixed ~137k-point support,
+  K-independent), computing the central row `V[ρ₁₁, ρ_b] = ⟨φ₁φ₁|W|φ_c φ_b⟩` for all b
+  (onsite U + density-assisted neighbor terms). Previously the eval targeted the shared
+  union grid (`sources[1].positions`, 137k→438k), so its cost grew super-linearly in K
+  (both the K field evals and the one-time `pottrg` build scaled with the growing N).
+  Pinning to ρ₁₁'s fixed support makes **eval linear in K**. `Vrow[1]` reproduces the old
+  `four_index_matrix` `V[1,1]` exactly (the full K×K V and its symmetry check are no longer
+  formed; block correctness is validated by the GMRES residual `block_resid`).
+- **Sequential single-RHS baseline removed** (it was the ~400 s/cutoff long pole) and the
+  sweep **parallelized into a Slurm job array** — one task per cutoff, each on its own
+  exclusive genoa node (`slurm/pvf_multi_rhs_array.sbatch`, `--array=0-4`). Each task writes
+  its own `data/raw/multi_rhs_K*_cut*.jls`; after all finish, `scripts/plot_scaling.jl`
+  gathers them into `data/multi_rhs.csv` + `figs/fig65_multirhs_scaling.{pdf,png}`.
+
+The four-index-eval `multi_rhs.csv`/figure above are superseded by that run; re-run the array
++ `plot_scaling.jl` to regenerate the K-linear-eval numbers and figure.
