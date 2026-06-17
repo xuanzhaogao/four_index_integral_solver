@@ -562,5 +562,19 @@ Two follow-on changes to the driver (`scripts/run_multi_rhs.jl`):
   its own `data/raw/multi_rhs_K*_cut*.jls`; after all finish, `scripts/plot_scaling.jl`
   gathers them into `data/multi_rhs.csv` + `figs/fig65_multirhs_scaling.{pdf,png}`.
 
-The four-index-eval `multi_rhs.csv`/figure above are superseded by that run; re-run the array
-+ `plot_scaling.jl` to regenerate the K-linear-eval numbers and figure.
+Results (genoa, one node per cutoff via array job 6521211; `data/multi_rhs.csv`,
+`figs/fig65_multirhs_scaling.{pdf,png}`). These supersede the four-index-eval table above:
+
+| K | interface pts | precompute (s) | block solve (s) | eval onsite-row (s) | total (s) | peak RSS (GB) |
+|--:|--:|--:|--:|--:|--:|--:|
+| 1  | 960768 | 35.7 | 20.4  | 61.2  | 119 | 17.9  |
+| 4  | 960768 | 35.0 | 36.6  | 101.6 | 177 | 40.2  |
+| 10 | 960984 | 40.0 | 62.0  | 173.1 | 283 | 89.1  |
+| 13 | 960552 | 40.9 | 76.6  | 204.9 | 333 | 112.7 |
+| 19 | 960984 | 39.3 | 108.3 | 261.0 | 422 | 162.8 |
+
+- **precompute flat ~38 s** (K-independent); **eval now ≈ linear in K** (~50 s floor + ~11 s/K,
+  vs the super-linear growth when targets were the growing union grid); block solve grows with
+  K. End-to-end at K=19 = **422 s on one node** (block path).
+- Each cutoff ran as its own array task in 4–10 min; the 5 ran in **parallel (~10 min wall)**.
+- u_onsite stable at 7.05–7.09 eV across K; block_resid ~5e-6.
