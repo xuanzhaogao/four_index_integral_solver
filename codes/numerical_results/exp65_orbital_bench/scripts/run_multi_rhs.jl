@@ -152,9 +152,15 @@ function run_pipeline(b, pairs, stages::Vector; record::Bool)
     nz = findall(!iszero, onsite.density)
     tgt = Matrix{Float64}(onsite.positions[:, nz])
     tw = onsite.weights[nz] .* onsite.density[nz]
+    # eval-side PRECOMPUTE: corrected layer-potential map over the fixed rho_11 targets,
+    # built ONCE and applied per source pair (K-independent — counted separately from the
+    # per-RHS eval so eval/K reflects the true per-pair field-eval cost).
+    local pottrg
+    t = @elapsed pottrg = BI.laplace3d_pottrg_fmm3d_corrected_hcubature(interface, tgt, P.lhs_tol, P.lhs_tol, 5.0)
+    note("eval pottrg build", t)
+    # real eval: K field evaluations (TKM u_inc + scattered apply) + contraction.
     local Vrow
     t = @elapsed begin
-        pottrg = BI.laplace3d_pottrg_fmm3d_corrected_hcubature(interface, tgt, P.lhs_tol, P.lhs_tol, 5.0)
         Vrow = Vector{Float64}(undef, K)
         for bcol in 1:K
             sb = BI.screened_volume_source(interface, sources[bcol], BI.SharpScreening())
@@ -163,7 +169,7 @@ function run_pipeline(b, pairs, stages::Vector; record::Bool)
             Vrow[bcol] = dot(tw, real.(vals.pottarg) .+ (pottrg * sigma_block[:, bcol]))
         end
     end
-    note("eval + contract (onsite-row)", t)
+    note("eval (onsite-row, K field evals)", t)
 
     onsite_N = sum(tw)
     u_onsite_ev = to_eV(Vrow[1], onsite_N, onsite_N)
@@ -215,13 +221,14 @@ for cutoff in SWEEP
     t_precompute = tof("envelope + tkm kmax") + tof("interface build (envelope)") +
                    tof("batched LHS operator")
     t_solve_block = tof("RHS assembly (batched nd=K)") + tof("block GMRES")
-    t_eval = tof("eval + contract (onsite-row)")
+    t_pottrg = tof("eval pottrg build")                # eval-side precompute (K-independent)
+    t_eval = tof("eval (onsite-row, K field evals)")   # real per-RHS eval (K field evals)
 
     @printf("  K=%d  interface points %d  src %d  niter %d  block_resid %.2e\n",
             res.K, res.n_points, res.n_src, res.niter, res.block_resid)
     @printf("  u_onsite = %.4f eV  (eval target: rho_11 = phi_1^2)\n", res.u_onsite_ev)
-    @printf("  precompute %.1f s | block solve %.1f s | eval %.1f s | total %.1f s\n",
-            t_precompute, t_solve_block, t_eval, t_total)
+    @printf("  precompute %.1f s | pottrg %.1f s | block solve %.1f s | eval %.1f s | total %.1f s\n",
+            t_precompute, t_pottrg, t_solve_block, t_eval, t_total)
     @printf("  per-RHS marginal (block solve+eval)/K = %.1f s   peak RSS %.2f GB\n",
             (t_solve_block + t_eval) / res.K, rss_gb())
 
@@ -230,7 +237,7 @@ for cutoff in SWEEP
            K = res.K, pairs = res.pairs, n_points = res.n_points, n_src = res.n_src,
            niter = res.niter, block_resid = res.block_resid,
            v11_raw = res.v11_raw, u_onsite_ev = res.u_onsite_ev, Vrow = res.Vrow,
-           t_precompute, t_solve_block, t_eval, t_total,
+           t_precompute, t_pottrg, t_solve_block, t_eval, t_total,
            stages = copy(stages), rss_baseline_gb = RSS_BASELINE, rss_peak_gb = rss_gb(),
            nthreads = Threads.nthreads(), hostname = gethostname())
     serialize(joinpath(DATA, "raw", "multi_rhs_K$(res.K)_cut$(cutoff).jls"), out)
@@ -242,21 +249,21 @@ end
 # afterward to gather the .jls into data/multi_rhs.csv + the figure.
 if ONE_CUTOFF === nothing
     println("=" ^ 72)
-    @printf("%-4s %-9s %-9s %-9s %-9s %-9s\n", "K", "n_pts", "precomp", "block", "eval", "peakGB")
+    @printf("%-4s %-9s %-9s %-8s %-9s %-9s %-9s\n", "K", "n_pts", "precomp", "pottrg", "block", "eval", "peakGB")
     for r in RESULTS
-        @printf("%-4d %-9d %-9.1f %-9.1f %-9.1f %-9.2f\n",
-                r.K, r.n_points, r.t_precompute, r.t_solve_block, r.t_eval, r.rss_peak_gb)
+        @printf("%-4d %-9d %-9.1f %-8.1f %-9.1f %-9.1f %-9.2f\n",
+                r.K, r.n_points, r.t_precompute, r.t_pottrg, r.t_solve_block, r.t_eval, r.rss_peak_gb)
     end
     println("=" ^ 72)
     open(joinpath(DATA, "multi_rhs.csv"), "w") do io
         println(io, join(["hostname", "nthreads", "smoke", "correct_edges", "cutoff",
-            "K", "n_points", "n_src", "niter", "block_resid", "t_precompute",
+            "K", "n_points", "n_src", "niter", "block_resid", "t_precompute", "t_pottrg",
             "t_solve_block", "t_eval", "t_total", "rss_peak_gb", "u_onsite_ev"], ","))
         for r in RESULTS
             println(io, join(string.([r.hostname, r.nthreads, r.smoke, r.correct_edges,
                 r.cutoff, r.K, r.n_points, r.n_src, r.niter, r.block_resid,
-                r.t_precompute, r.t_solve_block, r.t_eval, r.t_total, r.rss_peak_gb,
-                r.u_onsite_ev]), ","))
+                r.t_precompute, r.t_pottrg, r.t_solve_block, r.t_eval, r.t_total,
+                r.rss_peak_gb, r.u_onsite_ev]), ","))
         end
     end
     println("saved CSV -> ", joinpath(DATA, "multi_rhs.csv"))
