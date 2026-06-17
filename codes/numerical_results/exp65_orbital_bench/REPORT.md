@@ -616,3 +616,26 @@ per-RHS eval; `data/multi_rhs.csv`, `figs/fig65_multirhs_scaling.{pdf,png}`):
   the FFT backend; it is the next thing to cache/optimize (built once per target set).
 - precompute flat ~35–48 s; block solve ~linear (~6 s/RHS asymptote); peak RAM unchanged
   (block-GMRES driven); u_onsite 7.05–7.09 eV; block_resid ~5e-6.
+
+## UPDATE (2026-06-17): eval-target bug fix — rho_11 core, not the whole union
+
+The pottrg "growth with K" above was a **target-selection bug**: the eval used
+`findall(!iszero, rho_11)`, but every union grid point has phi_1 != 0 (union ⊆ supp(phi_1)),
+so rho_11 = phi_1^2 is nonzero at *every* union point → that returned the **whole growing union**
+(137k→438k), not a fixed core. Fixed by thresholding rho_11 at `support_rtol·max` → its
+significant phi_1^2 support = **136,580 at every K** (verified). With the fixed target
+(array 6521546, DUCC@96):
+
+| K | precompute (s) | pottrg (s) | block solve (s) | eval/RHS-loop (s) | total (s) | peak RSS (GB) |
+|--:|--:|--:|--:|--:|--:|--:|
+| 1  | 35.2 | 63.6  | 20.6  | 2.6  | 126 | 16.6  |
+| 4  | 46.1 | 100.7 | 37.5  | 14.5 | 204 | 40.1  |
+| 10 | 38.5 | 59.0  | 65.4  | 35.8 | 207 | 89.0  |
+| 13 | 36.4 | 59.1  | 79.3  | 43.6 | 231 | 113.4 |
+| 19 | 39.4 | 53.4  | 112.0 | 66.2 | 285 | 163.4 |
+
+- **pottrg now ~constant ~53–64 s** (K=19: 172 → 53 s vs the union-target run) — it IS a fixed
+  eval-side precompute now, as expected. (K=4's 100.7 s is a slower-node outlier.)
+- eval/K flat ~3.5 s/pair; total K=19 = 285 s (−130 s from the target fix).
+- u_onsite 7.090→7.104 across K (~0.2% drift from the per-cutoff envelope-refined interface,
+  not the eval target); block_resid ~5e-6. This run supersedes the union-target table above.
