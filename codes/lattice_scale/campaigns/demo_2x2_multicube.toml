@@ -1,0 +1,93 @@
+# campaigns/demo_2x2.toml — correctness anchor (spec §8.1): 2x2 graphene supercell.
+# 8 orbitals: 2 sublattice types × Rx∈{0,1} × Ry∈{0,1}.
+# Positions = sublattice density centroid + Rx*a1 + Ry*a2 (bohr).
+# a1 = [2.465, 0, 0], a2 = [-1.2325, 2.1347526, 0] (graphene hexagonal lattice).
+name = "demo_2x2_multicube"
+root = "/mnt/ceph/users/xgao1/four_index/demo_2x2_multicube"
+templates = [
+  "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf",
+  "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf",
+]
+
+# Rx=0 Ry=0
+[[orbital]]
+type = 1
+x = 0.00093991
+y = 0.00092506
+z = 7.49999990
+
+[[orbital]]
+type = 2
+x = -0.00013665
+y = 1.42319335
+z = 7.49999990
+
+# Rx=1 Ry=0
+[[orbital]]
+type = 1
+x = 2.46593991
+y = 0.00092506
+z = 7.49999990
+
+[[orbital]]
+type = 2
+x = 2.46486335
+y = 1.42319335
+z = 7.49999990
+
+# Rx=0 Ry=1
+[[orbital]]
+type = 1
+x = -1.23156009
+y = 2.13567766
+z = 7.49999990
+
+[[orbital]]
+type = 2
+x = -1.23263665
+y = 3.55794595
+z = 7.49999990
+
+# Rx=1 Ry=1
+[[orbital]]
+type = 1
+x = 1.23343991
+y = 2.13567766
+z = 7.49999990
+
+[[orbital]]
+type = 2
+x = 1.23236335
+y = 3.55794595
+z = 7.49999990
+
+[pairing]
+neighbor_cutoff = 2.6        # nn + same-cell sublattice pairs (a = 2.465, intra-cell 1.42)
+
+[dielectrics]
+eps_out = 1.0
+# small multicube (validation only): two 20^3 cubes (eps 11.9 | 3.9) sharing x=0.62, with a
+# 20x20x9 slab (eps 10, z in [3,12]) on top — the exp66 heterojunction shrunk so the
+# multi-region screening path is exercised cheaply. Junction under the 2x2 centroid.
+boxes = [
+  [-9.38, 1.78, -7.0, 20.0, 20.0, 20.0, 11.9],
+  [10.62, 1.78, -7.0, 20.0, 20.0, 20.0, 3.9],
+  [0.62, 1.78, 7.5, 20.0, 20.0, 9.0, 10.0],
+]
+
+[solve]
+n_quad = 6
+edge_refine_level = 2
+rhs_tol = 1e-3
+lhs_tol = 1e-5
+gmres_rtol = 1e-5
+support_rtol = 1e-4
+volume_tol = 1e-5
+max_order = 8
+max_depth = 128
+
+[batching]
+n_centers_per_batch = 1
+
+[eval]
+far_pad_steps = 2.0
