@@ -49,29 +49,31 @@ open(joinpath(DATA, "multi_rhs.csv"), "w") do io
 end
 
 const C = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00"]  # Okabe-Ito
-xlab = L"K\;\;(\text{right-hand sides / pair densities})"
+xlab = L"K"
 
 begin
-    fig = Figure(size = (880, 350))
+    fig = Figure(size = (1000, 400), fontsize = 18)
 
-    ax1 = Axis(fig[1, 1]; xlabel = xlab, ylabel = "runtime (s)", xticks = K, title = "(a) runtime vs K", xscale = log10, yscale = log10)
-    # fixed (K-independent) costs as their average level -> dashed hlines
-    hlines!(ax1, [sum(t_pre) / length(t_pre)]; color = C[1], linestyle = :dash, linewidth = 2, label = "precompute (avg)")
-    hlines!(ax1, [sum(t_pot) / length(t_pot)]; color = C[5], linestyle = :dash, linewidth = 2, label = "pottrg build (avg)")
-    # K-dependent costs vs K
-    scatterlines!(ax1, K, t_blk; color = C[2], marker = :circle, label = "block solve")
-    scatterlines!(ax1, K, t_evl; color = C[3], marker = :circle, label = "eval (onsite row)")
-    scatterlines!(ax1, K, t_tot; color = :black, marker = :rect, linewidth = 2, label = "total")
-    axislegend(ax1; position = :lt, framevisible = false, labelsize = 9)
+      ax1 = Axis(fig[1,1]; xlabel=xlab, ylabel="runtime (s)", xticks=K, xscale=log10, yscale=log10)
+    # reference slopes (faint guides)
+    lines!(ax1, K, fill(sum(t_pre)/length(t_pre), length(K)); color=:gray80)          # slope 0
+    lines!(ax1, K, t_evl[1] .* K;                              color=:gray80, linestyle=:dot) # slope 1 (∝K)
+    # fixed costs as their average level
+    hlines!(ax1, [sum(t_pre)/length(t_pre)]; color=C[1], linestyle=:dash, linewidth=2, label="precompute")
+    hlines!(ax1, [sum(t_pot)/length(t_pot)]; color=C[5], linestyle=:dash, linewidth=2, label="pottrg build")
+    # scaling costs vs K
+    scatterlines!(ax1, K, t_blk; color=C[2], marker=:circle, label="block solve")
+    scatterlines!(ax1, K, t_evl; color=C[3], marker=:circle, label="eval")
+    scatterlines!(ax1, K, t_tot; color=:black, marker=:rect, linewidth=2, label="total")
+    axislegend(ax1; position=:rb, labelsize=16)
+    ylims!(ax1, 1.0, 10^(2.5))
 
-    ax2 = Axis(fig[1, 2]; xlabel = xlab, ylabel = "peak RSS (GB)", xticks = K, title = "(b) peak memory vs K")
+    ax2 = Axis(fig[1, 2]; xlabel = xlab, ylabel = "peak RAM (GB)", xticks = K)
     scatterlines!(ax2, K, rss; color = C[4], marker = :circle)
     length(K) > 1 && hlines!(ax2, [rss[1]]; color = :gray70, linestyle = :dot)
+    ylims!(ax2, 0, 180)
 
     fig
 end
 
 save(joinpath(FIGS, FIGNAME * ".pdf"), fig)
-save(joinpath(FIGS, FIGNAME * ".png"), fig; px_per_unit = 2)
-println("gathered ", length(K), " cutoffs (K = ", K, ") -> ", joinpath(DATA, "multi_rhs.csv"),
-        " + figs/", FIGNAME, ".{pdf,png}")

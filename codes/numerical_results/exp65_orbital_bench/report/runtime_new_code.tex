@@ -5,6 +5,7 @@
 \usepackage{siunitx}
 \usepackage{tikz}
 \usepackage{xcolor}
+\usepackage{graphicx}
 
 \sisetup{round-mode=places, round-precision=2, group-digits=integer}
 
@@ -139,6 +140,159 @@ evaluation ($u_{\mathrm{int}}$) is essentially free.}
       \texttt{cache\_fft} fine-grid storage; the standard field
       (\texttt{cache\_fft = false}) peaks at $\sim\SI{14}{\giga\byte}$ with
       $u_{\mathrm{int}}\approx\SI{0.4}{\second}$.
+\end{itemize}
+
+\section{Multiple right-hand sides}
+
+The four-index matrix is assembled by solving many right-hand sides on
+\emph{one} shared interface. We benchmark a central graphene $p_z$ orbital
+together with its lattice neighbours (the \texttt{lattice\_scale} demo
+convention): $K$ pair densities $\rho_{1j}=\phi_1\phi_j$ (on-site plus
+neighbour shells out to a cutoff) are solved together as a batched
+$n_d{=}K$ FMM operator with block GMRES, and the central row of the Coulomb
+matrix, $V[\rho_{11},\rho_j]$, is evaluated on the fixed on-site target set.
+The neighbour cutoff controls $K$. To run at the full 96 threads we use the
+\textbf{ducc0 FFT backend} for FINUFFT: the stock FFTW build has a
+$\sim$50$\times$ 96-thread plan pathology on these upsampled mode grids, which
+cripples \emph{both} the interface build and the evaluation. Each cutoff runs
+as its own Slurm-array task on a dedicated 96-core genoa node (2026-06-17).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{r r r r r r r}
+\toprule
+$K$ & Precompute & pottrg build & Block solve & Eval & Total & Peak RAM\\
+    & (s) & (s) & (s) & (s) & (s) & (GB)\\
+\midrule
+1  & 35.2 & 63.6 & 20.6  & 2.6  & 125.7 & 16.6\\
+4  & 34.5 & 55.6 & 30.1  & 11.7 & 136.1 & 40.1\\
+10 & 38.5 & 59.0 & 65.4  & 35.8 & 206.6 & 89.0\\
+13 & 36.4 & 59.1 & 79.3  & 43.6 & 230.7 & 113.4\\
+19 & 39.4 & 53.4 & 112.0 & 66.2 & 285.0 & 163.4\\
+\bottomrule
+\end{tabular}
+\caption{Per-phase wall-clock time and peak RAM versus the number of
+right-hand sides $K$ (graphene central orbital $+$ neighbour shells; cutoffs
+$0,1.5,2.5,2.9,3.9$~bohr $\to K=1,4,10,13,19$). Warm, ducc0 backend, 96 threads.
+\emph{Precompute} $=$ envelope $+$ interface build $+$ batched LHS;
+\emph{pottrg build} $=$ corrected layer-potential map onto the fixed on-site
+target; \emph{Block solve} $=$ RHS assembly $+$ block GMRES;
+\emph{Eval} $=$ the $K$ on-site-row field evaluations.}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{../figs/fig65_multirhs_scaling.pdf}
+\caption{Per-phase runtime (left) and peak RAM (right) versus $K$. The
+RHS-independent setup costs (precompute, pottrg build) are flat; the block
+solve is sublinear and the eval is linear in $K$; peak RAM grows linearly.}
+\end{figure}
+
+\begin{itemize}
+\item \textbf{Fixed setup amortizes.} Precompute (interface $+$ batched LHS,
+      $\approx\SI{37}{\second}$) and the eval-side \texttt{pottrg} map build
+      ($\approx\SI{58}{\second}$, the corrected layer-potential map over the
+      fixed on-site target) are $K$-independent --- both are paid once per
+      batch and spread over all $K$ right-hand sides. (The $K{=}4$
+      \texttt{pottrg} value was confirmed against a slower-node outlier by a
+      re-run on a normal node, \SI{55.6}{\second}.)
+\item \textbf{Block solve is sublinear} in $K$ ($\sim K^{0.85}$): the batched
+      $n_d{=}K$ FMM amortizes the tree build and near-field setup over the
+      columns, so each added right-hand side is cheaper than the first
+      (\SI{20.6}{\second} at $K{=}1$ vs.\ $\approx\SI{5.5}{\second}$ marginal
+      at large $K$).
+\item \textbf{Eval is linear} in $K$ ($\approx\SI{3.5}{\second}$ per pair): one
+      TKM volume potential plus one corrected layer-potential apply per
+      right-hand side, all on the same fixed on-site target set.
+\item \textbf{Peak RAM grows linearly} ($\approx 18 + 7.5\,K$~GB), set by the
+      block-GMRES $n_d{=}K$ FMM workspace; \SI{163}{\giga\byte} at $K{=}19$ on
+      the \SI{1.5}{\tera\byte} node.
+\item \textbf{ducc0 vs.\ FFTW.} Switching FINUFFT to the ducc0 FFT backend
+      removes the FFTW 96-thread cliff (interface build at cutoff $2.5$:
+      \SI{26}{\second} with ducc0 vs.\ \SI{171}{\second} with FFTW, both at 96
+      threads), letting the whole pipeline run at full 96 threads.
+      $u_{\mathrm{onsite}}\approx\SI{7.10}{\electronvolt}$ across $K$ (midplane
+      orbital convention; cf.\ the \SI{9.88}{\electronvolt} single-RHS value
+      above, which uses the top-face convention).
+\end{itemize}
+
+\section{Multiple right-hand sides on a heterojunction substrate (exp66)}
+
+The same multi-RHS pipeline applied to a multi-dielectric \emph{heterojunction}
+substrate: two $90\times90\times90$ cubes of different permittivity (Si/SiO$_2$,
+$\varepsilon = 11.9\,|\,3.9$) sharing the buried internal face $x=c_x$, with a
+$90\times90\times9$ slab ($\varepsilon=10$) on top, anchored on the central
+graphene $p_z$ orbital (slab centre $=$ orbital centroid, junction directly
+beneath); see Fig.~\ref{fig:mc_system}. The orbital plus its lattice neighbours
+within a cutoff form $K$ pair densities $\rho_{1j}=\phi_1\phi_j$, block-solved on
+one shared interface, and the central row $V[\rho_{11},\rho_{1j}]$ is evaluated.
+The only pipeline change from the single-slab case above is \textbf{box-based
+multi-region screening} (the interface spans three $\varepsilon$ regions, so the
+single-region interface screening cannot be applied); 96 threads run via the
+TKM3D in-function FINUFFT nthreads cap (no DUCC override needed here).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.70\textwidth]{../../exp66_multicube/figs/fig66_system.pdf}
+\caption{The exp66 multicube system rendered with BI.jl's Makie extension
+(\texttt{viz\_3d}): two $90^3$ cubes ($\varepsilon = 11.9\,|\,3.9$) sharing the
+buried face, the slab ($\varepsilon = 10$) on top, and the graphene $p_z$ orbital
+density (dark cluster) at the slab centre over the junction. Coarse interface,
+visualization only.}
+\label{fig:mc_system}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{r r r r r r}
+\toprule
+$K$ & Precompute & Block solve & Eval & Total & Peak RAM\\
+    & (s) & (s) & (s) & (s) & (GB)\\
+\midrule
+1  & 7.3  & 195.2  & 5.4  & 215.4  & 28.4\\
+4  & 12.0 & 402.7  & 27.4 & 454.4  & 75.7\\
+10 & 10.2 & 624.8  & 53.5 & 709.8  & 176.8\\
+13 & 11.3 & 778.9  & 67.5 & 884.7  & 226.1\\
+19 & 8.1  & 1074.0 & 90.6 & 1208.1 & 328.9\\
+\bottomrule
+\end{tabular}
+\caption{exp66 heterojunction: per-phase wall-clock time and peak RAM versus the
+number of right-hand sides $K$ (cutoffs $0,1.5,2.5,2.9,3.9$~bohr $\to
+K=1,4,10,13,19$; 96 threads). The interface is \num{1617264} points,
+\emph{$K$-independent}. The \texttt{pottrg} build is omitted
+($\approx\SI{0.2}{\second}$, negligible --- see below); \emph{Total} is the full
+warm-pipeline wall (it also includes a bare-reference TKM, so it slightly exceeds
+the column sum).}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{../../exp66_multicube/figs/fig66_multicube_scaling.pdf}
+\caption{exp66 per-phase runtime (left), peak RAM (centre), and GMRES iteration
+count (right) versus $K$. Precompute is $K$-independent; the block solve is
+sublinear and the eval linear in $K$; peak RAM grows linearly; the block-GMRES
+iteration count is $\sim$30--36 (vs.\ $\sim$8 for the single-slab system above).}
+\end{figure}
+
+\begin{itemize}
+\item \textbf{Onsite self-energy.} $V[\rho_{11},\rho_{11}]\approx 70.4$ (raw
+      kernel units) against the bare interface-free value
+      $V_{\mathrm{vac}}\approx 590$ --- the environment screens it
+      $\approx 8.4\times$. $V[11]$ is $K$-independent to $\sim$0.2\% (it does not
+      depend on the neighbours) and matches the single-RHS production value
+      ($70.30$, $8.40\times$).
+\item \textbf{Block solve dominates}, sublinear per RHS ($195\to57$~s/RHS);
+      \textbf{eval is linear} ($\approx$5~s/pair); \textbf{precompute is
+      $K$-independent} (interface $=$ \num{1.62}M points).
+\item \textbf{\texttt{pottrg} is negligible} ($\approx\SI{0.2}{\second}$, vs.\
+      $\approx\SI{55}{\second}$ for the graphene slab above): the thick slab
+      keeps the orbital clear of the interface, so the target--panel neighbour
+      list is \emph{empty} (0 hcubature corrections vs.\ 12{,}724 there) and the
+      corrected layer-potential map collapses to its smooth FMM far field.
+\item \textbf{Conditioning.} The high-contrast three-region junction needs
+      30--36 block-GMRES iterations (vs.\ $\sim$8 for the single slab), and the
+      $\sim$\num{1.6}M-point interface drives peak RAM to \SI{329}{\giga\byte} at
+      $K{=}19$ ($\approx 16$~GB/$K$).
 \end{itemize}
 
 \end{document}

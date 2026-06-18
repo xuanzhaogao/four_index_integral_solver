@@ -21,7 +21,7 @@ using Dates
 
 export SystemSpec, system1, system2, slab_system,
        gaussian_source, source_grid_n, screened_source,
-       slab_internal, system_fig1, solve_system, eval_phi, eval_V, vacuum_V,
+       slab_internal, system_fig1, system_multicube, solve_system, eval_phi, eval_V, vacuum_V,
        zone_targets, eval_scatter_with_h0,
        uniform_refine, refine_to_dof,
        bernstein_rho_min, run_provenance, append_csv_row, run_cols, times_cols,
@@ -93,6 +93,34 @@ function system_fig1(; eps1::Float64 = 4.0, eps2::Float64 = 12.0,
          box((0.0, 0.0, 0.5), 10.0, 10.0, 1.0)],     # slab on top, z in [0, 1]
         [eps1, eps2, eps_slab], 1.0,
         (0.0, 0.0, 0.5), s, (0.2, 0.0, 0.5), s)
+end
+
+"""
+6.6 multi-cube system: two L x L x L substrate cubes (eps1 | eps2) sharing the
+internal face x = 0, with an L x L x (L/10) material slab (eps_slab) on top,
+centered over the junction line; Gaussian source at the slab center, fully
+supported inside the slab, V-target an identical Gaussian displaced laterally.
+This is `system_fig1` scaled uniformly by L/10 (default L = 90, cubes Si/SiO2
+eps 11.9/3.9): under uniform spatial scaling the discretization is scale-
+invariant, so DOF/cost at a given (p, r, eps) match fig1 rather than blowing up
+with L. The buried cube-cube face (x = 0), the two slab-cube contact faces, and
+the triple-junction lines (slab-cube-vacuum, slab-Omega1-Omega2) are all present.
+`center` sets the slab center (= source position), placed over the junction; pass
+a real orbital's density centroid to anchor the geometry on it (exp66 p_z run).
+"""
+function system_multicube(; L::Float64 = 90.0, eps1::Float64 = 11.9, eps2::Float64 = 3.9,
+                          eps_slab::Float64 = 10.0, s::Float64 = L / 200,
+                          center::NTuple{3, Float64} = (0.0, 0.0, L / 20))
+    cx, cy, cz = center          # slab center = source center (placed over the junction)
+    h = L / 2
+    tz = L / 10                  # slab thickness (matches fig1's 10:1 slab aspect)
+    czi = cz - tz / 2 - h        # cube center z: cube tops sit at the slab bottom (cz - tz/2)
+    SystemSpec("multicube_L$(L)_eps$(eps1)_$(eps2)_$(eps_slab)",
+        [box((cx - h, cy, czi), L, L, L),   # Omega_1, x in [cx-L, cx]
+         box((cx + h, cy, czi), L, L, L),   # Omega_2, x in [cx, cx+L]
+         box((cx, cy, cz), L, L, tz)],      # slab over the junction, z in [cz-tz/2, cz+tz/2]
+        [eps1, eps2, eps_slab], 1.0,
+        (cx, cy, cz), s, (cx + L / 50, cy, cz), s)
 end
 
 "6.2/6.4 slab: A x A x 0.5 slab (eps 10) + material box (eps 2) at gap g above it."
