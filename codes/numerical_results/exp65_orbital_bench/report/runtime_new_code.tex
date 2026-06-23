@@ -6,6 +6,7 @@
 \usepackage{tikz}
 \usepackage{xcolor}
 \usepackage{graphicx}
+\usepackage{amsmath}
 
 \sisetup{round-mode=places, round-precision=2, group-digits=integer}
 
@@ -293,6 +294,70 @@ iteration count is $\sim$30--36 (vs.\ $\sim$8 for the single-slab system above).
       30--36 block-GMRES iterations (vs.\ $\sim$8 for the single slab), and the
       $\sim$\num{1.6}M-point interface drives peak RAM to \SI{329}{\giga\byte} at
       $K{=}19$ ($\approx 16$~GB/$K$).
+\end{itemize}
+
+\section{Full lattice campaign: 10$\times$10 graphene on the heterojunction}
+
+Production four-index run for the full \textbf{200-orbital} 10$\times$10 graphene
+supercell on the exp66 multicube substrate (`lattice\_scale' campaign
+\texttt{lattice\_10x10\_multicube}). The pairing cutoff (\SI{5.0}{} lattice units)
+gives up to 30 neighbours per bulk centre (6 shells), tapering to 8 at the flake
+corners, for \textbf{2611 distinct pair densities} $\rho_{ij}$ --- the basis of the
+$2611\times2611$ Coulomb tensor $V_{ij,kl}$. Run as a single resumable job on
+\textbf{10 genoa nodes} (one 96-core worker each; \texttt{solve}/\texttt{eval}
+batches distributed via SlurmManager).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{l r l}
+\toprule
+\textbf{Phase} & \textbf{Wall clock} & \textbf{Detail}\\
+\midrule
+prepare      & \SI{8.8}{\minute}   & manifest; mostly one-time \texttt{Pkg.precompile}\\
+solve        & \SI{5.4}{\hour}  & 200 batches, \SI{961}{\second}/batch mean (418--1260), dof $\approx$\,\num{368000}\\
+consolidate  & \SI{2.7}{\minute}   & shared target set (\num{7.4}M pts) $+$ $\rho$-store\\
+eval         & \SI{26.5}{\minute}  & 200 batches, \SI{78}{\second}/batch mean (11--128), \textbf{0 hcubature corrections}\\
+assemble     & \SI{40}{\second} & gather $V$ ($2611^2$) $+$ eV tensor\\
+\midrule
+\textbf{total} & \textbf{\SI{6.0}{\hour}} & 10 nodes ($\approx$\,53 node-hours, solve-dominated)\\
+\bottomrule
+\end{tabular}
+\caption{Per-phase wall-clock of the 10$\times$10 campaign (job 6525415, 10 genoa
+nodes). \texttt{solve} is $\sim$90\% of the wall (200 batches $\times$ $\sim$16~min
+on a $\sim$\num{368000}-point interface, 10-way parallel).}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{../../../lattice_scale/figs/fig_V_ijkl_heatmap.pdf}
+\caption{The four-index tensor $V_{ij,kl}$ (eV, orbital-normalized) for the
+10$\times$10 lattice. Left: $\log_{10}|V|$ over the full $2611\times2611$ tensor
+(pairs in campaign order); the bright diagonal is the pair self-interactions, and
+off-diagonal couplings fall off 3--4 orders of magnitude. Right: the onsite element
+$V_{iiii}$ (Hubbard $U_i$) as a surface over the orbital lattice, IDW-interpolated
+from the 200 sites (black dots). $U_i$ ranges $2.18$ (bulk, maximally screened) to
+\SI{2.59}{\electronvolt} (flake edge), and is lower over the high-$\varepsilon$ Si
+half ($x<5.5$) than the SiO$_2$ half --- the heterojunction signature.}
+\end{figure}
+
+\begin{itemize}
+\item \textbf{Eval is cheap because there are zero near-singular corrections.} The
+      corrected layer-potential map over the \num{7.4}M-target cloud logged
+      \emph{no} hcubature calculations in any of the 200 batches: the graphene
+      orbital plane (targets at $z\approx7.5$, support $\approx[4.8,10.2]$) sits
+      $\approx\SI{1.8}{}$ bohr clear of the slab faces ($z=3,12$), beyond the
+      near-field range of the target-refined panels, so the map collapses to its
+      smooth FMM far field. The README's feared eval blow-up does not occur with a
+      thick host slab (cf.\ exp65's thin monolayer: $\sim$12{,}700 corrections).
+\item \textbf{eV normalization.} $V_{ij,kl} = V^{\mathrm{raw}}\,4\pi E_2/(\lVert\phi_i\rVert
+      \lVert\phi_j\rVert\lVert\phi_k\rVert\lVert\phi_l\rVert)$, $E_2=\SI{14.3996}{\electronvolt\angstrom}$,
+      $\lVert\phi\rVert^2=\int\phi^2$ from the onsite pairs. (Normalizing by the
+      per-pair density norm $\int\rho_{ij}$ instead --- the orbital overlap --- blows
+      up off-diagonal elements, since it $\to0$ for distant pairs.)
+\item \textbf{Quality.} Max relative asymmetry $|V-V^{\mathsf T}|/\max|V| = 5.1\%$,
+      dominated by the low-overlap distant pairs (small, noisy $V$); the dominant
+      onsite/near-neighbour elements are tighter. Tightening \texttt{edge\_refine\_level}
+      ($2\to3$) / \texttt{n\_quad} would reduce it at higher solve cost.
 \end{itemize}
 
 \end{document}
