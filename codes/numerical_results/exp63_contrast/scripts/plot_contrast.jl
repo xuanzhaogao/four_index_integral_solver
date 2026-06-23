@@ -43,6 +43,8 @@ hlines!(ax1, [1e-4]; color = :black, linestyle = :dot)
 text!(ax1, 2.0e5, 1.2e-4; text = L"\varepsilon = 10^{-4}", fontsize = 12)
 axislegend(ax1; position = :rt, framevisible = false, labelsize = 10)
 
+ylims!(ax2, 0, 50)
+
 save(joinpath(FIGS, "fig63_contrast.pdf"), fig)
 save(joinpath(FIGS, "fig63_contrast.png"), fig; px_per_unit = 2)
 println("wrote figs/fig63_contrast.{pdf,png}")
