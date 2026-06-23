@@ -28,6 +28,8 @@ using CairoMakie
 using LaTeXStrings
 using Printf
 
+include(joinpath(@__DIR__, "fig_style.jl"))
+
 # ---------------------------------------------------------------------------
 # Right-panel data
 # ---------------------------------------------------------------------------
@@ -177,7 +179,7 @@ log_pred = log10.(err_pred ./ denom .+ eps())
 # Figure
 # ---------------------------------------------------------------------------
 begin
-    fig = Figure(size = (1050, 420), fontsize = 18)
+    fig = Figure(size = (FIG_W, FIG_H))
 
     # ----- Panel (a): actual error + Klinteberg prediction overlay -----
     ax_a = Axis(fig[1, 1];
@@ -189,7 +191,7 @@ begin
 
     hm = contourf!(ax_a, xt_s, zt_s, log_true;
                    levels   = levels_log,
-                   colormap = :viridis,
+                   colormap = FIELD_CMAP,
                    rasterize = 4)
 
     contour!(ax_a, xt_s, zt_s, log_pred;
@@ -218,14 +220,14 @@ begin
     clip(y) = max(y, floor_y)
 
     scatter!(ax_b, d_list, clip.(E_std);
-             color = (:indigo, 0.85), marker = :circle,
-             markersize = 11, label = "standard")
+             color = QUAL.blue, marker = :circle,
+             markersize = MS, label = "standard")
     scatter!(ax_b, d_list, clip.(E_corr);
-             color = (:seagreen, 0.95), marker = :utriangle,
-             markersize = 12, label = "upsampled")
+             color = QUAL.orange, marker = :utriangle,
+             markersize = MS + 1, label = "upsampled")
 
     hlines!(ax_b, [eps_tol];
-            color = :gray, linestyle = :dash, linewidth = 1.4)
+            color = :gray, linestyle = :dash, linewidth = LW_GUIDE)
     # text!(ax_b, L"\varepsilon = 10^{-12}";
     #       position = (10^(0.55), eps_tol * 2.0),
     #       fontsize = 14, color = :gray)
@@ -238,10 +240,8 @@ begin
     colgap!(fig.layout, 2, 32)
 
     outpath = joinpath(@__DIR__, "figs/fig4_near_correction.pdf")
-    save(outpath, fig; px_per_unit = 4)
-    png_out = replace(outpath, ".pdf" => ".png")
-    save(png_out, fig; px_per_unit = 4)
-    @info "Saved figure" outpath png_out
+    save(outpath, fig; px_per_unit = PX_PER_UNIT)
+    @info "Saved figure" outpath
 
     fig
 end

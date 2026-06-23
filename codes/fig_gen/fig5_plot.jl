@@ -13,6 +13,8 @@ using CairoMakie
 using LaTeXStrings
 using Printf
 
+include(joinpath(@__DIR__, "fig_style.jl"))
+
 const datapath = joinpath(@__DIR__, "fig5_data.jls")
 const data = open(deserialize, datapath, "r")
 
@@ -24,13 +26,13 @@ const err_fmm_n   = data.err_fmm_n
 const err_tkm_eta = data.err_tkm_eta
 const n_for_eta   = data.n_for_eta
 
-const eps_palette = cgrad(:viridis, length(eps_list) + 1, categorical = true)
+const eps_palette = sweep_colors(length(eps_list))
 const eps_colors  = Dict(eps_list[i] => eps_palette[i] for i in 1:length(eps_list))
 
 eps_label(eps) = L"\varepsilon = 10^{%$(round(Int, log10(eps)))}"
 
 begin
-    fig = Figure(size = (1000, 400), fontsize = 18)
+    fig = Figure(size = (FIG_W, FIG_H))
 
     floor_y = 1e-16
     clip(y) = max(y, floor_y)
@@ -47,12 +49,12 @@ begin
     for eps in eps_list
         scatterlines!(ax_a, n_list, clip.(err_tkm_n[eps]);
                       color = eps_colors[eps], marker = :circle,
-                      markersize = 12, linewidth = 2,
+                      markersize = MS, linewidth = LW_DATA,
                       label = L"TKM, $%$(eps_label(eps).s)$")
     end
     scatterlines!(ax_a, n_list, clip.(err_fmm_n[eps_list[end]]);
                   color = :black, marker = :rect,
-                  markersize = 12, linewidth = 2,
+                  markersize = MS, linewidth = LW_DATA,
                   linestyle = :dash,
                   label = L"\text{Direct Sum}")
 
@@ -71,24 +73,22 @@ begin
     for eps in eps_list
         scatterlines!(ax_b, eta_list, clip.(err_tkm_eta[eps]);
                       color = eps_colors[eps], marker = :circle,
-                      markersize = 12, linewidth = 2,
+                      markersize = MS, linewidth = LW_DATA,
                       label = eps_label(eps))
     end
 
     vlines!(ax_b, [1.0]; color = (:black, 0.6),
-            linestyle = :dash, linewidth = 1.5)
+            linestyle = :dash, linewidth = LW_GUIDE)
     text!(ax_b, L"\eta = 1"; position = (1.04, 1e-1),
-          fontsize = 18, color = :black)
+          fontsize = FS_ANNOT, color = :black)
 
     axislegend(ax_b; position = :lb)
 
     colgap!(fig.layout, 1, 30)
 
     outpath = joinpath(@__DIR__, "figs/fig5_tkm_validation.pdf")
-    save(outpath, fig; px_per_unit = 4)
-    png_out = replace(outpath, ".pdf" => ".png")
-    save(png_out, fig; px_per_unit = 4)
-    @info "Saved figure" outpath png_out
+    save(outpath, fig; px_per_unit = PX_PER_UNIT)
+    @info "Saved figure" outpath
 
     fig
 end

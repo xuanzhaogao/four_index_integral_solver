@@ -1,15 +1,12 @@
 #=
-Figure 3 plot script. Loads pre-computed data from fig3_data.jls and
-generates fig3_edge_singularity.png.
+Figure 3 plot script. Loads pre-computed Figure 3 artifacts and generates
+figs/fig3_edge_singularity.pdf.
 
 Layout:
-  (a) 1D slices of |σ| along x at several fixed y values on the +z face. Log
-      y-axis makes the edge singularity at x = ±1 visible; slices closer to
-      y = 1 ride higher overall because they are already near a second edge.
-  (b) Self-convergence of the far-field single-layer potential. For each
-      refinement level we evaluate u_ℓ at a set of targets on a sphere of
-      radius R_far outside the cube; the deepest edge-local level serves as
-      reference, and we plot ||u_ℓ − u_ref||_2 / ||u_ref||_2 vs N.
+  (a) 1D slices of |σ| along x on the +z face for three dielectric contrasts.
+      Log y-axis makes the edge singularity at x = ±1 visible.
+  (b) Charge accuracy for three dielectric contrasts. For each refinement
+      level we plot |∫_Γ σ dS - (1 - 1/ε)| for an interior unit source.
 =#
 
 using Serialization
@@ -20,18 +17,21 @@ using FastGaussQuadrature
 using BoundaryIntegral
 const BI = BoundaryIntegral
 
-const datapath = joinpath(@__DIR__, "fig3_data.jls")
-const data = open(deserialize, datapath, "r")
+include(joinpath(@__DIR__, "fig_style.jl"))
 
-const surfacepath = joinpath(@__DIR__, "fig3_surface_data.jls")
+const surfacepath = joinpath(@__DIR__, "fig3_surface_eps_sweep.jls")
 const surf = open(deserialize, surfacepath, "r")
 
-const pscanpath = joinpath(@__DIR__, "fig3_data_pscan.jls")
-const pscan = open(deserialize, pscanpath, "r")
+const epspath = joinpath(@__DIR__, "fig3_data_eps_sweep.jls")
+const epsdata = open(deserialize, epspath, "r")
 
-# Optional deeper reference (p, k) = (6, 13) from fig3_data_pref.jl.
-const prefpath = joinpath(@__DIR__, "fig3_data_pref.jls")
-const pref = isfile(prefpath) ? open(deserialize, prefpath, "r") : nothing
+const theorypath = joinpath(@__DIR__, "fig3_theory_density.jls")
+const theory = open(deserialize, theorypath, "r")
+const theory_by_contrast = Dict((r.contrast_num, r.contrast_den) => r for r in theory.theory_results)
+
+# Choose panel (b)'s x-axis without regenerating data: :N or :l_min.
+const panel_b_xaxis = :l_min
+@assert panel_b_xaxis in (:N, :l_min)
 
 # ---- Resampler: σ at an arbitrary (x, y) on the +z face ---------------------
 @inline function panel_frame(panel)
@@ -70,27 +70,27 @@ function sigma_on_top_face(interface, sigma_p::Vector{Float64}, x, y, p_quad;
     return NaN
 end
 
-# Build log-spaced d = 1 - x profile per y slice using the saved mesh + σ.
-const profile_ys = [0.0, 0.3, 0.6, 0.9]
+# Build log-spaced d = 1 - x profile for each contrast using saved meshes + σ.
+const profile_y = 0.6
 const profile_d  = 10 .^ range(-4, 0; length = 400)
 let
-    top = top_face_panels(surf.interface, surf.Lz)
-    ns_p = gausslegendre(surf.p_quad)[1]
-    λ_p  = BI.gl_barycentric_weights(gausslegendre(surf.p_quad)...)
-    profile_sigma = Matrix{Float64}(undef, length(profile_d), length(profile_ys))
-    for (jy, yv) in enumerate(profile_ys)
+    profile_sigma = Matrix{Float64}(undef, length(profile_d), length(surf.surface_results))
+    for (ir, r) in enumerate(surf.surface_results)
+        top = top_face_panels(r.interface, surf.Lz)
+        ns_p = gausslegendre(surf.p_quad)[1]
+        λ_p  = BI.gl_barycentric_weights(gausslegendre(surf.p_quad)...)
         for (id, dv) in enumerate(profile_d)
-            profile_sigma[id, jy] = sigma_on_top_face(surf.interface, surf.sigma,
-                                                     1.0 - dv, yv, surf.p_quad;
-                                                     top_panels = top,
-                                                     ns_p = ns_p, λ_p = λ_p)
+            profile_sigma[id, ir] = sigma_on_top_face(r.interface, r.sigma,
+                                                      1.0 - dv, profile_y, surf.p_quad;
+                                                      top_panels = top,
+                                                      ns_p = ns_p, λ_p = λ_p)
         end
     end
     global const PROFILE_SIGMA = profile_sigma
 end
 
 begin
-    fig = Figure(size = (1000, 450), fontsize = 20)
+    fig = Figure(size = (FIG_W, FIG_H))
 
     # ----- Panel (a): |σ| vs distance to the x = 1 edge, log-log ----------
     # Log-spaced sampling using the deepest edge-local mesh, so the curve
@@ -99,53 +99,70 @@ begin
                 xscale = log10, yscale = log10,
                 xlabel = L"d", ylabel = L"|\sigma|")
 
-    colors_a = [:black, :royalblue, :seagreen, :crimson]
-    for (jy, y_val) in enumerate(profile_ys)
-        line = abs.(PROFILE_SIGMA[:, jy])
+    colors_a = sweep_colors(length(surf.surface_results))
+    theory_d = 10 .^ range(-3.5, -0.5; length = 80)
+    theory_anchor_d = 1e-2
+    anchor_idx = argmin(abs.(log.(profile_d ./ theory_anchor_d)))
+    for (ir, r) in enumerate(surf.surface_results)
+        line = abs.(PROFILE_SIGMA[:, ir])
         keep = isfinite.(line) .& (line .> 0)
         lines!(ax_a, profile_d[keep], line[keep];
-               color = colors_a[jy], linewidth = 2,
-               label = L"y = %$(round(y_val; digits = 2))")
-    end
-    axislegend(ax_a; position = :lb)
+               color = colors_a[ir], linewidth = LW_DATA,
+               label = L"\epsilon = %$(round(r.eps_d; sigdigits = 3))")
 
-    # ----- Panel (b): far-field potential self-convergence ----------------
+        theory_r = theory_by_contrast[(r.contrast_num, r.contrast_den)]
+        y_anchor = line[anchor_idx]
+        theory_line = y_anchor .* (theory_d ./ profile_d[anchor_idx]) .^ theory_r.density_power
+        lines!(ax_a, theory_d, theory_line;
+               color = colors_a[ir], linewidth = LW_GUIDE, linestyle = :dash)
+    end
+
+    vlines!(ax_a, [1.01 / 2^l for l in 7:7]; color = :gray, linewidth = LW_GUIDE, linestyle = :dash)
+    text!(ax_a, L"d = l_{\text{min}}", position = (1.2 * 1e-3, 10^(-1.45)), fontsize = FS_ANNOT)
+
+    text!(ax_a, L"O(d^{\beta})", position = (4e-2, 10^(-1.2)),
+           color = :black, fontsize = FS_ANNOT)
+    axislegend(ax_a; position = :rt)
+    ylims!(ax_a, 10^(-1.75), 10^(-0.5))
+
+    # ----- Panel (b): charge-neutrality accuracy --------------------------
     ax_b = Axis(fig[1, 2];
                 xscale = log10, yscale = log10,
-                xlabel = "DOF",
-                ylabel = L"\mathcal{E}_u")
+                xlabel = panel_b_xaxis === :N ? "DOF" : L"\ell_{\min}",
+                ylabel = L"\mathcal{E}_{\sigma}",
+                xreversed = true
+                )
+                # ylabel = L"\left|\int_\Gamma \sigma\,dS - (1 - 1/\epsilon)\right|")
 
-    # Reference u_far: prefer fig3_data_pref.jls (deeper solve, e.g. p=6,k=13).
-    # Fall back to (pscan.ref_p, pscan.ref_k) from the pscan artifact itself.
-    local u_ref, ref_norm, ref_label
-    if pref !== nothing
-        u_ref = pref.u_far
-        ref_label = (p = pref.p_ref, k = pref.k_ref)
-    else
-        rref = first(r for r in pscan.edge_results if r.p == pscan.ref_p)
-        lref = first(l for l in rref.levels if l.k == pscan.ref_k)
-        u_ref = lref.u_far
-        ref_label = (p = pscan.ref_p, k = pscan.ref_k)
-    end
-    ref_norm = sqrt(sum(abs2, u_ref))
-    @info "panel (b) reference" ref_label
-
-    p_colors = [:black, :royalblue, :seagreen, :darkorange, :crimson]
-    for (i, r) in enumerate(pscan.edge_results)
-        Ns   = [l.N for l in r.levels]
-        errs = [sqrt(sum(abs2, l.u_far .- u_ref)) / ref_norm for l in r.levels]
+    eps_colors = sweep_colors(length(epsdata.epsilon_results))
+    for (i, r) in enumerate(epsdata.epsilon_results)
+        xs = panel_b_xaxis === :N ? [l.N for l in r.levels] : [l.l_min for l in r.levels]
+        errs = [l.charge_error_abs for l in r.levels]
         keep = isfinite.(errs) .& (errs .> 0)
-        scatterlines!(ax_b, Ns[keep], errs[keep];
-                      color = p_colors[i],
-                      marker = :circle, markersize = 10, linewidth = 2,
-                      label = L"p = %$(r.p)")
+        scatter!(ax_b, xs[keep], errs[keep];
+                 color = eps_colors[i],
+                 marker = :circle, markersize = MS)
+
+        theory_r = theory_by_contrast[(r.contrast_num, r.contrast_den)]
+        slope = 1 + theory_r.density_power
+        fit_xs = xs[keep]
+        fit_errs = errs[keep]
+        logC = sum(log.(fit_errs) .- slope .* log.(fit_xs)) / length(fit_xs)
+        guide_xs = 10 .^ range(log10(minimum(fit_xs)) - 0.5, log10(maximum(fit_xs)) + 0.5; length = 80)
+        guide_errs = exp(logC) .* guide_xs .^ slope
+        lines!(ax_b, guide_xs, guide_errs;
+               color = eps_colors[i], linewidth = LW_GUIDE, linestyle = :dash)
     end
-    axislegend(ax_b; position = :lb)
+    text!(ax_b, L"O(\ell_{\min}^{\,\beta + 1})", position = (0.015, 10^(-1.5)),
+           color = :black, fontsize = FS_ANNOT)
+
+    ylims!(ax_b, 10^(-5), 10^(-0))
+    xlims!(ax_b, 10^(-0.1), 10^(-2.6))
 
     colgap!(fig.layout, 1, 30)
 
     outpath = joinpath(@__DIR__, "figs", "fig3_edge_singularity.pdf")
-    save(outpath, fig)
+    save(outpath, fig; px_per_unit = PX_PER_UNIT)
     @info "Saved figure" outpath
 
     fig

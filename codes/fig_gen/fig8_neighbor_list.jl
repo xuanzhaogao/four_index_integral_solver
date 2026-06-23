@@ -12,10 +12,11 @@ near-field correction list.
 
 using LinearAlgebra
 using CairoMakie
-using CairoMakie.Colors: red, green, blue
 using GeometryBasics
 using BoundaryIntegral
 const BI = BoundaryIntegral
+
+include(joinpath(@__DIR__, "fig_style.jl"))
 
 # ---------------------------------------------------------------------------
 # System
@@ -116,7 +117,7 @@ const neighbor_set = collect_neighbors(focal_idx, upsample, adaptive)
 # 3D plot
 # ---------------------------------------------------------------------------
 begin
-    fig = Figure(size = (900, 500), fontsize = 18, backgroundcolor = :white)
+    fig = Figure(size = (FIG_W, FIG_H_3D), backgroundcolor = :white)
 
     ax = Axis3(fig[1, 1];
             aspect      = :data,
@@ -126,13 +127,12 @@ begin
     hidedecorations!(ax)
     hidespines!(ax)
 
-    # Color style consistent with the fig2/fig4/fig5 viridis palette: focal
-    # and neighbor panels pulled from a categorical viridis ramp; everything
-    # else rendered as a semi-transparent gray skin so cross-face neighbors
-    # (which sit on the opposite face of the slab) remain visible.
-    const vir            = cgrad(:viridis, 3, categorical = true)
-    const focal_color    = RGBAf(red(vir[3]), green(vir[3]), blue(vir[3]), 1.0)
-    const neighbor_color = RGBAf(red(vir[2]), green(vir[2]), blue(vir[2]), 1.0)
+    # Color style (see fig_style.jl): focal and neighbor panels are highlighted
+    # with the bright qualitative QUAL palette; every other panel is a
+    # semi-transparent gray skin so cross-face neighbors (which sit on the
+    # opposite face of the slab) remain visible.
+    const focal_color    = QUAL.orange
+    const neighbor_color = QUAL.blue
     const other_color    = RGBAf(0.85, 0.85, 0.85, 0.18)
 
     verts_all  = Point3f[]
@@ -184,10 +184,8 @@ begin
         framevisible = false)
 
     outpath = joinpath(@__DIR__, "figs/fig8_neighbor_list.pdf")
-    save(outpath, fig; px_per_unit = 4)
-    png_out = replace(outpath, ".pdf" => ".png")
-    save(png_out, fig; px_per_unit = 4)
-    @info "Saved figure" outpath png_out
+    save(outpath, fig; px_per_unit = PX_PER_UNIT)
+    @info "Saved figure" outpath
 
     fig
 end

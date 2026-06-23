@@ -16,6 +16,8 @@ using LaTeXStrings
 using GeometryBasics
 using Printf
 
+include(joinpath(@__DIR__, "fig_style.jl"))
+
 const datapath = joinpath(@__DIR__, "fig2_data.jls")
 const data = open(deserialize, datapath, "r")
 
@@ -28,13 +30,13 @@ const x0 = data.source.x0
 # Figure
 # ---------------------------------------------------------------------------
 begin
-    fig = Figure(size = (1000, 400), fontsize = 18)
+    fig = Figure(size = (FIG_W, FIG_H))
 
     # Panel (a): 3D cube panelization colored by refinement level
     panel_records = data.panel_records
     levels = [r.depth for r in panel_records]
     lvl_max = maximum(levels)
-    cmap_a = cgrad(:viridis, lvl_max + 1, categorical = true)
+    cmap_a = cgrad(FIELD_CMAP, lvl_max + 1, categorical = true)
 
     ax_a = Axis3(fig[1, 1];
                 aspect = :data,
@@ -92,10 +94,12 @@ begin
                 xscale = log10, yscale = log10,
                 xlabel = "DOF",
                 ylabel = L"\mathcal{E}_f",
+                yticks = ([10.0^i for i in -12:2:0],
+                          [rich("10", superscript(string(i))) for i in -12:2:0]),
                 # title  = "(c) RHS interpolation convergence"
                 )
 
-    p_palette = cgrad(:viridis, length(data.sweeps) + 1, categorical = true)
+    p_palette = sweep_colors(length(data.sweeps))
     for (i, sw) in enumerate(data.sweeps)
         col = p_palette[i]
         Ns_a = [r.N for r in sw.adaptive]
@@ -104,19 +108,22 @@ begin
         Es_u = [r.Ef for r in sw.uniform]
 
         scatterlines!(ax_c, Ns_a, Es_a; color = col, marker = :circle,
-                      markersize = 11, linewidth = 2,
+                      markersize = MS, linewidth = LW_DATA,
                       label = "adaptive, p=$(sw.p)")
         scatterlines!(ax_c, Ns_u, Es_u; color = col, marker = :rect,
-                      markersize = 10, linewidth = 2, linestyle = :dash,
+                      markersize = MS, linewidth = LW_DATA, linestyle = :dash,
                       label = "uniform,  p=$(sw.p)")
     end
-    axislegend(ax_c; position = :lb, nbanks = 1, labelsize = 12)
+    axislegend(ax_c; position = :rt, nbanks = 1)
+    xlims!(ax_c, 10^(1.8), 10^(8.2))
+    ylims!(ax_c, 10^(-12.5), 10^(0.5))
+
 
     colgap!(fig.layout, 1, 6)
     colgap!(fig.layout, 2, 22)
 
     outpath = joinpath(@__DIR__, "figs/fig2_rhs_adaptive.pdf")
-    save(outpath, fig, px_per_unit = 4)
+    save(outpath, fig; px_per_unit = PX_PER_UNIT)
     @info "Saved figure" outpath
 
     fig
