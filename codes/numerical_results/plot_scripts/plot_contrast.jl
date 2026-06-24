@@ -21,31 +21,35 @@ rs_of(e2) = sort([parse(Int, match(r"_r(\d+)\.jls$", f).captures[1])
 # Tol-bright sweep palette, one color per eps2
 col(i) = sweep_colors(5)[mod1(i, 5)]
 
-fig = Figure(size = (FIG_W, FIG_H))
-ax1 = Axis(fig[1, 1]; xscale = log10, yscale = log10,
-    xlabel = L"\mathrm{DOF}\; N", ylabel = L"|V - V_\mathrm{ref}| / |V_\mathrm{ref}|")
-ax2 = Axis(fig[1, 2]; xscale = log10,
-    xlabel = L"\mathrm{DOF}\; N", ylabel = L"N_\mathrm{iter}")
-for (ax, lab) in ((ax1, "(a)"), (ax2, "(b)"))
-    text!(ax, 0, 1; text = lab, space = :relative, align = (:left, :top),
-          offset = (6, -6), font = :bold, fontsize = FS_BASE)
-end
+begin
+    fig = Figure(size = (FIG_W, FIG_H))
+    ax1 = Axis(fig[1, 1]; xscale = log10, yscale = log10,
+        xlabel = "DOF", ylabel = L"\mathcal{E}_{r}")
+    ax2 = Axis(fig[1, 2]; xscale = log10,
+        xlabel = "DOF", ylabel = L"N_\mathrm{iter}")
+    for (ax, lab) in ((ax1, "(a)"), (ax2, "(b)"))
+        text!(ax, 0, 1; text = lab, space = :relative, align = (:left, :top),
+            offset = (6, -6), font = :bold, fontsize = FS_BASE)
+    end
 
-for (i, e2) in enumerate(e2s)
-    rf = load_ref(joinpath(RAW, "ratio_ref_e2_$(e2).jls"))
-    ts = [load_ref(joinpath(RAW, "ratio_test_e2_$(e2)_r$(r).jls")) for r in rs_of(e2)]
-    Ns = [t.N for t in ts]
-    ev = [abs(t.V - rf.V) / abs(rf.V) for t in ts]
-    g = (e2 - 4.0) / (e2 + 4.0)
-    lab = L"\varepsilon_2 = %$(round(Int, e2))\;(\gamma_{12} = %$(round(g; digits = 2)))"
-    scatterlines!(ax1, Ns, ev; color = col(i), marker = :circle,
-        linewidth = LW_DATA, markersize = MS, label = lab)
-    scatterlines!(ax2, Ns, [t.niter for t in ts]; color = col(i), marker = :circle,
-        linewidth = LW_DATA, markersize = MS)
-end
-axislegend(ax1; position = :rt)
+    for (i, e2) in enumerate(e2s)
+        rf = load_ref(joinpath(RAW, "ratio_ref_e2_$(e2).jls"))
+        ts = [load_ref(joinpath(RAW, "ratio_test_e2_$(e2)_r$(r).jls")) for r in rs_of(e2)]
+        Ns = [t.N for t in ts]
+        ev = [abs(t.V - rf.V) / abs(rf.V) for t in ts]
+        g = (e2 - 4.0) / (e2 + 4.0)
+        lab = L"\varepsilon_2 = %$(round(Int, e2))"
+        scatterlines!(ax1, Ns, ev; color = col(i), marker = :circle,
+            linewidth = LW_DATA, markersize = MS, label = lab)
+        scatterlines!(ax2, Ns, [t.niter for t in ts]; color = col(i), marker = :circle,
+            linewidth = LW_DATA, markersize = MS)
+    end
+    axislegend(ax1; position = :lb)
 
-ylims!(ax2, 0, 50)
+    ylims!(ax1, 10^(-4.5), 10^(-1.5))
+    ylims!(ax2, 0, 50)
+    fig
+end
 
 save(joinpath(FIGS, "fig63_contrast.pdf"), fig; px_per_unit = PX_PER_UNIT)
 println("wrote figs/fig63_contrast.pdf")

@@ -36,29 +36,30 @@ begin
         Ns = [d.N for d in s]
         ev = [abs(d.V - ref.V) / abs(ref.V) for d in s]
         scatterlines!(ax1, Ns, ev; color = COL[p], marker = :circle,
-            linewidth = LW_DATA, markersize = MS, label = "p = $p")
+            linewidth = LW_DATA, markersize = MS, label = L"p = %$p")
         scatterlines!(ax2, Ns, [d.niter for d in s]; color = COL[p], marker = :circle,
             linewidth = LW_DATA, markersize = MS)
     end
 
     # no-edge-correction contrast (correct_edges=false): same color per p,
     # dashed + triangles (mirrors fig61_slab_convergence)
-    for p in (2, 4, 6)
+    for p in (2, 4)
         s = load_noedge(p)
         isempty(s) && continue
         Ns = [d.N for d in s]
         ev = [abs(d.V - ref.V) / abs(ref.V) for d in s]
         scatterlines!(ax1, Ns, ev; color = (COL[p], 0.55), marker = :utriangle,
             markersize = MS, linewidth = LW_GUIDE, linestyle = :dash)
+
         scatterlines!(ax2, Ns, [d.niter for d in s]; color = (COL[p], 0.55),
             marker = :utriangle, markersize = MS, linewidth = LW_GUIDE, linestyle = :dash)
     end
     scatterlines!(ax1, [NaN], [NaN]; color = :gray40, marker = :utriangle,
-        linewidth = LW_GUIDE, linestyle = :dash, label = "no edge corr.")
+        linewidth = LW_GUIDE, linestyle = :dash, label = L"\text{no edge corr.}")
 
     axislegend(ax1; position = :lb)
-    ylims!(ax1, 10^(-4.5), 10^(0.2))
-    ylims!(ax2, 0, 140)
+    ylims!(ax1, 10^(-4.5), 10^(-1.5))
+    ylims!(ax2, 15, 30)
 
     save(joinpath(FIGS, "fig61_fig1_convergence.pdf"), fig; px_per_unit = PX_PER_UNIT)
 
