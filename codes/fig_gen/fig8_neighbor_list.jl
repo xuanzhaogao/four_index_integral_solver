@@ -5,9 +5,10 @@ System: Lx × Ly × Lz with edge-corner refinement l_ec, panels carrying
 p×p Gauss-Legendre quadrature. We pick a large panel near the center of
 the +z face and highlight every panel listed as one of its neighbors by
 `BoundaryIntegral.build_neighbor_list` (the upsample dict plus the
-corner-touching adaptive dict). Co-planar same-face panels are excluded
-by design: they are handled by direct same-plane quadrature, not by the
-near-field correction list.
+corner-touching adaptive dict). Neighbors are selected by the Bernstein-radius
+criterion ρ_min(P,Q) ≤ ρ⋆ = ε^{-1/(2p)} (ε = up_atol). Co-planar same-face panels
+are excluded by design: they are handled by direct same-plane quadrature, not by
+the near-field correction list.
 =#
 
 using LinearAlgebra
@@ -25,7 +26,8 @@ const Lx, Ly, Lz       = 30.0, 30.0, 1.0
 const n_quad           = 8
 const l_ec             = 0.1
 const eps_in, eps_out  = 10.0, 1.0
-const range_factor     = 5.0
+const up_atol          = 1e-6       # tolerance ε setting the Bernstein threshold ρ⋆ = ε^{-1/(2p)}
+const max_order        = 64         # cap on the upsample order (selection is independent of it)
 
 @info "Building panelization" Lx Ly Lz n_quad l_ec
 const interface = single_dielectric_box3d(Lx, Ly, Lz, n_quad, l_ec,
@@ -61,7 +63,7 @@ for (i, p) in enumerate(interface.panels)
 end
 @info "  +z face panels" length(top_face_ids)
 
-function pick_focal(panels, ids, target_pt)
+function pick_source(panels, ids, target_pt)
     best_idx = 0
     best     = -Inf
     for i in ids
@@ -78,31 +80,29 @@ function pick_focal(panels, ids, target_pt)
     return best_idx
 end
 
-const focal_idx = pick_focal(interface.panels, top_face_ids,
+const source_idx = pick_source(interface.panels, top_face_ids,
                              (0.0, 0.0, Lz/2))
-const focal     = interface.panels[focal_idx]
-const c_focal   = panel_center(focal)
-const l_focal   = panel_length(focal)
-const r_focal   = range_factor * l_focal / focal.n_quad
-@info "  focal panel" focal_idx c_focal l_focal r_focal area=panel_area(focal)
+const source     = interface.panels[source_idx]
+const c_source   = panel_center(source)
+const l_source   = panel_length(source)
+const rho_star  = up_atol ^ (-1 / (2 * source.n_quad))
+@info "  source panel" source_idx c_source l_source rho_star area=panel_area(source)
 
 # ---------------------------------------------------------------------------
 # Neighbor list from BoundaryIntegral (the actual list used by the solver)
 # ---------------------------------------------------------------------------
-@info "Building neighbor list" range_factor
-const (upsample, adaptive) = BI.build_neighbor_list(interface, 1, 1e-12;
-                                                    distance_only = true,
-                                                    range_factor   = range_factor,
-                                                    correct_edges  = true)
+@info "Building neighbor list (Bernstein ρ_min ≤ ρ⋆ criterion)" up_atol rho_star
+const (upsample, adaptive) = BI.build_neighbor_list(interface, max_order, up_atol;
+                                                    correct_edges = true)
 @info "  near pairs (i,j)" length(upsample) length(adaptive)
 
-function collect_neighbors(focal, pair_dicts...)
+function collect_neighbors(source, pair_dicts...)
     s = Set{Int}()
     for d in pair_dicts
         for (i, j) in keys(d)
-            if i == focal
+            if i == source
                 push!(s, j)
-            elseif j == focal
+            elseif j == source
                 push!(s, i)
             end
         end
@@ -110,8 +110,8 @@ function collect_neighbors(focal, pair_dicts...)
     return s
 end
 
-const neighbor_set = collect_neighbors(focal_idx, upsample, adaptive)
-@info "  neighbors of focal panel" length(neighbor_set)
+const neighbor_set = collect_neighbors(source_idx, upsample, adaptive)
+@info "  neighbors of source panel" length(neighbor_set)
 
 # ---------------------------------------------------------------------------
 # 3D plot
@@ -127,11 +127,11 @@ begin
     hidedecorations!(ax)
     hidespines!(ax)
 
-    # Color style (see fig_style.jl): focal and neighbor panels are highlighted
+    # Color style (see fig_style.jl): source and neighbor panels are highlighted
     # with the bright qualitative QUAL palette; every other panel is a
     # semi-transparent gray skin so cross-face neighbors (which sit on the
     # opposite face of the slab) remain visible.
-    const focal_color    = QUAL.orange
+    const source_color    = QUAL.orange
     const neighbor_color = QUAL.blue
     const other_color    = RGBAf(0.85, 0.85, 0.85, 0.18)
 
@@ -150,8 +150,8 @@ begin
         push!(faces_all, TriangleFace{Int}(base+1, base+2, base+3))
         push!(faces_all, TriangleFace{Int}(base+1, base+3, base+4))
 
-        col = if i == focal_idx
-            focal_color
+        col = if i == source_idx
+            source_color
         elseif i in neighbor_set
             neighbor_color
         else
@@ -176,11 +176,11 @@ begin
                                 strokecolor = :black, strokewidth = 0.5)
     elem_neighbor = PolyElement(color = neighbor_color,
                                 strokecolor = :black, strokewidth = 0.5)
-    elem_focal    = PolyElement(color = focal_color,
+    elem_source    = PolyElement(color = source_color,
                                 strokecolor = :black, strokewidth = 0.5)
     Legend(fig[1, 2],
-        [elem_focal, elem_neighbor],
-        ["focal panel", "neighbors ($(length(neighbor_set)))"];
+        [elem_source, elem_neighbor],
+        ["source panel", "neighbors ($(length(neighbor_set)))"];
         framevisible = false)
 
     outpath = joinpath(@__DIR__, "figs/fig8_neighbor_list.pdf")
