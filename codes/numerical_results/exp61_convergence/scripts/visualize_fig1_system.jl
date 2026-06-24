@@ -76,10 +76,10 @@ function sub_interface(key)
     BI.DielectricInterface(panels[ids], iface.eps_in[ids], iface.eps_out[ids])
 end
 
-fig = Figure(size = (FIG_W, 620))
+fig = Figure(size = (FIG_W, 680))
 ax = Axis3(fig[1, 1]; aspect = :data, azimuth = 1.72π, elevation = 0.16π,
     title = "Fig.-1 system: 10×10×1 slab (ε=10) on two 10×10×10 cubes (ε=4, ε=12)",
-    titlealign = :left, xlabel = "x", ylabel = "y", zlabel = "z")
+    titlealign = :left, titlesize = 16, xlabel = "x", ylabel = "y", zlabel = "z")
 
 const MExt = Base.get_extension(BI, :MakieExt)
 for (k, _) in sort(collect(census))
@@ -93,12 +93,13 @@ for (k, v) in sort(collect(census))
              markersize = 14, label = get(LABEL, k, string(k)) * " ($v)")
 end
 scatter!(ax, [Point3f(NaN, NaN, NaN)]; color = :red, markersize = 10, label = "source")
-axislegend(ax; position = :rt, framevisible = false)
+# legend in the bottom-left wireframe void so it clears the top title entirely
+axislegend(ax; position = :lb, framevisible = false)
 
 # top view of the slab top face (z = 1): source-driven refinement pattern
 ax2 = Axis(fig[1, 2]; aspect = DataAspect(), xlabel = "x", ylabel = "y",
-    title = ADAPTIVE ? "slab top face (z = 1): RHS-adaptive panels" : "slab top face (z = 1)",
-    width = 280)
+    title = ADAPTIVE ? "slab top face z = 1 (RHS-adaptive)" : "slab top face (z = 1)",
+    titlesize = 16, width = 320)
 seg = Point2f[]
 for i in eachindex(panels)
     c = (panels[i].corners[1] .+ panels[i].corners[2] .+ panels[i].corners[3] .+ panels[i].corners[4]) ./ 4
@@ -110,7 +111,7 @@ for i in eachindex(panels)
 end
 linesegments!(ax2, seg; color = COLOR[(1.0, 10.0)], linewidth = 0.7)
 scatter!(ax2, [Point2f(SYS.src_center[1], SYS.src_center[2])]; color = :red, markersize = 10)
-colsize!(fig.layout, 2, Auto(0.45))
+colsize!(fig.layout, 2, Auto(0.55))
 
 save(joinpath(FIGS, "fig61_system_fig1_geometry.png"), fig; px_per_unit = 2)
 save(joinpath(FIGS, "fig61_system_fig1_geometry.pdf"), fig; px_per_unit = PX_PER_UNIT)
