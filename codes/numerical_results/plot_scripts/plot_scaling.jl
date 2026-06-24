@@ -91,9 +91,9 @@ begin
         linewidth = LW_DATA, markersize = MS)
     ylims!(ax2, 0, 40)
 
-    for (i, lab) in enumerate(("(a)", "(b)"))
-        Label(fig[1, i, TopLeft()], lab; font = :bold, fontsize = FS_BASE,
-              padding = (0, 5, 5, 0), halign = :right)
+    for (ax, lab) in ((ax1, "(a)"), (ax2, "(b)"))
+        text!(ax, 0, 1; text = lab, space = :relative, align = (:left, :top),
+              offset = (6, -6), font = :bold, fontsize = FS_BASE)
     end
 
     fig

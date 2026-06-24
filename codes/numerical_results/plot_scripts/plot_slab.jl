@@ -25,9 +25,9 @@ ax1 = Axis(fig[1, 1]; xscale = log10, yscale = log10,
     xlabel = L"\mathrm{DOF}\; N", ylabel = L"|V - V_\mathrm{ref}| / |V_\mathrm{ref}|")
 ax2 = Axis(fig[1, 2]; xscale = log10,
     xlabel = L"\mathrm{DOF}\; N", ylabel = L"N_\mathrm{iter}")
-for (i, lab) in enumerate(("(a)", "(b)"))
-    Label(fig[1, i, TopLeft()], lab; font = :bold, fontsize = FS_BASE,
-          padding = (0, 5, 5, 0), halign = :right)
+for (ax, lab) in ((ax1, "(a)"), (ax2, "(b)"))
+    text!(ax, 0, 1; text = lab, space = :relative, align = (:left, :top),
+          offset = (6, -6), font = :bold, fontsize = FS_BASE)
 end
 
 for p in (2, 4, 6)
@@ -58,7 +58,7 @@ scatterlines!(ax1, [NaN], [NaN]; color = :gray40, marker = :utriangle,
 
 axislegend(ax1; position = :lb)
 ylims!(ax2, 0, 28)
-axislegend(ax2; position = :lt)
+axislegend(ax2; position = :rb)
 
 save(joinpath(FIGS, "fig61_slab_convergence.pdf"), fig; px_per_unit = PX_PER_UNIT)
 println("wrote figs/fig61_slab_convergence.pdf")
