@@ -2,12 +2,12 @@
 # (b) GMRES iterations vs DOF per eps2.
 # Output: figs/fig63_contrast.pdf
 
-include(joinpath(@__DIR__, "..", "..", "common", "Lite.jl"))
+include(joinpath(@__DIR__, "..", "common", "Lite.jl"))
 using .Lite
 using CairoMakie, LaTeXStrings
-include(joinpath(@__DIR__, "..", "..", "..", "fig_gen", "fig_style.jl"))
+include(joinpath(@__DIR__, "..", "..", "fig_gen", "fig_style.jl"))
 
-const DATA = joinpath(@__DIR__, "..", "data")
+const DATA = joinpath(@__DIR__, "..", "exp63_contrast", "data")
 const RAW = joinpath(DATA, "raw")
 const FIGS = joinpath(@__DIR__, "..", "figs")
 mkpath(FIGS)

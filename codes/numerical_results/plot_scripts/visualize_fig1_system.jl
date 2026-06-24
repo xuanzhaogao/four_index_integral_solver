@@ -4,11 +4,11 @@
 # Also prints the shared-face census (geometry sanity, 6.1.7-style).
 # Output: figs/fig61_system_fig1_geometry.{png,pdf}
 
-include(joinpath(@__DIR__, "..", "..", "common", "Harness.jl"))
+include(joinpath(@__DIR__, "..", "common", "Harness.jl"))
 using .Harness
 import BoundaryIntegral as BI
 using CairoMakie, Printf
-include(joinpath(@__DIR__, "..", "..", "..", "fig_gen", "fig_style.jl"))
+include(joinpath(@__DIR__, "..", "..", "fig_gen", "fig_style.jl"))
 
 const SYS = system_fig1()
 const FIGS = joinpath(@__DIR__, "..", "figs")

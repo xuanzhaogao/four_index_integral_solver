@@ -10,10 +10,10 @@
 # Records are plain NamedTuples of scalars/vectors (no BoundaryIntegral dependency).
 
 using CairoMakie, LaTeXStrings, Serialization
-include(joinpath(@__DIR__, "..", "..", "..", "fig_gen", "fig_style.jl"))
+include(joinpath(@__DIR__, "..", "..", "fig_gen", "fig_style.jl"))
 
 const SMOKE = get(ENV, "MULTICUBE_SMOKE", "0") == "1"
-const DATA = joinpath(@__DIR__, "..", "data", SMOKE ? "smoke" : "")
+const DATA = joinpath(@__DIR__, "..", "exp66_multicube", "data", SMOKE ? "smoke" : "")
 const RAW  = joinpath(DATA, "raw")
 const FIGS = joinpath(@__DIR__, "..", "figs")
 const FIGNAME = SMOKE ? "fig66_multicube_scaling_smoke" : "fig66_multicube_scaling"

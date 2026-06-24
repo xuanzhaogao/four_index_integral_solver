@@ -1,12 +1,12 @@
 # 6.1 Fig.-1 system convergence figure: V-error vs DOF + N_iter companion.
 # Output: figs/fig61_fig1_convergence.pdf
 
-include(joinpath(@__DIR__, "..", "..", "common", "Lite.jl"))
+include(joinpath(@__DIR__, "..", "common", "Lite.jl"))
 using .Lite
 using CairoMakie, LaTeXStrings, LinearAlgebra
-include(joinpath(@__DIR__, "..", "..", "..", "fig_gen", "fig_style.jl"))
+include(joinpath(@__DIR__, "..", "..", "fig_gen", "fig_style.jl"))
 
-const DATA = joinpath(@__DIR__, "..", "data")
+const DATA = joinpath(@__DIR__, "..", "exp61_convergence", "data")
 const FIGS = joinpath(@__DIR__, "..", "figs")
 mkpath(FIGS)
 
