@@ -62,7 +62,7 @@ begin
 
     # ----- Panel (a): runtime decomposition + multi-RHS speedup -----------
     ax1 = Axis(fig[1, 1]; xlabel = xlab, ylabel = "runtime (s)", xticks = K,
-        xscale = log10, yscale = log10, title = "(a) multi-RHS runtime")
+        xscale = log10, yscale = log10)
     # naive baseline: repeat a single-RHS solve K times (the gap to total = speedup)
     lines!(ax1, K, naive; color = (:gray50, 0.9), linestyle = :dash,
         linewidth = LW_GUIDE, label = L"K \times \mathrm{single\text{-}RHS}")
@@ -86,15 +86,18 @@ begin
     ylims!(ax1, 1.0, 10^(3.7))
 
     # ----- Panel (b): GMRES iterations vs K -------------------------------
-    ax2 = Axis(fig[1, 2]; xlabel = xlab, ylabel = "GMRES iterations", xticks = K,
-        title = "(b) GMRES iterations")
+    ax2 = Axis(fig[1, 2]; xlabel = xlab, ylabel = "GMRES iterations", xticks = K)
     scatterlines!(ax2, K, niter; color = QUAL.purple, marker = :circle,
         linewidth = LW_DATA, markersize = MS)
     ylims!(ax2, 0, 40)
+
+    for (i, lab) in enumerate(("(a)", "(b)"))
+        Label(fig[1, i, TopLeft()], lab; font = :bold, fontsize = FS_BASE,
+              padding = (0, 5, 5, 0), halign = :right)
+    end
 
     fig
 end
 
 save(joinpath(FIGS, FIGNAME * ".pdf"), fig; px_per_unit = PX_PER_UNIT)
-save(joinpath(FIGS, FIGNAME * ".png"), fig; px_per_unit = 2)
-println("gathered $(length(K)) cutoffs (K = $K) -> data/multicube.csv + figs/$(FIGNAME).{pdf,png}")
+println("gathered $(length(K)) cutoffs (K = $K) -> data/multicube.csv + figs/$(FIGNAME).pdf")

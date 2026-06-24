@@ -23,11 +23,13 @@ col(i) = sweep_colors(5)[mod1(i, 5)]
 
 fig = Figure(size = (FIG_W, FIG_H))
 ax1 = Axis(fig[1, 1]; xscale = log10, yscale = log10,
-    xlabel = L"\mathrm{DOF}\; N", ylabel = L"|V - V_\mathrm{ref}| / |V_\mathrm{ref}|",
-    title = "(a) convergence vs contrast (p = 6), ε = 10⁻⁴")
+    xlabel = L"\mathrm{DOF}\; N", ylabel = L"|V - V_\mathrm{ref}| / |V_\mathrm{ref}|")
 ax2 = Axis(fig[1, 2]; xscale = log10,
-    xlabel = L"\mathrm{DOF}\; N", ylabel = L"N_\mathrm{iter}",
-    title = "(b) GMRES iterations")
+    xlabel = L"\mathrm{DOF}\; N", ylabel = L"N_\mathrm{iter}")
+for (i, lab) in enumerate(("(a)", "(b)"))
+    Label(fig[1, i, TopLeft()], lab; font = :bold, fontsize = FS_BASE,
+          padding = (0, 5, 5, 0), halign = :right)
+end
 
 for (i, e2) in enumerate(e2s)
     rf = load_ref(joinpath(RAW, "ratio_ref_e2_$(e2).jls"))
@@ -41,10 +43,9 @@ for (i, e2) in enumerate(e2s)
     scatterlines!(ax2, Ns, [t.niter for t in ts]; color = col(i), marker = :circle,
         linewidth = LW_DATA, markersize = MS)
 end
-axislegend(ax1; position = :rt, framevisible = false)
+axislegend(ax1; position = :rt)
 
 ylims!(ax2, 0, 50)
 
 save(joinpath(FIGS, "fig63_contrast.pdf"), fig; px_per_unit = PX_PER_UNIT)
-save(joinpath(FIGS, "fig63_contrast.png"), fig; px_per_unit = 2)
-println("wrote figs/fig63_contrast.{pdf,png}")
+println("wrote figs/fig63_contrast.pdf")

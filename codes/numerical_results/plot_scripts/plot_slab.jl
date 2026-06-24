@@ -22,11 +22,13 @@ const COL = Dict(2 => _SC[1], 4 => _SC[2], 6 => _SC[3])
 
 fig = Figure(size = (FIG_W, FIG_H))
 ax1 = Axis(fig[1, 1]; xscale = log10, yscale = log10,
-    xlabel = L"\mathrm{DOF}\; N", ylabel = L"|V - V_\mathrm{ref}| / |V_\mathrm{ref}|",
-    title = "(a) convergence, slab 10×10×1, ε = 10⁻⁴")
+    xlabel = L"\mathrm{DOF}\; N", ylabel = L"|V - V_\mathrm{ref}| / |V_\mathrm{ref}|")
 ax2 = Axis(fig[1, 2]; xscale = log10,
-    xlabel = L"\mathrm{DOF}\; N", ylabel = L"N_\mathrm{iter}",
-    title = "(b) GMRES iterations")
+    xlabel = L"\mathrm{DOF}\; N", ylabel = L"N_\mathrm{iter}")
+for (i, lab) in enumerate(("(a)", "(b)"))
+    Label(fig[1, i, TopLeft()], lab; font = :bold, fontsize = FS_BASE,
+          padding = (0, 5, 5, 0), halign = :right)
+end
 
 for p in (2, 4, 6)
     s = load_series(joinpath(DATA, "raw"), p)
@@ -54,12 +56,11 @@ end
 scatterlines!(ax1, [NaN], [NaN]; color = :gray40, marker = :utriangle,
     linewidth = LW_GUIDE, linestyle = :dash, label = "no edge corr.")
 
-axislegend(ax1; position = :lb, framevisible = false)
+axislegend(ax1; position = :lb)
 ylims!(ax2, 0, 28)
-axislegend(ax2; position = :lt, framevisible = false)
+axislegend(ax2; position = :lt)
 
 save(joinpath(FIGS, "fig61_slab_convergence.pdf"), fig; px_per_unit = PX_PER_UNIT)
-save(joinpath(FIGS, "fig61_slab_convergence.png"), fig; px_per_unit = 2)
 println("wrote figs/fig61_slab_convergence.pdf")
 
 # console: no-edges errors vs converged ref, for the record

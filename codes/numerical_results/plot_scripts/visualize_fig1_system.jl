@@ -1,8 +1,8 @@
 # Visualize the Fig.-1 system geometry: 10x10x1 slab on two 10x10x10 cubes.
 # Uses the package's MakieExt (BI.viz_3d!) so panels render exactly as the
-# solver sees them; one viz call per interface type to color regions.
+# solver sees them; a single uniform-color wireframe, source marked.
 # Also prints the shared-face census (geometry sanity, 6.1.7-style).
-# Output: figs/fig61_system_fig1_geometry.{png,pdf}
+# Output: figs/fig61_system_fig1_geometry.pdf
 
 include(joinpath(@__DIR__, "..", "common", "Harness.jl"))
 using .Harness
@@ -42,16 +42,8 @@ LABEL = Dict(
     (4.0, 10.0) => "slab | Ω₁ (contact)",
     (10.0, 12.0) => "slab | Ω₂ (contact)",
 )
-# bright Tol palette for the interesting interfaces; neutral grays for the two
-# outer cube|vac faces; source stays red (so QUAL.red is left unused here).
-COLOR = Dict(
-    (1.0, 4.0)   => RGBAf(0.80, 0.80, 0.82, 1.0),   # Ω₁ | vac   (neutral)
-    (1.0, 12.0)  => RGBAf(0.62, 0.62, 0.66, 1.0),   # Ω₂ | vac   (neutral)
-    (4.0, 12.0)  => QUAL.purple,                     # Ω₁ | Ω₂ shared
-    (1.0, 10.0)  => QUAL.blue,                        # slab | vac
-    (4.0, 10.0)  => QUAL.orange,                      # slab | Ω₁ contact
-    (10.0, 12.0) => QUAL.green,                       # slab | Ω₂ contact
-)
+# single uniform wireframe color for the whole interface (no per-category coding)
+const GEOM_COLOR = RGBAf(0.40, 0.52, 0.68, 1.0)
 
 census = Dict{Tuple{Float64, Float64}, Int}()
 for i in eachindex(panels)
@@ -70,49 +62,14 @@ let seen = Dict{NTuple{3, Float64}, Int}(), dup = 0
     println("duplicate-center panels: ", dup, " (expected 0)")
 end
 
-# split the interface by eps-pair and render each group via the package viz
-function sub_interface(key)
-    ids = [i for i in eachindex(panels) if pairkey(i) == key]
-    BI.DielectricInterface(panels[ids], iface.eps_in[ids], iface.eps_out[ids])
-end
-
-fig = Figure(size = (FIG_W, 680))
+fig = Figure(size = (FIG_W, FIG_H_3D))
 ax = Axis3(fig[1, 1]; aspect = :data, azimuth = 1.72π, elevation = 0.16π,
-    title = "Fig.-1 system: 10×10×1 slab (ε=10) on two 10×10×10 cubes (ε=4, ε=12)",
-    titlealign = :left, titlesize = 16, xlabel = "x", ylabel = "y", zlabel = "z")
+    xlabel = "x", ylabel = "y", zlabel = "z")
 
 const MExt = Base.get_extension(BI, :MakieExt)
-for (k, _) in sort(collect(census))
-    MExt.viz_3d!(ax, sub_interface(k);
-        show_points = false, highlight_edges = false, base_color = COLOR[k])
-end
+MExt.viz_3d!(ax, iface; show_points = false, highlight_edges = false,
+    base_color = GEOM_COLOR)
 scatter!(ax, [Point3f(SYS.src_center...)]; color = :red, markersize = 14)
 
-for (k, v) in sort(collect(census))
-    scatter!(ax, [Point3f(NaN, NaN, NaN)]; color = COLOR[k], marker = :rect,
-             markersize = 14, label = get(LABEL, k, string(k)) * " ($v)")
-end
-scatter!(ax, [Point3f(NaN, NaN, NaN)]; color = :red, markersize = 10, label = "source")
-# legend in the bottom-left wireframe void so it clears the top title entirely
-axislegend(ax; position = :lb, framevisible = false)
-
-# top view of the slab top face (z = 1): source-driven refinement pattern
-ax2 = Axis(fig[1, 2]; aspect = DataAspect(), xlabel = "x", ylabel = "y",
-    title = ADAPTIVE ? "slab top face z = 1 (RHS-adaptive)" : "slab top face (z = 1)",
-    titlesize = 16, width = 320)
-seg = Point2f[]
-for i in eachindex(panels)
-    c = (panels[i].corners[1] .+ panels[i].corners[2] .+ panels[i].corners[3] .+ panels[i].corners[4]) ./ 4
-    abs(c[3] - 1.0) < 1e-9 && abs(panels[i].normal[3]) > 0.999 || continue
-    cs = panels[i].corners
-    for (a, b) in ((1, 2), (2, 3), (3, 4), (4, 1))
-        push!(seg, Point2f(cs[a][1], cs[a][2])); push!(seg, Point2f(cs[b][1], cs[b][2]))
-    end
-end
-linesegments!(ax2, seg; color = COLOR[(1.0, 10.0)], linewidth = 0.7)
-scatter!(ax2, [Point2f(SYS.src_center[1], SYS.src_center[2])]; color = :red, markersize = 10)
-colsize!(fig.layout, 2, Auto(0.55))
-
-save(joinpath(FIGS, "fig61_system_fig1_geometry.png"), fig; px_per_unit = 2)
 save(joinpath(FIGS, "fig61_system_fig1_geometry.pdf"), fig; px_per_unit = PX_PER_UNIT)
-println("\nwrote figs/fig61_system_fig1_geometry.{png,pdf}")
+println("\nwrote figs/fig61_system_fig1_geometry.pdf")
