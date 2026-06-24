@@ -121,10 +121,10 @@ begin
 
         scatterlines!(ax_c, Ns_a, Es_a; color = col, marker = :circle,
                       markersize = MS, linewidth = LW_DATA,
-                      label = "adaptive, p=$(sw.p)")
+                      label = L"\text{adaptive}, p=%$(sw.p)")
         scatterlines!(ax_c, Ns_u, Es_u; color = col, marker = :rect,
                       markersize = MS, linewidth = LW_DATA, linestyle = :dash,
-                      label = "uniform,  p=$(sw.p)")
+                      label = L"\text{uniform}, p=%$(sw.p)")
     end
     axislegend(ax_c; position = :rt, nbanks = 1)
     xlims!(ax_c, 10^(1.8), 10^(8.2))
