@@ -8,6 +8,7 @@ include(joinpath(@__DIR__, "..", "..", "common", "Harness.jl"))
 using .Harness
 import BoundaryIntegral as BI
 using CairoMakie, Printf
+include(joinpath(@__DIR__, "..", "..", "..", "fig_gen", "fig_style.jl"))
 
 const SYS = system_fig1()
 const FIGS = joinpath(@__DIR__, "..", "figs")
@@ -41,13 +42,15 @@ LABEL = Dict(
     (4.0, 10.0) => "slab | Ω₁ (contact)",
     (10.0, 12.0) => "slab | Ω₂ (contact)",
 )
+# bright Tol palette for the interesting interfaces; neutral grays for the two
+# outer cube|vac faces; source stays red (so QUAL.red is left unused here).
 COLOR = Dict(
-    (1.0, 4.0) => "#E8C547",
-    (1.0, 12.0) => "#9aa0a6",
-    (4.0, 12.0) => "#CC79A7",
-    (1.0, 10.0) => "#56B4E9",
-    (4.0, 10.0) => "#D55E00",
-    (10.0, 12.0) => "#009E73",
+    (1.0, 4.0)   => RGBAf(0.80, 0.80, 0.82, 1.0),   # Ω₁ | vac   (neutral)
+    (1.0, 12.0)  => RGBAf(0.62, 0.62, 0.66, 1.0),   # Ω₂ | vac   (neutral)
+    (4.0, 12.0)  => QUAL.purple,                     # Ω₁ | Ω₂ shared
+    (1.0, 10.0)  => QUAL.blue,                        # slab | vac
+    (4.0, 10.0)  => QUAL.orange,                      # slab | Ω₁ contact
+    (10.0, 12.0) => QUAL.green,                       # slab | Ω₂ contact
 )
 
 census = Dict{Tuple{Float64, Float64}, Int}()
@@ -73,7 +76,7 @@ function sub_interface(key)
     BI.DielectricInterface(panels[ids], iface.eps_in[ids], iface.eps_out[ids])
 end
 
-fig = Figure(size = (1000, 620))
+fig = Figure(size = (FIG_W, 620))
 ax = Axis3(fig[1, 1]; aspect = :data, azimuth = 1.72π, elevation = 0.16π,
     title = "Fig.-1 system: 10×10×1 slab (ε=10) on two 10×10×10 cubes (ε=4, ε=12)",
     titlealign = :left, xlabel = "x", ylabel = "y", zlabel = "z")
@@ -90,7 +93,7 @@ for (k, v) in sort(collect(census))
              markersize = 14, label = get(LABEL, k, string(k)) * " ($v)")
 end
 scatter!(ax, [Point3f(NaN, NaN, NaN)]; color = :red, markersize = 10, label = "source")
-axislegend(ax; position = :rt, framevisible = false, labelsize = 11)
+axislegend(ax; position = :rt, framevisible = false)
 
 # top view of the slab top face (z = 1): source-driven refinement pattern
 ax2 = Axis(fig[1, 2]; aspect = DataAspect(), xlabel = "x", ylabel = "y",
@@ -110,5 +113,5 @@ scatter!(ax2, [Point2f(SYS.src_center[1], SYS.src_center[2])]; color = :red, mar
 colsize!(fig.layout, 2, Auto(0.45))
 
 save(joinpath(FIGS, "fig61_system_fig1_geometry.png"), fig; px_per_unit = 2)
-save(joinpath(FIGS, "fig61_system_fig1_geometry.pdf"), fig)
+save(joinpath(FIGS, "fig61_system_fig1_geometry.pdf"), fig; px_per_unit = PX_PER_UNIT)
 println("\nwrote figs/fig61_system_fig1_geometry.{png,pdf}")
