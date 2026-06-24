@@ -4,7 +4,8 @@ generates fig2_rhs_adaptive.png. Re-run this freely to iterate on the figure;
 re-run fig2_data.jl only if you change the experiment.
 
 Layout:
-  (a) 3D view of the cube with the adaptive panelization (all 6 faces),
+  (a) 3D view of the cube with the adaptive panelization (the three
+      camera-facing faces, so the cube reads as a solid opaque body),
       colored by refinement level; source projection marked.
   (b) Relative global interpolation error E_f vs. number of boundary
       unknowns N for RHS-adaptive and uniform refinement.
@@ -38,12 +39,22 @@ begin
     lvl_max = maximum(levels)
     cmap_a = cgrad(FIELD_CMAP, lvl_max + 1, categorical = true)
 
+    # View direction: keep azimuth/elevation in sync with the back-face cull below.
+    az_a = 0.35π
+    el_a = 0.22π
     ax_a = Axis3(fig[1, 1];
                 aspect = :data,
                 # title = "(a) adaptive panelization (ε = $(@sprintf("%.0e", data.plot_ε)))",
                 xlabel = "x", ylabel = "y", zlabel = "z",
-                azimuth = 0.35π, elevation = 0.22π,
+                azimuth = az_a, elevation = el_a,
                 protrusions = (40, 20, 25, 25))
+
+    # Eye direction (from cube centre toward the camera). CairoMakie composites
+    # the wireframe overlay on top of the whole mesh without depth-testing it, so
+    # the back-face grid otherwise bleeds through and the cube reads as
+    # transparent. Drawing only the camera-facing faces makes it a solid body.
+    eye_dir = (cos(el_a) * cos(az_a), cos(el_a) * sin(az_a), sin(el_a))
+    face_visible(n) = (n[1]*eye_dir[1] + n[2]*eye_dir[2] + n[3]*eye_dir[3]) > 1e-9
 
     # Build a mesh for each panel: 2 triangles, with edge lines on top
     verts_all  = Point3f[]
@@ -52,6 +63,7 @@ begin
     edge_segs  = Point3f[]
 
     for rec in panel_records
+        face_visible(rec.normal) || continue
         a, b, c, d = rec.corners
         base = length(verts_all)
         push!(verts_all, Point3f(a[1], a[2], a[3]))
