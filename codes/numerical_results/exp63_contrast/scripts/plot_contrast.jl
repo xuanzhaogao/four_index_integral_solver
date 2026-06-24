@@ -5,6 +5,7 @@
 include(joinpath(@__DIR__, "..", "..", "common", "Lite.jl"))
 using .Lite
 using CairoMakie, LaTeXStrings
+include(joinpath(@__DIR__, "..", "..", "..", "fig_gen", "fig_style.jl"))
 
 const DATA = joinpath(@__DIR__, "..", "data")
 const RAW = joinpath(DATA, "raw")
@@ -17,11 +18,10 @@ e2s = filter(!=(2.0), e2s)        # eps2 = 2 excluded from the figure (kept in d
 rs_of(e2) = sort([parse(Int, match(r"_r(\d+)\.jls$", f).captures[1])
                   for f in readdir(RAW) if startswith(f, "ratio_test_e2_$(e2)_r")])
 
-# Okabe-Ito, one color per eps2
-const COLS = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00"]
-col(i) = COLS[mod1(i, length(COLS))]
+# Tol-bright sweep palette, one color per eps2
+col(i) = sweep_colors(5)[mod1(i, 5)]
 
-fig = Figure(size = (820, 330))
+fig = Figure(size = (FIG_W, FIG_H))
 ax1 = Axis(fig[1, 1]; xscale = log10, yscale = log10,
     xlabel = L"\mathrm{DOF}\; N", ylabel = L"|V - V_\mathrm{ref}| / |V_\mathrm{ref}|",
     title = "(a) convergence vs contrast (p = 6), ε = 10⁻⁴")
@@ -36,15 +36,15 @@ for (i, e2) in enumerate(e2s)
     ev = [abs(t.V - rf.V) / abs(rf.V) for t in ts]
     g = (e2 - 4.0) / (e2 + 4.0)
     lab = L"\varepsilon_2 = %$(round(Int, e2))\;(\gamma_{12} = %$(round(g; digits = 2)))"
-    scatterlines!(ax1, Ns, ev; color = col(i), marker = :circle, label = lab)
-    scatterlines!(ax2, Ns, [t.niter for t in ts]; color = col(i), marker = :circle)
+    scatterlines!(ax1, Ns, ev; color = col(i), marker = :circle,
+        linewidth = LW_DATA, markersize = MS, label = lab)
+    scatterlines!(ax2, Ns, [t.niter for t in ts]; color = col(i), marker = :circle,
+        linewidth = LW_DATA, markersize = MS)
 end
-hlines!(ax1, [1e-4]; color = :black, linestyle = :dot)
-text!(ax1, 2.0e5, 1.2e-4; text = L"\varepsilon = 10^{-4}", fontsize = 12)
-axislegend(ax1; position = :rt, framevisible = false, labelsize = 10)
+axislegend(ax1; position = :rt, framevisible = false)
 
 ylims!(ax2, 0, 50)
 
-save(joinpath(FIGS, "fig63_contrast.pdf"), fig)
+save(joinpath(FIGS, "fig63_contrast.pdf"), fig; px_per_unit = PX_PER_UNIT)
 save(joinpath(FIGS, "fig63_contrast.png"), fig; px_per_unit = 2)
 println("wrote figs/fig63_contrast.{pdf,png}")
