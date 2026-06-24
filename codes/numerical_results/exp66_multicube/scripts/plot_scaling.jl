@@ -10,6 +10,7 @@
 # Records are plain NamedTuples of scalars/vectors (no BoundaryIntegral dependency).
 
 using CairoMakie, LaTeXStrings, Serialization
+include(joinpath(@__DIR__, "..", "..", "..", "fig_gen", "fig_style.jl"))
 
 const SMOKE = get(ENV, "MULTICUBE_SMOKE", "0") == "1"
 const DATA = joinpath(@__DIR__, "..", "data", SMOKE ? "smoke" : "")
@@ -51,37 +52,49 @@ open(joinpath(DATA, "multicube.csv"), "w") do io
     end
 end
 
-const C = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00"]  # Okabe-Ito
 xlab = L"K"
+# multi-RHS speedup vs repeating a single-RHS solve K times (precompute is ~3% of total)
+naive = K .* t_tot[1]
+speedup = naive ./ t_tot
 
 begin
-    fig = Figure(size = (1400, 400), fontsize = 18)
+    fig = Figure(size = (FIG_W, FIG_H))
 
-    ax1 = Axis(fig[1, 1]; xlabel = xlab, ylabel = "runtime (s)", xticks = K, xscale = log10, yscale = log10)
-    # reference slopes (faint guides)
-    lines!(ax1, K, fill(sum(t_pre) / length(t_pre), length(K)); color = :gray80)              # slope 0
-    lines!(ax1, K, t_evl[1] .* K;                                color = :gray80, linestyle = :dot)  # slope 1 (∝K)
+    # ----- Panel (a): runtime decomposition + multi-RHS speedup -----------
+    ax1 = Axis(fig[1, 1]; xlabel = xlab, ylabel = "runtime (s)", xticks = K,
+        xscale = log10, yscale = log10, title = "(a) multi-RHS runtime")
+    # naive baseline: repeat a single-RHS solve K times (the gap to total = speedup)
+    lines!(ax1, K, naive; color = (:gray50, 0.9), linestyle = :dash,
+        linewidth = LW_GUIDE, label = L"K \times \mathrm{single\text{-}RHS}")
     # fixed cost as its average level (pottrg omitted — negligible here)
-    hlines!(ax1, [sum(t_pre) / length(t_pre)]; color = C[1], linestyle = :dash, linewidth = 2, label = "precompute")
-    # scaling costs vs K
-    scatterlines!(ax1, K, t_blk; color = C[2], marker = :circle, label = "block solve")
-    scatterlines!(ax1, K, t_evl; color = C[3], marker = :circle, label = "eval")
-    scatterlines!(ax1, K, t_tot; color = :black, marker = :rect, linewidth = 2, label = "total")
-    axislegend(ax1; position = :rb, labelsize = 16)
-    ylims!(ax1, 1.0, 10^(3.3))
+    hlines!(ax1, [sum(t_pre) / length(t_pre)]; color = QUAL.blue, linestyle = :dash,
+        linewidth = LW_GUIDE, label = "precompute")
+    scatterlines!(ax1, K, t_blk; color = QUAL.orange, marker = :circle,
+        linewidth = LW_DATA, markersize = MS, label = "block solve")
+    scatterlines!(ax1, K, t_evl; color = QUAL.green, marker = :circle,
+        linewidth = LW_DATA, markersize = MS, label = "eval")
+    scatterlines!(ax1, K, t_tot; color = :black, marker = :rect,
+        linewidth = LW_DATA, markersize = MS, label = "total")
+    # speedup labels at each K >= 4 (skip the K=1 baseline)
+    for i in eachindex(K)
+        K[i] == 1 && continue
+        text!(ax1, K[i], t_tot[i]; text = string(round(speedup[i]; digits = 1), "×"),
+            align = (:center, :top), offset = (0, -6), fontsize = FS_ANNOT - 4,
+            color = :black)
+    end
+    axislegend(ax1; position = :rb)
+    ylims!(ax1, 1.0, 10^(3.7))
 
-    ax2 = Axis(fig[1, 2]; xlabel = xlab, ylabel = "peak RAM (GB)", xticks = K)
-    scatterlines!(ax2, K, rss; color = C[4], marker = :circle)
-    length(K) > 1 && hlines!(ax2, [rss[1]]; color = :gray70, linestyle = :dot)
-    ylims!(ax2, 0, 350)
-
-    ax3 = Axis(fig[1, 3]; xlabel = xlab, ylabel = "GMRES iterations", xticks = K)
-    scatterlines!(ax3, K, niter; color = C[5], marker = :circle)
-    ylims!(ax3, 0, 40)
+    # ----- Panel (b): GMRES iterations vs K -------------------------------
+    ax2 = Axis(fig[1, 2]; xlabel = xlab, ylabel = "GMRES iterations", xticks = K,
+        title = "(b) GMRES iterations")
+    scatterlines!(ax2, K, niter; color = QUAL.purple, marker = :circle,
+        linewidth = LW_DATA, markersize = MS)
+    ylims!(ax2, 0, 40)
 
     fig
 end
 
-save(joinpath(FIGS, FIGNAME * ".pdf"), fig)
-save(joinpath(FIGS, FIGNAME * ".png"), fig)
+save(joinpath(FIGS, FIGNAME * ".pdf"), fig; px_per_unit = PX_PER_UNIT)
+save(joinpath(FIGS, FIGNAME * ".png"), fig; px_per_unit = 2)
 println("gathered $(length(K)) cutoffs (K = $K) -> data/multicube.csv + figs/$(FIGNAME).{pdf,png}")
