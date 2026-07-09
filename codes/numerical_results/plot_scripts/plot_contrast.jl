@@ -18,15 +18,17 @@ e2s = filter(!=(2.0), e2s)        # eps2 = 2 excluded from the figure (kept in d
 rs_of(e2) = sort([parse(Int, match(r"_r(\d+)\.jls$", f).captures[1])
                   for f in readdir(RAW) if startswith(f, "ratio_test_e2_$(e2)_r")])
 
-# Tol-bright sweep palette, one color per eps2
+# Tol-bright sweep palette, one color + marker per eps2 (marker keeps the
+# curves separable in grayscale / without color)
 col(i) = sweep_colors(5)[mod1(i, 5)]
+mk(i)  = sweep_markers(5)[mod1(i, 5)]
 
 begin
     fig = Figure(size = (FIG_W, FIG_H))
     ax1 = Axis(fig[1, 1]; xscale = log10, yscale = log10,
-        xlabel = "DOF", ylabel = L"\mathcal{E}_{r}")
+        xlabel = L"N", ylabel = L"\mathcal{E}_{r}")
     ax2 = Axis(fig[1, 2]; xscale = log10,
-        xlabel = "DOF", ylabel = L"N_\mathrm{iter}")
+        xlabel = L"N", ylabel = L"N_\mathrm{iter}")
     for (ax, lab) in ((ax1, "(a)"), (ax2, "(b)"))
         text!(ax, 0, 1; text = lab, space = :relative, align = (:left, :top),
             offset = (6, -6), font = :bold, fontsize = FS_BASE)
@@ -39,9 +41,9 @@ begin
         ev = [abs(t.V - rf.V) / abs(rf.V) for t in ts]
         g = (e2 - 4.0) / (e2 + 4.0)
         lab = L"\varepsilon_2 = %$(round(Int, e2))"
-        scatterlines!(ax1, Ns, ev; color = col(i), marker = :circle,
+        scatterlines!(ax1, Ns, ev; color = col(i), marker = mk(i),
             linewidth = LW_DATA, markersize = MS, label = lab)
-        scatterlines!(ax2, Ns, [t.niter for t in ts]; color = col(i), marker = :circle,
+        scatterlines!(ax2, Ns, [t.niter for t in ts]; color = col(i), marker = mk(i),
             linewidth = LW_DATA, markersize = MS)
     end
     axislegend(ax1; position = :lb)

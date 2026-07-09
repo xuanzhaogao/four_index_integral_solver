@@ -97,9 +97,14 @@ begin
     # resolves the divergence across several decades in d.
     ax_a = Axis(fig[1, 1];
                 xscale = log10, yscale = log10,
+                xminorticksvisible = true, xminorgridvisible = true, xminorticks = IntervalsBetween(5),
+                yminorticksvisible = true, yminorgridvisible = true, yminorticks = IntervalsBetween(5),
                 xlabel = L"d", ylabel = L"|\sigma|")
 
     colors_a = sweep_colors(length(surf.surface_results))
+    # Dense σ profiles: distinguish by linestyle too, so the curves separate in
+    # grayscale. Skip :dash to avoid colliding with the dashed theory guides.
+    styles_a = [:solid, :dashdot, :dot, :dashdotdot]
     theory_d = 10 .^ range(-3.5, -0.5; length = 80)
     theory_anchor_d = 1e-2
     anchor_idx = argmin(abs.(log.(profile_d ./ theory_anchor_d)))
@@ -108,13 +113,16 @@ begin
         keep = isfinite.(line) .& (line .> 0)
         lines!(ax_a, profile_d[keep], line[keep];
                color = colors_a[ir], linewidth = LW_DATA,
+               linestyle = styles_a[mod1(ir, length(styles_a))],
                label = L"\epsilon = %$(round(r.eps_d; sigdigits = 3))")
 
         theory_r = theory_by_contrast[(r.contrast_num, r.contrast_den)]
         y_anchor = line[anchor_idx]
         theory_line = y_anchor .* (theory_d ./ profile_d[anchor_idx]) .^ theory_r.density_power
+        # slope guides: thin transparent black so they recede behind the colored
+        # data (avoids a plot full of competing dashed lines)
         lines!(ax_a, theory_d, theory_line;
-               color = colors_a[ir], linewidth = LW_GUIDE, linestyle = :dash)
+               color = (:black, 0.7), linewidth = 1.0)
     end
 
     vlines!(ax_a, [1.01 / 2^l for l in 7:7]; color = :gray, linewidth = LW_GUIDE, linestyle = :dash)
@@ -128,20 +136,23 @@ begin
     # ----- Panel (b): charge-neutrality accuracy --------------------------
     ax_b = Axis(fig[1, 2];
                 xscale = log10, yscale = log10,
-                xlabel = panel_b_xaxis === :N ? "DOF" : L"\ell_{\min}",
+                xminorticksvisible = true, xminorgridvisible = true, xminorticks = IntervalsBetween(5),
+                yminorticksvisible = true, yminorgridvisible = true, yminorticks = IntervalsBetween(5),
+                xlabel = panel_b_xaxis === :N ? L"N" : L"\ell_{\min}",
                 ylabel = L"\mathcal{E}_{\sigma}",
                 xreversed = true
                 )
                 # ylabel = L"\left|\int_\Gamma \sigma\,dS - (1 - 1/\epsilon)\right|")
 
-    eps_colors = sweep_colors(length(epsdata.epsilon_results))
+    eps_colors  = sweep_colors(length(epsdata.epsilon_results))
+    eps_markers = sweep_markers(length(epsdata.epsilon_results))
     for (i, r) in enumerate(epsdata.epsilon_results)
         xs = panel_b_xaxis === :N ? [l.N for l in r.levels] : [l.l_min for l in r.levels]
         errs = [l.charge_error_abs for l in r.levels]
         keep = isfinite.(errs) .& (errs .> 0)
         scatter!(ax_b, xs[keep], errs[keep];
                  color = eps_colors[i],
-                 marker = :circle, markersize = MS)
+                 marker = eps_markers[i], markersize = MS)
 
         theory_r = theory_by_contrast[(r.contrast_num, r.contrast_den)]
         slope = 1 + theory_r.density_power
@@ -150,8 +161,9 @@ begin
         logC = sum(log.(fit_errs) .- slope .* log.(fit_xs)) / length(fit_xs)
         guide_xs = 10 .^ range(log10(minimum(fit_xs)) - 0.5, log10(maximum(fit_xs)) + 0.5; length = 80)
         guide_errs = exp(logC) .* guide_xs .^ slope
+        # slope guides: thin transparent black so they recede behind the colored markers
         lines!(ax_b, guide_xs, guide_errs;
-               color = eps_colors[i], linewidth = LW_GUIDE, linestyle = :dash)
+               color = (:black, 0.7), linewidth = 1.0)
     end
     text!(ax_b, L"O(\ell_{\min}^{\,\beta + 1})", position = (0.015, 10^(-1.5)),
            color = :black, fontsize = FS_ANNOT)
@@ -160,6 +172,11 @@ begin
     xlims!(ax_b, 10^(-0.1), 10^(-2.6))
 
     colgap!(fig.layout, 1, 30)
+
+    for (ax, lab) in ((ax_a, "(a)"), (ax_b, "(b)"))
+        text!(ax, 0, 1; text = lab, space = :relative, align = (:left, :top),
+              offset = (6, -6), font = :bold, fontsize = FS_BASE)
+    end
 
     outpath = joinpath(@__DIR__, "figs", "fig3_edge_singularity.pdf")
     save(outpath, fig; px_per_unit = PX_PER_UNIT)

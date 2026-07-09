@@ -17,6 +17,16 @@ Conventions
         palette: sweep_colors(n) for n-series sweeps (p, eps, contrast), and
         QUAL.* for the two-way method comparisons (fig4b standard/upsampled,
         fig8 focal/neighbor)
+  * Distinguishing series WITHOUT color (B&W printout / colorblind readers):
+    color alone is not enough, so pair each series with a redundant marker or
+    linestyle, locked 1:1 to the color index.
+      - point / scatter / convergence series -> distinct color AND marker:
+        sweep_colors(i) + sweep_markers(i), or QUAL.x + QUAL_MK.x.
+      - a second binary category on the same series (adaptive/uniform, FMM/HCub,
+        data/reference) -> solid vs dashed LINE, not the marker; the marker keeps
+        tracking the sweep index.
+      - dense line-only profiles (a marker at every point would be noise) ->
+        distinct color + distinct linestyle: sweep_linestyles(i).
 =#
 
 using CairoMakie
@@ -57,6 +67,31 @@ const QUAL = (blue   = LINE_COLORS[1],
               green  = LINE_COLORS[3],
               orange = LINE_COLORS[4],
               purple = LINE_COLORS[5])
+
+# ---- Markers & linestyles (color-free discriminators) ---------------------
+# One distinct marker per palette index, locked 1:1 to LINE_COLORS: a series
+# drawn with sweep_colors(i)[k] should use sweep_markers(i)[k], so the two
+# encodings reinforce each other and the series stays separable in grayscale.
+# These five shapes are the classic maximally-distinct-in-B&W set; :xcross is
+# deliberately NOT here — it is reserved for the source annotation (fig2).
+const LINE_MARKERS = [:circle, :rect, :utriangle, :diamond, :dtriangle]
+
+# first `n` distinct markers, index-locked to sweep_colors(n)
+sweep_markers(n::Integer) = LINE_MARKERS[1:n]
+
+# named marker handles mirroring QUAL (category comparisons)
+const QUAL_MK = (blue   = LINE_MARKERS[1],
+                 red    = LINE_MARKERS[2],
+                 green  = LINE_MARKERS[3],
+                 orange = LINE_MARKERS[4],
+                 purple = LINE_MARKERS[5])
+
+# One distinct linestyle per index, for DENSE line-only sweeps where a marker at
+# every sample would be noise (companion to sweep_colors for such series).
+const LINE_STYLES = [:solid, :dash, :dashdot, :dot]
+
+# first `n` distinct linestyles, index-locked to sweep_colors(n)
+sweep_linestyles(n::Integer) = LINE_STYLES[1:n]
 
 # ---- Secondary consistency knobs ------------------------------------------
 const MS       = 11    # default marker size

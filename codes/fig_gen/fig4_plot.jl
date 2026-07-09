@@ -213,6 +213,8 @@ begin
     ax_b = Axis(fig[1, 3];
                 xscale = log10,
                 yscale = log10,
+                xminorticksvisible = true, xminorgridvisible = true, xminorticks = IntervalsBetween(5),
+                yminorticksvisible = true, yminorgridvisible = true, yminorticks = IntervalsBetween(5),
                 xlabel = L"d",
                 ylabel = L"\mathcal{E}_{\mathrm{near}}")
 

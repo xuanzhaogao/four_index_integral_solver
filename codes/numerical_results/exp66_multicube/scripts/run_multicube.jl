@@ -17,10 +17,23 @@
 #   MULTICUBE_CUTOFFS    comma-separated cutoff override, e.g. "0.0,1.5,2.5"
 #   CORRECT_EDGES=0      disable edge correction (default on, production)
 #   MULTICUBE_GEOM_ONLY=1  print K per cutoff and exit (no solve)
+#   MULTICUBE_GMRES_ITMAX  cap block-GMRES iterations (default 500 = converges). Set to 1
+#                          for a TIMING-ONLY run: measures one iteration's cost so the full
+#                          block-solve time can be reconstructed offline as
+#                          t_1iter * niter_ref (niter from a real converged run), without
+#                          paying for a full multi-hour low-thread-count solve. The residual
+#                          and physics outputs (V, screen_ratio, ...) are NOT meaningful when
+#                          itmax=1 — only t_precompute/t_pottrg/t_solve_block/t_eval are used.
+#   MULTICUBE_RUNTAG      tag (e.g. "nt8") that routes output to data/raw_threads/ under a
+#                          distinct filename, so a thread-count sweep can never collide with,
+#                          or be swept up by the gather regex for, the production K-sweep
+#                          records in data/raw/. Leave unset for normal (K-sweep) runs.
 #
 # Run (one cutoff): MULTICUBE_CUTOFF=1.5 JULIA_NUM_THREADS=96 OMP_NUM_THREADS=96 \
 #                     julia --project=. exp66_multicube/scripts/run_multicube.jl
 # Smoke (dev):      MULTICUBE_SMOKE=1 MULTICUBE_CUTOFF=1.5 julia -t 8 --project=. ... run_multicube.jl
+# Thread-timing (one thread count): MULTICUBE_CUTOFF=0.0 MULTICUBE_GMRES_ITMAX=1 \
+#     MULTICUBE_RUNTAG=nt8 JULIA_NUM_THREADS=8 OMP_NUM_THREADS=8 julia --project=. ... run_multicube.jl
 
 using BoundaryIntegral
 import BoundaryIntegral as BI
@@ -32,6 +45,13 @@ using Serialization
 const SMOKE = get(ENV, "MULTICUBE_SMOKE", "0") == "1"
 const CORRECT_EDGES = get(ENV, "CORRECT_EDGES", "1") == "1"
 const GEOM_ONLY = get(ENV, "MULTICUBE_GEOM_ONLY", "0") == "1"
+# Thread-scaling knobs. GMRES_ITMAX=1 runs a single block-GMRES iteration (timing
+# only; the solve does NOT converge and the physics outputs are meaningless): the
+# per-iteration time is multiplied offline by niter(K=1 @ 96 threads) to recover
+# the full block-solve time cheaply at low thread counts. RUNTAG tags the output
+# filename so a thread sweep does not collide with the K-sweep records.
+const GMRES_ITMAX = parse(Int, get(ENV, "MULTICUBE_GMRES_ITMAX", "500"))
+const RUNTAG = get(ENV, "MULTICUBE_RUNTAG", "")
 
 const DATA = joinpath(@__DIR__, "..", "data", SMOKE ? "smoke" : "")
 mkpath(joinpath(DATA, "raw"))
@@ -155,10 +175,13 @@ function run_pipeline(b, pairs, stages::Vector; record::Bool)
     local sigma_block, bstats
     t = @elapsed begin
         sigma_block, bstats = Krylov.block_gmres(op, F;
-            rtol = P.gmres_rtol, atol = P.gmres_atol, itmax = 500)
+            rtol = P.gmres_rtol, atol = P.gmres_atol, itmax = GMRES_ITMAX)
     end
     note("block GMRES", t)
-    block_resid = norm(op * sigma_block - F) / max(norm(F), eps(Float64))
+    # itmax=1 runs are timing-only (see GMRES_ITMAX doc above): the residual is not
+    # meaningful, so skip the (also costly) matvec used only for the printed diagnostic.
+    block_resid = GMRES_ITMAX <= 1 ? NaN :
+        norm(op * sigma_block - F) / max(norm(F), eps(Float64))
 
     # --- eval: central row V[rho_11, rho_b], target = onsite rho_11 = phi_1^2 (exp65 protocol).
     onsite = sources[1]
@@ -251,8 +274,16 @@ for cutoff in SWEEP
            v11_raw = res.v11_raw, v11_vac = res.v11_vac, screen_ratio = res.screen_ratio, Vrow = res.Vrow,
            t_precompute, t_pottrg, t_solve_block, t_eval, t_total,
            stages = copy(stages), rss_baseline_gb = RSS_BASELINE, rss_peak_gb = rss_gb(),
-           nthreads = Threads.nthreads(), hostname = gethostname())
-    serialize(joinpath(DATA, "raw", "multicube_K$(res.K)_cut$(cutoff).jls"), out)
+           nthreads = Threads.nthreads(), gmres_itmax = GMRES_ITMAX, hostname = gethostname())
+    # RUNTAG (e.g. a thread-count tag) routes output to its own raw_threads/ directory so a
+    # timing-only itmax=1 thread sweep can never collide with, or be picked up by the gather
+    # regex for, the production K-sweep records in raw/.
+    if isempty(RUNTAG)
+        serialize(joinpath(DATA, "raw", "multicube_K$(res.K)_cut$(cutoff).jls"), out)
+    else
+        mkpath(joinpath(DATA, "raw_threads"))
+        serialize(joinpath(DATA, "raw_threads", "multicube_$(RUNTAG).jls"), out)
+    end
     push!(RESULTS, out)
 end
 

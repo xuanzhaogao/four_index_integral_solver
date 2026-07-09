@@ -104,7 +104,9 @@ begin
     # Panel (b): convergence
     ax_c = Axis(fig[1, 3];
                 xscale = log10, yscale = log10,
-                xlabel = "DOF",
+                xminorticksvisible = true, xminorgridvisible = true, xminorticks = IntervalsBetween(5),
+                yminorticksvisible = true, yminorgridvisible = true, yminorticks = IntervalsBetween(5),
+                xlabel = L"N",
                 ylabel = L"\mathcal{E}_f",
                 yticks = ([10.0^i for i in -12:2:0],
                           [rich("10", superscript(string(i))) for i in -12:2:0]),
@@ -112,18 +114,22 @@ begin
                 )
 
     p_palette = sweep_colors(length(data.sweeps))
+    p_markers = sweep_markers(length(data.sweeps))
+    # marker + color both track p (redundant, B&W-safe); adaptive vs uniform is
+    # the second category, carried by solid vs dashed line.
     for (i, sw) in enumerate(data.sweeps)
         col = p_palette[i]
+        mk  = p_markers[i]
         Ns_a = [r.N for r in sw.adaptive]
         Es_a = [r.Ef for r in sw.adaptive]
         Ns_u = [r.N for r in sw.uniform]
         Es_u = [r.Ef for r in sw.uniform]
 
-        scatterlines!(ax_c, Ns_a, Es_a; color = col, marker = :circle,
+        scatterlines!(ax_c, Ns_a, Es_a; color = col, marker = mk,
                       markersize = MS, linewidth = LW_DATA,
                       label = L"\text{adaptive}, p=%$(sw.p)")
-        scatterlines!(ax_c, Ns_u, Es_u; color = col, marker = :rect,
-                      markersize = MS, linewidth = LW_DATA, linestyle = :dash,
+        scatterlines!(ax_c, Ns_u, Es_u; color = col, marker = mk,
+                      markersize = MS, linewidth = LW_DATA, linestyle = :dot,
                       label = L"\text{uniform}, p=%$(sw.p)")
     end
     axislegend(ax_c; position = :rt, nbanks = 1)

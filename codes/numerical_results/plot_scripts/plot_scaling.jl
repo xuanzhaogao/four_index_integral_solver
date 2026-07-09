@@ -1,11 +1,29 @@
-# 6.6 figure: multicube multi-RHS runtime + peak RAM vs K. GATHERS the per-cutoff records
-# written by run_multicube.jl (data/raw/multicube_K*_cut*.jls — one per Slurm-array task)
-# into data/multicube.csv, then renders figs/fig66_multicube_scaling.{pdf,png}.
-# Mirrors exp65's fig65_multirhs_scaling, but WITHOUT the pottrg curve (it is ~0.2 s here —
-# the thick slab keeps the orbital clear of the interface, so no near-field corrections; see NOTES).
+# 6.6 multi-RHS figure, redesigned as a 2-panel strong-scaling / amortization study:
+#   (a) K=1 thread scaling: total (precompute + block solve) runtime vs nthreads in
+#       {1,2,4,8,16,...,96}, with an ideal-linear-speedup reference and per-point
+#       speedup-vs-1-thread labels.
+#   (b) nthreads=96 multi-RHS scaling: PER-RHS runtime (total/K) vs K (REUSES the existing
+#       K-sweep records unchanged), with a flat single-RHS-cost reference and per-K speedup
+#       labels (identical ratios to a total-vs-K view, since both series are divided by K).
+# "total" in both panels is precompute + block solve only — the eval stage is a small,
+# roughly K-independent tail (a few seconds to ~1 minute) that isn't the point of either
+# scaling story, so it is dropped from the headline metric (still on disk if needed later).
+# Renders figs/fig66_multicube_scaling.pdf.
 #
-# Run AFTER the array finishes:
-#   julia --project=codes/numerical_results exp66_multicube/scripts/plot_scaling.jl
+# Panel (a) reconstructs the full block-solve time at low thread counts from a TIMING-ONLY
+# itmax=1 run (data/raw_threads/multicube_nt<N>.jls, written by run_multicube.jl with
+# MULTICUBE_GMRES_ITMAX=1) as t_RHS_assembly + t_1iter * niter_ref: RHS assembly is a
+# one-time cost, and only the per-iteration block-GMRES cost (t_1iter) is scaled by
+# niter_ref, the GMRES iteration count from the real converged K=1 run at 96 threads
+# (data/raw/multicube_K1_cut0.0.jls). GMRES's iteration count is a property of the operator,
+# not the thread count, so one reference transfers across the whole sweep. This avoids paying
+# for an hours-long converged solve at nthreads=1. (Scaling the LUMPED t_solve_block, which
+# folds RHS assembly into the single iteration, by niter_ref would over-count RHS assembly
+# ~niter_ref times and depress the high-thread points — a bug fixed here.)
+#
+# Run AFTER both Slurm arrays finish (run_multicube_array.sbatch for (b),
+# run_multicube_threads_array.sbatch for (a)):
+#   julia --project=codes/numerical_results plot_scripts/plot_scaling.jl
 #
 # Records are plain NamedTuples of scalars/vectors (no BoundaryIntegral dependency).
 
@@ -15,14 +33,56 @@ include(joinpath(@__DIR__, "..", "..", "fig_gen", "fig_style.jl"))
 const SMOKE = get(ENV, "MULTICUBE_SMOKE", "0") == "1"
 const DATA = joinpath(@__DIR__, "..", "exp66_multicube", "data", SMOKE ? "smoke" : "")
 const RAW  = joinpath(DATA, "raw")
+const RAW_THREADS = joinpath(DATA, "raw_threads")
 const FIGS = joinpath(@__DIR__, "..", "figs")
 const FIGNAME = SMOKE ? "fig66_multicube_scaling_smoke" : "fig66_multicube_scaling"
 mkpath(FIGS)
 
+# ============================================================================
+# Panel (a) data: K=1 thread sweep (timing-only itmax=1 records)
+# ============================================================================
+# Prefer the pinned single-node sweep (multicube_pin_nt<N>.jls, run_multicube_threads_pinned
+# .sbatch) — placement-clean; fall back to the older unpinned per-node array records if the
+# pinned set is absent.
+thread_files = let files = isdir(RAW_THREADS) ? readdir(RAW_THREADS) : String[]
+    pinned = sort(filter(f -> occursin(r"^multicube_pin_nt\d+\.jls$", f), files))
+    isempty(pinned) ? sort(filter(f -> occursin(r"^multicube_nt\d+\.jls$", f), files)) : pinned
+end
+isempty(thread_files) && error("no thread-sweep records in $RAW_THREADS — run " *
+    "run_multicube_threads_pinned.sbatch first")
+@info "thread sweep source" nfiles=length(thread_files) pinned=any(occursin("pin_", f) for f in thread_files)
+
+thread_recs = [deserialize(joinpath(RAW_THREADS, f)) for f in thread_files]
+sort!(thread_recs; by = r -> r.nthreads)
+any(r -> r.gmres_itmax > 1, thread_recs) &&
+    @warn "a thread-sweep record has gmres_itmax > 1 (not timing-only) — check RUNTAG files"
+
+# reference GMRES iteration count from the real converged K=1 run at 96 threads
+k1_ref_file = joinpath(RAW, "multicube_K1_cut0.0.jls")
+isfile(k1_ref_file) || error("missing reference $k1_ref_file — run run_multicube_array.sbatch first")
+k1_ref = deserialize(k1_ref_file)
+const NITER_REF = k1_ref.niter
+@info "thread-sweep reconstruction reference" niter_ref=NITER_REF k1_ref.nthreads k1_ref.t_total
+
+stage_t(r, lbl) = first(s.t for s in r.stages if s.label == lbl)
+
+nthreads  = [r.nthreads for r in thread_recs]
+pre_th    = [r.t_precompute for r in thread_recs]
+# Reconstruct the full block solve as (one-time RHS assembly) + niter_ref * (per-iteration
+# block-GMRES cost). NB: r.t_solve_block LUMPS the RHS assembly with the single GMRES
+# iteration, so scaling that whole number by niter_ref would count the RHS assembly niter_ref
+# times — instead pull the two stages apart and multiply only the per-iteration GMRES cost.
+rhs_th    = [stage_t(r, "RHS assembly (per-source, multi-region)") for r in thread_recs]
+gmres1_th = [stage_t(r, "block GMRES") for r in thread_recs]   # itmax=1 -> one iteration
+blk_th    = rhs_th .+ gmres1_th .* NITER_REF                    # reconstructed full block-solve time
+tot_th    = pre_th .+ blk_th                                    # reconstructed total runtime (eval excluded)
+
+# ============================================================================
+# Panel (b) data: nthreads=96 K sweep (unchanged from the previous panel (a))
+# ============================================================================
 files = sort(filter(f -> occursin(r"^multicube_K\d+_cut.*\.jls$", f), readdir(RAW)))
 isempty(files) && error("no per-cutoff records in $RAW — run the Slurm array first")
 
-# one record per K; if a K repeats, keep the newest file
 byK = Dict{Int, Any}()
 for f in files
     r = deserialize(joinpath(RAW, f))
@@ -39,7 +99,7 @@ t_blk = [r.t_solve_block for r in recs]
 t_evl = [r.t_eval for r in recs]
 rss   = [r.rss_peak_gb for r in recs]
 niter = [r.niter for r in recs]
-t_tot = t_pre .+ t_pot .+ t_blk .+ t_evl     # pottrg included in the total but not shown separately
+t_tot = t_pre .+ t_blk                    # total (eval excluded, see header note)
 
 open(joinpath(DATA, "multicube.csv"), "w") do io
     println(io, join(["hostname", "nthreads", "smoke", "correct_edges", "cutoff", "K",
@@ -52,52 +112,112 @@ open(joinpath(DATA, "multicube.csv"), "w") do io
     end
 end
 
-xlab = L"K"
-# multi-RHS speedup vs repeating a single-RHS solve K times (precompute is ~3% of total)
-naive = K .* t_tot[1]
-speedup = naive ./ t_tot
+# per-RHS (amortized) runtime and its naive baseline (paying the K=1 cost every time,
+# i.e. no batching benefit at all — a flat line at t_tot[1])
+per_rhs = t_tot ./ K
+setup_per_rhs = t_pre ./ K          # system setup amortized over K RHS (built once -> ~1/K)
+block_per_rhs = t_blk ./ K          # block solve amortized over K RHS (batched-FMM -> ~4x floor)
+naive_per_rhs = fill(t_tot[1], length(K))
+speedup_K = t_tot[1] ./ per_rhs
+
+# ============================================================================
+# Two-panel scaling summary, in the shared fig style (fig_gen/fig_style.jl):
+#   (a) strong scaling : total runtime vs thread count  (log2 x, log10 y)
+#   (b) amortization   : runtime per RHS vs K at 96 threads (linear y)
+# Light-gray secondary references, one annotation per panel, minimal legend.
+# ============================================================================
+const REF_CLR  = (:gray50, 0.9)      # light gray, visually secondary references
+const BAND_CLR = (:steelblue, 0.10)  # very light optimal-K band
+
+sp96  = round(tot_th[1] / tot_th[end]; digits = 1)   # strong-scaling speedup at 96 threads
+spmax = round(maximum(speedup_K); digits = 1)        # best per-RHS speedup (near K = 20-25)
 
 begin
     fig = Figure(size = (FIG_W, FIG_H))
 
-    # ----- Panel (a): runtime decomposition + multi-RHS speedup -----------
-    ax1 = Axis(fig[1, 1]; xlabel = xlab, ylabel = "runtime (s)", xticks = K,
-        xscale = log10, yscale = log10)
-    # naive baseline: repeat a single-RHS solve K times (the gap to total = speedup)
-    lines!(ax1, K, naive; color = (:gray50, 0.9), linestyle = :dash,
-        linewidth = LW_GUIDE, label = L"K \times \mathrm{single\text{-}RHS}")
-    # fixed cost as its average level (pottrg omitted — negligible here)
-    hlines!(ax1, [sum(t_pre) / length(t_pre)]; color = QUAL.blue, linestyle = :dash,
-        linewidth = LW_GUIDE, label = "precompute")
-    scatterlines!(ax1, K, t_blk; color = QUAL.orange, marker = :circle,
-        linewidth = LW_DATA, markersize = MS, label = "block solve")
-    scatterlines!(ax1, K, t_evl; color = QUAL.green, marker = :circle,
-        linewidth = LW_DATA, markersize = MS, label = "eval")
-    scatterlines!(ax1, K, t_tot; color = :black, marker = :rect,
-        linewidth = LW_DATA, markersize = MS, label = "total")
-    # speedup labels at each K >= 4 (skip the K=1 baseline)
-    for i in eachindex(K)
-        K[i] == 1 && continue
-        text!(ax1, K[i], t_tot[i]; text = string(round(speedup[i]; digits = 1), "×"),
-            align = (:center, :top), offset = (0, -6), fontsize = FS_ANNOT - 4,
-            color = :black)
-    end
-    axislegend(ax1; position = :rb)
-    ylims!(ax1, 1.0, 10^(3.7))
+    # ----- Panel (a): strong scaling -------------------------------------
+    ax1 = Axis(fig[1, 1];
+        xlabel = L"N_\mathrm{threads}", ylabel = "total runtime (s)",
+        xscale = log2, yscale = log10,
+        xticks = (nthreads, string.(nthreads)),
+        yminorticksvisible = true, yminorgridvisible = true,
+        yminorticks = IntervalsBetween(5))
 
-    # ----- Panel (b): GMRES iterations vs K -------------------------------
-    ax2 = Axis(fig[1, 2]; xlabel = xlab, ylabel = "GMRES iterations", xticks = K)
-    scatterlines!(ax2, K, niter; color = QUAL.purple, marker = :circle,
+    # ideal linear speedup is a straight line on log-log, anchored at the 1-thread total
+    lines!(ax1, [nthreads[1], 132], tot_th[1] ./ [nthreads[1], 132];
+        color = :black, linestyle = :dot, linewidth = 2, label = "ideal")
+    hlines!(ax1, [tot_th[1]]; color = REF_CLR, linestyle = :solid,
+        linewidth = LW_GUIDE, label = "baseline")
+    scatterlines!(ax1, nthreads, tot_th; color = QUAL.green, marker = QUAL_MK.green,
+        linewidth = LW_DATA, markersize = MS, label = "measured")
+
+    xlims!(ax1, 0.85, 132)
+    ylims!(ax1, 20, 6000)
+
+    # single annotation: strong-scaling speedup at the final point
+    text!(ax1, 96, 5e2; text = L"20.3 \times",
+        align = (:right, :bottom), offset = (-4, 8), fontsize = FS_ANNOT + 2, color = :black)
+
+    annotation!(ax1, 96, tot_th[1], 96, tot_th[end];
+        # text = L"20.3 \times",
+        # path = Ann.Paths.Arc(0.3),
+        # style = Ann.Styles.LineArrow(),
+        style = Ann.Styles.LineArrow(head = Ann.Arrows.Head(), tail = Ann.Arrows.Head()),
+        fontsize = FS_ANNOT + 2,
+        color = :black,
+        labelspace = :data
+    )
+
+    # annotation!(ax1, 96, 100, 0, 900, style = Ann.Styles.LineArrow(head = Ann.Arrows.Head(), tail = Ann.Arrows.Head()))
+
+    # annotation!(ax1, 96, 96, 100, 1000;
+            # text = "minimum ≈ $(spmax)×\nK ≈ 20–25", fontsize = FS_ANNOT - 4)
+
+    axislegend(ax1; position = :lb, labelsize = FS_LEGEND - 2, rowgap = 1)
+
+    # ----- Panel (b): multi-RHS amortization -----------------------------
+    ax2 = Axis(fig[1, 2];
+        xlabel = L"K", ylabel = "runtime per RHS (s)",
+        xticks = (K, string.(K)),
+        yminorticksvisible = true, yminorgridvisible = true,
+        yminorticks = IntervalsBetween(5))
+
+    # vspan!(ax2, 19, 25; color = BAND_CLR)   # optimal-K band, drawn behind the data
+    hlines!(ax2, [naive_per_rhs[1]]; color = REF_CLR, linestyle = :solid, linewidth = LW_GUIDE)
+    # text!(ax2, K[end], naive_per_rhs[1]; text = "single-RHS baseline",
+    #     align = (:right, :top), offset = (-4, -6), fontsize = FS_ANNOT - 4, color = (:gray, 0.9))
+    scatterlines!(ax2, K, per_rhs; color = QUAL.green, marker = QUAL_MK.green,
         linewidth = LW_DATA, markersize = MS)
-    ylims!(ax2, 0, 40)
 
+    xlims!(ax2, 0, 33)
+    ylims!(ax2, 0, 250)
+
+    # single annotation: the amortization minimum over the highlighted band
+    text!(ax2, 19.5, 120;
+        text = L"3.6 \times",
+        align = (:center, :bottom), offset = (0, 16), fontsize = FS_ANNOT + 2, color = :black)
+
+    annotation!(ax2, 22, per_rhs[argmin(per_rhs)], 22, naive_per_rhs[1];
+        # text = L"3.6 \times",
+        # path = Ann.Paths.Arc(0.3),
+        # style = Ann.Styles.LineArrow(),
+        style = Ann.Styles.LineArrow(head = Ann.Arrows.Head(), tail = Ann.Arrows.Head()),
+        fontsize = FS_ANNOT + 2,
+        color = :black,
+        labelspace = :data
+    )
+
+    # ----- panel tags -----------------------------------------------------
     for (ax, lab) in ((ax1, "(a)"), (ax2, "(b)"))
         text!(ax, 0, 1; text = lab, space = :relative, align = (:left, :top),
-              offset = (6, -6), font = :bold, fontsize = FS_BASE)
+            offset = (6, -6), font = :bold, fontsize = FS_BASE)
     end
 
+    colgap!(fig.layout, 1, 30)
     fig
 end
 
 save(joinpath(FIGS, FIGNAME * ".pdf"), fig; px_per_unit = PX_PER_UNIT)
-println("gathered $(length(K)) cutoffs (K = $K) -> data/multicube.csv + figs/$(FIGNAME).pdf")
+println("thread sweep: nthreads = $nthreads")
+println("K sweep: K = $K")
+println("wrote $(joinpath(FIGS, FIGNAME * ".pdf"))")
