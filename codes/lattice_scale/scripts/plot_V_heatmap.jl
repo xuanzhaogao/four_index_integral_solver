@@ -43,7 +43,7 @@ Colorbar(fig[1, 2], hm1, label = "log₁₀|V| (eV)")
 
 ax3 = Axis3(fig[1, 3]; xlabel = "x (Å)", ylabel = "y (Å)", zlabel = "V_iiii (eV)",
     title = "onsite U_i over the lattice", azimuth = 1.05π, elevation = 0.22π)
-sf = surface!(ax3, xr, yr, Ug; colormap = :plasma, rasterize = 4)
+sf = surface!(ax3, xr, yr, Ug; colormap = :viridis, rasterize = 4)
 scatter!(ax3, px, py, U; color = :black, markersize = 5, rasterize = 4)   # actual orbital sites
 Colorbar(fig[1, 4], sf, label = "V_iiii (eV)")
 

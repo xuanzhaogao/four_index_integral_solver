@@ -1,0 +1,40 @@
+name = "lec_single_l5"
+root = "/mnt/ceph/users/xgao1/four_index/lec_single_l5"
+templates = [
+  "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00001.xsf",
+  "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15/graphene_00002.xsf",
+]
+
+[[orbital]]
+type = 1
+x = 6.163439909999999
+y = 10.674688060000001
+z = 7.5
+
+[pairing]
+neighbor_cutoff = 0.0
+
+[dielectrics]
+eps_out = 1.0
+boxes = [
+  [-129.453, 10.318, -132.0, 270.0, 270.0, 270.0, 11.9],
+  [140.547, 10.318, -132.0, 270.0, 270.0, 270.0, 3.9],
+  [5.547, 10.318, 7.5, 42.95357656, 44.06001031, 9.0, 10.0],
+]
+
+[solve]
+n_quad = 6
+edge_refine_level = 5
+rhs_tol = 1e-5
+lhs_tol = 1e-5
+gmres_rtol = 1e-5
+support_rtol = 1e-4
+volume_tol = 1e-5
+max_order = 8
+max_depth = 128
+
+[batching]
+n_centers_per_batch = 1
+
+[eval]
+far_pad_steps = 2.0

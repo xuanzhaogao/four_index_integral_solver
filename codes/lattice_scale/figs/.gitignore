@@ -1,0 +1,5 @@
+# Figure image outputs are regenerable from the scripts + .tsv data; do not track them
+# (avoids large binaries in git). Kept: *.tsv numerical results, *.typ figure source.
+*.pdf
+*.png
+*.svg

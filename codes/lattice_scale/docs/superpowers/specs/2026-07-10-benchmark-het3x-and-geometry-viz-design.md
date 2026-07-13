@@ -17,10 +17,14 @@ slab      (ε=10)  : center (   5.547, 10.318,  7.5),  270×270×9   (z∈[3,12]
 junction plane x = 5.547
 ```
 
-**Orbitals — 200, square super-cell:** graphene 2-atom basis (A type 1, B type 2, offset
-δ = (-0.00108, 1.42227)) tiled on an ORTHOGONAL super-lattice a₁=(2.465,0), a₂=(0,2.465)
-(|a|=graphene a, genuine square), Rx,Ry ∈ 0..9. Block (~22×24 bohr) CENTERED on the junction
-(5.547, 10.318), z=7.5 → ~100 orbitals over Si, ~100 over SiO₂, deep inside the 270-wide slab.
+**Orbitals — ~198, real graphene honeycomb in a square window:** the true hexagonal lattice
+(a₁=(2.465,0), a₂=(−1.2325,2.1347526), both sublattices A/B) clipped to a SQUARE window of
+half-width 11.5 bohr (side ~23) centered on the junction (5.547, 10.318), z=7.5 → 99 orbitals
+over Si, 99 over SiO₂. (An earlier "square super-lattice + 2-atom basis" gave dimerized columns,
+not a natural lattice; switched to real honeycomb per review.)
+
+**Slab is auto-sized:** Lx/Ly = orbital-block extent + 2×11 bohr (measured φ² support) so the
+density stays inside ε=10 (no leak); thickness Lz=9 unchanged. Substrate cubes stay 270³.
 
 **Pairing/solve:** neighbor_cutoff = 5.0 (V_ijkl for pairs within 5 bohr); solve params identical
 to existing campaigns (n_quad=6, edge_refine_level=2, rhs_tol=1e-3, lhs_tol=1e-5, gmres_rtol=1e-5,
