@@ -51,3 +51,4 @@ slides.pdf
 
 # serialized Julia data (purged from history 2026-06)
 *.jls
+*.jls.bak

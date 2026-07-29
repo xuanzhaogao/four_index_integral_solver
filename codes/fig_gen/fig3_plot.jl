@@ -126,7 +126,7 @@ begin
     end
 
     vlines!(ax_a, [1.01 / 2^l for l in 7:7]; color = :gray, linewidth = LW_GUIDE, linestyle = :dash)
-    text!(ax_a, L"d = l_{\text{min}}", position = (1.2 * 1e-3, 10^(-1.45)), fontsize = FS_ANNOT)
+    text!(ax_a, L"d = h_{\min}", position = (1.2 * 1e-3, 10^(-1.45)), fontsize = FS_ANNOT)
 
     text!(ax_a, L"O(d^{\beta})", position = (4e-2, 10^(-1.2)),
            color = :black, fontsize = FS_ANNOT)
@@ -138,7 +138,7 @@ begin
                 xscale = log10, yscale = log10,
                 xminorticksvisible = true, xminorgridvisible = true, xminorticks = IntervalsBetween(5),
                 yminorticksvisible = true, yminorgridvisible = true, yminorticks = IntervalsBetween(5),
-                xlabel = panel_b_xaxis === :N ? L"N" : L"\ell_{\min}",
+                xlabel = panel_b_xaxis === :N ? L"N" : L"h_{\min}",
                 ylabel = L"\mathcal{E}_{\sigma}",
                 xreversed = true
                 )
@@ -165,7 +165,7 @@ begin
         lines!(ax_b, guide_xs, guide_errs;
                color = (:black, 0.7), linewidth = 1.0)
     end
-    text!(ax_b, L"O(\ell_{\min}^{\,\beta + 1})", position = (0.015, 10^(-1.5)),
+    text!(ax_b, L"O(h_{\min}^{\,\beta + 1})", position = (0.015, 10^(-1.5)),
            color = :black, fontsize = FS_ANNOT)
 
     ylims!(ax_b, 10^(-5), 10^(-0))

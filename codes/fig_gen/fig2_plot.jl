@@ -7,8 +7,12 @@ Layout:
   (a) 3D view of the cube with the adaptive panelization (the three
       camera-facing faces, so the cube reads as a solid opaque body),
       colored by refinement level; source projection marked.
-  (b) Relative global interpolation error E_f vs. number of boundary
-      unknowns N for RHS-adaptive and uniform refinement.
+  (b) Absolute global interpolation error E_f (Eq. (Ef) of the article) vs.
+      number of boundary unknowns N for RHS-adaptive and uniform refinement.
+
+The `Ef_abs` field is written by fig2_data_uniform_extend.jl; the older `Ef`
+field in the same records is the relative error (Ef_abs / ‖f‖_{L²(Γ)}) and is
+NOT what the article plots.
 =#
 
 using Serialization
@@ -120,10 +124,11 @@ begin
     for (i, sw) in enumerate(data.sweeps)
         col = p_palette[i]
         mk  = p_markers[i]
+        # Ef_abs: the absolute error of Eq. (Ef); see the header note.
         Ns_a = [r.N for r in sw.adaptive]
-        Es_a = [r.Ef for r in sw.adaptive]
+        Es_a = [r.Ef_abs for r in sw.adaptive]
         Ns_u = [r.N for r in sw.uniform]
-        Es_u = [r.Ef for r in sw.uniform]
+        Es_u = [r.Ef_abs for r in sw.uniform]
 
         scatterlines!(ax_c, Ns_a, Es_a; color = col, marker = mk,
                       markersize = MS, linewidth = LW_DATA,
