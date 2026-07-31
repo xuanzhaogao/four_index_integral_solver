@@ -156,8 +156,10 @@ begin
     xlims!(ax1, 0.85, 132)
     ylims!(ax1, 20, 6000)
 
-    # single annotation: strong-scaling speedup at the final point
-    text!(ax1, 96, 5e2; text = L"20.3 \times",
+    # single annotation: strong-scaling speedup at the final point.
+    # Derived from the data, NOT hard-coded: this number changes whenever
+    # niter_ref changes (e.g. when the preconditioner is on).
+    text!(ax1, 96, 5e2; text = latexstring(string(round(tot_th[1] / tot_th[end]; digits = 1), " \\times")),
         align = (:right, :bottom), offset = (-4, 8), fontsize = FS_ANNOT + 2, color = :black)
 
     annotation!(ax1, 96, tot_th[1], 96, tot_th[end];
@@ -195,8 +197,9 @@ begin
     ylims!(ax2, 0, 250)
 
     # single annotation: the amortization minimum over the highlighted band
+    # amortization maximum, derived from the data rather than hard-coded.
     text!(ax2, 19.5, 120;
-        text = L"3.6 \times",
+        text = latexstring(string(round(naive_per_rhs[1] / minimum(per_rhs); digits = 1), " \\times")),
         align = (:center, :bottom), offset = (0, 16), fontsize = FS_ANNOT + 2, color = :black)
 
     annotation!(ax2, 22, per_rhs[argmin(per_rhs)], 22, naive_per_rhs[1];
