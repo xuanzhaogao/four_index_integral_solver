@@ -31,10 +31,12 @@ using CairoMakie, LaTeXStrings, Serialization
 include(joinpath(@__DIR__, "..", "..", "fig_gen", "fig_style.jl"))
 
 const SMOKE = get(ENV, "MULTICUBE_SMOKE", "0") == "1"
-const DATA = joinpath(@__DIR__, "..", "exp66_multicube", "data", SMOKE ? "smoke" : "")
+# RERUN_TAG: plot the rerun tree (data_v2/, *_v2 campaigns) instead of the published one.
+const TAG = get(ENV, "RERUN_TAG", "")
+const DATA = joinpath(@__DIR__, "..", "exp66_multicube", "data" * TAG, SMOKE ? "smoke" : "")
 const RAW  = joinpath(DATA, "raw")
 const RAW_THREADS = joinpath(DATA, "raw_threads")
-const FIGS = joinpath(@__DIR__, "..", "figs")
+const FIGS = joinpath(@__DIR__, "..", "figs" * TAG); mkpath(FIGS)
 const FIGNAME = SMOKE ? "fig66_multicube_scaling_smoke" : "fig66_multicube_scaling"
 mkpath(FIGS)
 

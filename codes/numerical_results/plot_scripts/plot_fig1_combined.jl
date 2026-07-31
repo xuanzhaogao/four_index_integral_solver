@@ -17,8 +17,10 @@ import BoundaryIntegral as BI
 using CairoMakie, LaTeXStrings, Printf, Serialization
 include(joinpath(@__DIR__, "..", "..", "fig_gen", "fig_style.jl"))
 
-const DATA = joinpath(@__DIR__, "..", "exp61_convergence", "data")
-const FIGS = joinpath(@__DIR__, "..", "figs")
+# RERUN_TAG: plot the rerun tree (data_v2/, *_v2 campaigns) instead of the published one.
+const TAG = get(ENV, "RERUN_TAG", "")
+const DATA = joinpath(@__DIR__, "..", "exp61_convergence", "data" * TAG)
+const FIGS = joinpath(@__DIR__, "..", "figs" * TAG); mkpath(FIGS)
 mkpath(FIGS)
 
 # ---- geometry: RHS-adaptive interface at the sweep parameters --------------

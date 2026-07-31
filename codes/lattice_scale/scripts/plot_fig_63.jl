@@ -10,8 +10,10 @@ const BI = BoundaryIntegral
 include(joinpath(@__DIR__, "..", "..", "fig_gen", "fig_style.jl"))   # sets theme: fontsize=FS_BASE
 const CEPH = "/mnt/ceph/users/xgao1/four_index"
 
-c = BI.load_campaign(joinpath(@__DIR__, "..", "campaigns", "lattice_10x10_het3x.toml"))
-d3 = open(deserialize, joinpath(CEPH, "lattice_conv_l3", "V_full_eV.jls"))   # l_ec = 1.14 (ref)
+# RERUN_TAG: plot the rerun tree (data_v2/, *_v2 campaigns) instead of the published one.
+const TAG = get(ENV, "RERUN_TAG", "")
+c = BI.load_campaign(joinpath(@__DIR__, "..", "campaigns", "lattice_10x10_het3x$(TAG).toml"))
+d3 = open(deserialize, joinpath(CEPH, "lattice_conv_l3$(TAG)", "V_full_eV.jls"))   # l_ec = 1.14 (ref)
 p3 = sortperm(d3.pair_ids); V3 = d3.V[p3, p3]; n = size(V3, 1)
 
 # on-site U (diagonal pairs) from level 3
@@ -21,7 +23,7 @@ XJ = 5.547
 
 # single-orbital l_ec convergence: U vs dof
 Uc = Float64[]; Nc = Float64[]
-for ln in eachline(joinpath(@__DIR__, "..", "figs", "lec_single_conv.tsv"))
+for ln in eachline(joinpath(@__DIR__, "..", "figs", "lec_single_conv$(TAG).tsv"))
     (isempty(ln) || startswith(ln, "level")) && continue
     f = split(ln, '\t'); push!(Uc, parse(Float64, f[3])); push!(Nc, parse(Float64, f[4]))
 end
@@ -74,6 +76,6 @@ begin
     fig
 end
 
-out = joinpath(@__DIR__, "..", "figs", "fig_63.pdf")
+out = joinpath(@__DIR__, "..", "figs", "fig_63$(TAG).pdf")
 save(out, fig; px_per_unit = PX_PER_UNIT)
 @printf("wrote %s   max|V|=%.3f eV, U∞=%.4f eV (r=%.3f)\n", out, maximum(abs.(V3)), Uinf, r)

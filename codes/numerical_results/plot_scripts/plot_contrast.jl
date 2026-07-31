@@ -7,9 +7,11 @@ using .Lite
 using CairoMakie, LaTeXStrings
 include(joinpath(@__DIR__, "..", "..", "fig_gen", "fig_style.jl"))
 
-const DATA = joinpath(@__DIR__, "..", "exp63_contrast", "data")
+# RERUN_TAG: plot the rerun tree (data_v2/, *_v2 campaigns) instead of the published one.
+const TAG = get(ENV, "RERUN_TAG", "")
+const DATA = joinpath(@__DIR__, "..", "exp63_contrast", "data" * TAG)
 const RAW = joinpath(DATA, "raw")
-const FIGS = joinpath(@__DIR__, "..", "figs")
+const FIGS = joinpath(@__DIR__, "..", "figs" * TAG); mkpath(FIGS)
 mkpath(FIGS)
 
 e2s = sort([parse(Float64, match(r"^ratio_ref_e2_(.+)\.jls$", f).captures[1])
