@@ -118,7 +118,11 @@ begin
     axislegend(ax1; position = :lb, labelsize = FS_LEGEND - 3, nbanks = 1,
         rowgap = 0, padding = (5, 5, 3, 3))
     ylims!(ax1, 10^(log10(minimum(allev)) - 0.3), 10^(log10(maximum(allev)) + 0.3))
-    ylims!(ax2, max(0, minimum(allit) - 3), maximum(allit) + 3)
+    # Fixed window, chosen for the final figure. Guarded so that if the data ever
+    # moves outside it the run says so, rather than silently rendering an empty panel.
+    const NIT_LO, NIT_HI = 8, 16
+    (minimum(allit) < NIT_LO || maximum(allit) > NIT_HI) && @warn "panel (c): niter outside the fixed y-window; points will be clipped" extrema=extrema(allit) window=(NIT_LO, NIT_HI)
+    ylims!(ax2, NIT_LO, NIT_HI)
 
     # panel tags inside each panel (in-axis text), matching the other figures
     for (ax, lab) in ((ax_g, "(a)"), (ax1, "(b)"), (ax2, "(c)"))
