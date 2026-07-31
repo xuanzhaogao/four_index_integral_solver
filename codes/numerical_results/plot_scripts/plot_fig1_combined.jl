@@ -122,6 +122,6 @@ begin
     colgap!(fig.layout, 10)
 
     save(joinpath(FIGS, "fig61_fig1_combined.pdf"), fig; px_per_unit = PX_PER_UNIT)
-    println("wrote figs/fig61_fig1_combined.pdf")
+    println("wrote ", joinpath(FIGS, "fig61_fig1_combined.pdf"))
     fig
 end

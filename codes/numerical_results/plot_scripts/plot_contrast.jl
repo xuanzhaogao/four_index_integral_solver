@@ -56,4 +56,4 @@ begin
 end
 
 save(joinpath(FIGS, "fig63_contrast.pdf"), fig; px_per_unit = PX_PER_UNIT)
-println("wrote figs/fig63_contrast.pdf")
+println("wrote ", joinpath(FIGS, "fig63_contrast.pdf"))
