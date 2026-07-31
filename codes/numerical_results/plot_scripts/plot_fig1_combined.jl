@@ -87,10 +87,16 @@ begin
         yminorticksvisible = true, yminorgridvisible = true, yminorticks = IntervalsBetween(5),
         xlabel = L"N", ylabel = L"N_\mathrm{iter}")
 
+    # Accumulate every plotted value so the axis limits below are derived from the
+    # data rather than pinned. A fixed window sized for one code state silently
+    # empties the panel when the numbers move (see plot_fig_63.jl panel (c)).
+    allev = Float64[]; allit = Int[]
+
     for p in (2, 4, 6)
         s = load_series(p)
         Ns = [d.N for d in s]
         ev = [abs(d.V - ref.V) / abs(ref.V) for d in s]
+        append!(allev, ev); append!(allit, [d.niter for d in s])
         scatterlines!(ax1, Ns, ev; color = COL[p], marker = MK[p],
             linewidth = LW_DATA, markersize = MS, label = L"p = %$p")
         scatterlines!(ax2, Ns, [d.niter for d in s]; color = COL[p], marker = MK[p],
@@ -102,6 +108,7 @@ begin
         isempty(s) && continue
         Ns = [d.N for d in s]
         ev = [abs(d.V - ref.V) / abs(ref.V) for d in s]
+        append!(allev, ev); append!(allit, [d.niter for d in s])
         scatterlines!(ax1, Ns, ev; color = (COL[p], 0.55), marker = MK[p],
             markersize = MS, linewidth = LW_GUIDE, linestyle = :dash,
             label = L"p = %$p \text{ (no edge corr.)}")
@@ -110,8 +117,8 @@ begin
     end
     axislegend(ax1; position = :lb, labelsize = FS_LEGEND - 3, nbanks = 1,
         rowgap = 0, padding = (5, 5, 3, 3))
-    ylims!(ax1, 10^(-4.5), 10^(-1.5))
-    ylims!(ax2, 15, 30)
+    ylims!(ax1, 10^(log10(minimum(allev)) - 0.3), 10^(log10(maximum(allev)) + 0.3))
+    ylims!(ax2, max(0, minimum(allit) - 3), maximum(allit) + 3)
 
     # panel tags inside each panel (in-axis text), matching the other figures
     for (ax, lab) in ((ax_g, "(a)"), (ax1, "(b)"), (ax2, "(c)"))
