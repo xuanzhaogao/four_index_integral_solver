@@ -11,6 +11,8 @@ const E2 = 14.3996
 Timer(_ -> (flush(stdout); flush(stderr)), 2; interval = 2)
 
 const LS = normpath(joinpath(@__DIR__, ".."))
+# RERUN_TAG suffixes the campaign name (hence its ceph root) and the output TSV.
+const TAG = get(ENV, "RERUN_TAG", "")
 const LEVELS = isempty(ARGS) ? [1, 2, 3, 4] : parse.(Int, ARGS)
 const XJ, YC = 5.547, 10.318
 
@@ -21,7 +23,7 @@ orb = orbs[oi]
 @info "chosen orbital" idx = oi type = orb["type"] x = orb["x"] y = orb["y"]
 
 function write_toml(level)
-    nm = "lec_single_l$(level)"
+    nm = "lec_single_l$(level)$(TAG)"
     io = IOBuffer()
     println(io, "name = \"$nm\"")
     println(io, "root = \"/mnt/ceph/users/xgao1/four_index/$nm\"")
@@ -72,7 +74,7 @@ for (k, r) in enumerate(results)
     @printf("%d\t%.3f\t%.6f\t%d\t%.0f\t\t%.2e\n", r[1], r[2], r[3], r[4], r[5], du)
 end
 # merge with any existing rows (so separate level runs accumulate), keyed by level
-tsv = joinpath(LS, "figs", "lec_single_conv.tsv")
+tsv = joinpath(LS, "figs", "lec_single_conv$(TAG).tsv")
 rows = Dict{Int,Tuple{Float64,Float64,Int,Float64}}()   # level → (l_ec, U, dof, t)
 if isfile(tsv)
     for ln in eachline(tsv)

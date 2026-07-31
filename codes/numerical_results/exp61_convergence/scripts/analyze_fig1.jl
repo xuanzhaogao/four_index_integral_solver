@@ -5,7 +5,9 @@ include(joinpath(@__DIR__, "..", "..", "common", "Harness.jl"))
 using .Harness
 using LinearAlgebra, Printf
 
-const DATA = joinpath(@__DIR__, "..", "data")
+# RERUN_TAG: read the rerun output tree instead of the published one.
+const TAG = get(ENV, "RERUN_TAG", "")
+const DATA = joinpath(@__DIR__, "..", "data" * TAG)
 
 ref = load_ref(joinpath(DATA, "raw", "fig1_ref.jls"))
 @printf("reference: p=%d r=%d eps=%.0e N=%d niter=%d V=%.12e\n\n",

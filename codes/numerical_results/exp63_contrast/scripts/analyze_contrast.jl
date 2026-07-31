@@ -6,7 +6,9 @@ include(joinpath(@__DIR__, "..", "..", "common", "Lite.jl"))
 using .Lite
 using Printf
 
-const DATA = joinpath(@__DIR__, "..", "data")
+# RERUN_TAG: read the rerun output tree instead of the published one.
+const TAG = get(ENV, "RERUN_TAG", "")
+const DATA = joinpath(@__DIR__, "..", "data" * TAG)
 const RAW = joinpath(DATA, "raw")
 
 e2s = sort([parse(Float64, match(r"^ratio_ref_e2_(.+)\.jls$", f).captures[1])

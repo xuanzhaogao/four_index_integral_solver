@@ -224,6 +224,13 @@ function solve_system(sys::SystemSpec;
     # edge-region quadrature error decays only ~2^-r and dominates every
     # metric (verified on the 6.1 slab, 2026-06-10); also halves N_iter.
     correct_edges::Bool = true,
+    # Right-diagonal preconditioner P = G^-1 on the contrast term (BI design note
+    # 2026-07-31). Collapses the one-cluster-per-contrast spectrum onto a single
+    # cluster at 1. Does NOT change the converged sigma -- Krylov applies N to the
+    # returned solution and keeps minimizing the true residual -- only N_iter.
+    # NOTE: this path calls Krylov.gmres directly, so it does not inherit the
+    # `precondition = true` default that BI put on solve_dielectric_box3d_block.
+    precondition::Bool = parse(Bool, get(ENV, "PRECONDITION", "1")),
 )
     fmm_tol = fmm_tol_of(eps)
     tkm_tol = max(eps, 1e-13)
@@ -282,7 +289,10 @@ function solve_system(sys::SystemSpec;
 
     # 5. GMRES
     t0 = time()
-    sigma, stats = Krylov.gmres(A, rhs; atol = gmres_atol, rtol = eps,
+    Nprec = precondition ?
+        Diagonal(BI.dielectric_diagonal_scaling(interface)) :
+        LinearAlgebra.I
+    sigma, stats = Krylov.gmres(A, rhs; N = Nprec, atol = gmres_atol, rtol = eps,
                                 itmax = itmax, history = history, verbose = gmres_verbose)
     times["gmres"] = time() - t0
     residual = norm(A * sigma - rhs) / max(norm(rhs), eps_float())

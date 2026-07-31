@@ -44,6 +44,10 @@ using Serialization
 
 const SMOKE = get(ENV, "MULTICUBE_SMOKE", "0") == "1"
 const CORRECT_EDGES = get(ENV, "CORRECT_EDGES", "1") == "1"
+# Right-diagonal preconditioner (BI design note 2026-07-31). This script calls
+# Krylov.block_gmres directly, so it does NOT inherit BI's new
+# `precondition = true` default on solve_dielectric_box3d_block.
+const PRECONDITION = get(ENV, "PRECONDITION", "1") == "1"
 const GEOM_ONLY = get(ENV, "MULTICUBE_GEOM_ONLY", "0") == "1"
 # Thread-scaling knobs. GMRES_ITMAX=1 runs a single block-GMRES iteration (timing
 # only; the solve does NOT converge and the physics outputs are meaningless): the
@@ -53,7 +57,11 @@ const GEOM_ONLY = get(ENV, "MULTICUBE_GEOM_ONLY", "0") == "1"
 const GMRES_ITMAX = parse(Int, get(ENV, "MULTICUBE_GMRES_ITMAX", "500"))
 const RUNTAG = get(ENV, "MULTICUBE_RUNTAG", "")
 
-const DATA = joinpath(@__DIR__, "..", "data", SMOKE ? "smoke" : "")
+# RERUN_TAG: appends a suffix to this experiment's output directory so a rerun
+# never overwrites the data behind the submitted manuscript. Empty = original paths.
+const TAG = get(ENV, "RERUN_TAG", "")
+const DATA = joinpath(@__DIR__, "..", "data" * TAG, SMOKE ? "smoke" : "")
+mkpath(joinpath(DATA, "raw")); mkpath(joinpath(DATA, "raw_threads"))
 mkpath(joinpath(DATA, "raw"))
 
 const REF_DIR = "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/k_323201_nb_144_c_15"
@@ -174,7 +182,10 @@ function run_pipeline(b, pairs, stages::Vector; record::Bool)
     note("RHS assembly (per-source, multi-region)", t)
     local sigma_block, bstats
     t = @elapsed begin
-        sigma_block, bstats = Krylov.block_gmres(op, F;
+        Nprec = PRECONDITION ?
+            Diagonal(BI.dielectric_diagonal_scaling(interface)) :
+            LinearAlgebra.I
+        sigma_block, bstats = Krylov.block_gmres(op, F; N = Nprec,
             rtol = P.gmres_rtol, atol = P.gmres_atol, itmax = GMRES_ITMAX)
     end
     note("block GMRES", t)
@@ -267,7 +278,7 @@ for cutoff in SWEEP
             t_precompute, t_pottrg, t_solve_block, t_eval, t_total, rss_gb())
     flush(stdout)
 
-    out = (; smoke = SMOKE, correct_edges = CORRECT_EDGES, cutoff,
+    out = (; smoke = SMOKE, correct_edges = CORRECT_EDGES, precondition = PRECONDITION, cutoff,
            L, slab_thick = SLAB_THICK, eps1 = EPS1, eps2 = EPS2, eps_slab = EPS_SLAB, eps_out = EPS_OUT,
            K = res.K, pairs = res.pairs, n_points = res.n_points, n_src = res.n_src,
            niter = res.niter, block_resid = res.block_resid,

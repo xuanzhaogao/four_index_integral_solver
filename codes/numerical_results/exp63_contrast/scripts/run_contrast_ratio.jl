@@ -35,7 +35,11 @@ using Printf
 const SMOKE = get(ENV, "CONTRAST_SMOKE", "0") == "1"
 const GMRES_VERBOSE = parse(Int, get(ENV, "GMRES_VERBOSE", "0"))
 
-const DATA = joinpath(@__DIR__, "..", "data", SMOKE ? "smoke" : "")
+# RERUN_TAG: appends a suffix to this experiment's output directory so a rerun
+# never overwrites the data behind the submitted manuscript. Empty = original paths.
+const TAG = get(ENV, "RERUN_TAG", "")
+const DATA = joinpath(@__DIR__, "..", "data" * TAG, SMOKE ? "smoke" : "")
+mkpath(joinpath(DATA, "raw"))
 const CSVPATH = joinpath(DATA, "contrast_ratio.csv")
 mkpath(joinpath(DATA, "raw"))
 

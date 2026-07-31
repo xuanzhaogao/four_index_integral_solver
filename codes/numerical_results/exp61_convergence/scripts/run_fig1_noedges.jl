@@ -16,7 +16,11 @@ using .Harness
 using Printf
 
 const SYS = system_fig1()
-const DATA = joinpath(@__DIR__, "..", "data")
+# RERUN_TAG: appends a suffix to this experiment's output directory so a rerun
+# never overwrites the data behind the submitted manuscript. Empty = original paths.
+const TAG = get(ENV, "RERUN_TAG", "")
+const DATA = joinpath(@__DIR__, "..", "data" * TAG)
+mkpath(joinpath(DATA, "raw"))
 const OUTDIR = joinpath(DATA, "raw", "fig1_noedges")
 const CSVPATH = joinpath(DATA, "sweep_fig1_noedges.csv")
 
