@@ -63,7 +63,9 @@ begin
             xminorgridvisible = true, yminorgridvisible = true)
     lines!(axc, xf, yf; color = :black, linestyle = :dash, linewidth = LW_GUIDE)
     scatter!(axc, NN, Er; color = QUAL.blue, marker = :circle, markersize = MS)
-    ylims!(axc, 10^(-2.8), 10^(-1.2));
+    # Data-derived, NOT hard-coded: with the edge correction on, E_r drops ~50x
+    # and a fixed window sized for the uncorrected errors renders panel (c) empty.
+    ylims!(axc, 10^(log10(minimum(Er)) - 0.4), 10^(log10(maximum(Er)) + 0.4));
     # xlims!(axc, 1e5, 1e7)
 
     # ---- panel tags OUTSIDE, top-left corner of each panel ----
