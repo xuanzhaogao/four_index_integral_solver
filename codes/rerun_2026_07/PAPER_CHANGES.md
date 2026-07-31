@@ -1,6 +1,7 @@
 # Changes the paper needs after the July 2026 rerun
 
-Every number below is measured, not projected, except where marked PENDING.
+Every number below is measured, not projected. All seven rerun jobs completed
+2026-07-31; no results remain outstanding.
 Line numbers refer to `~/Articles/four_indices_bie/main.tex` as of 2026-07-31.
 
 Two classes of change are mixed here and should be kept separate when editing:
@@ -129,18 +130,34 @@ discretization error. Power law still clean (ratio 0.586, slope −0.700 vs −0
 against `gmres_rtol = 1e-5`, so the finest points sit only ~5× above the solver's
 own floor. Without saying so, a referee will read the flattening as saturation.
 
-**(F) §6.4 on-site $U$ values — PENDING `conv_l3`.** Measured on `het3x`
-($h_{\min}$ = 2.27 Å), every orbital shifts **downward** by 0.021–0.063 eV;
-RMS $|\Delta U|/U$ = 1.6%, max 2.9%. The Si/SiO₂ contrast falls from 0.0983 to
-0.0827 eV, a **16% reduction** — the physics survives, the magnitude does not.
-Fig 10 uses `conv_l3`, one level finer, where the single-orbital study predicts
-roughly half that shift. **Do not quote the het3x numbers**; wait for
-`compare_rerun.jl` on `conv_l3`.
+**(F) `:1332` — the on-site $U$ values all move.** Measured on `conv_l3`, the
+campaign Fig 10 actually plots:
 
-**(F) The symmetry check improves ~39×** — `het3x` goes 4.33e-3 → 1.11e-4. The
-paper offers its 2.5e-3 as "an end-to-end check of the distributed assembly";
-that number was largely reporting the missing edge correction, not assembly
-error. This makes the paper's own argument stronger. `conv_l3` value PENDING.
+| | min | max | Si mean | SiO₂ mean |
+|---|---|---|---|---|
+| published | 1.9876 | 2.1754 | 2.0044 | 2.0962 |
+| **new** | **1.9753** | **2.1389** | **1.9906** | **2.0735** |
+
+Every orbital shifts downward by 0.012–0.036 eV. RMS $|\Delta U|/U$ = **0.92%**,
+max 1.68%; full-tensor RMS $\Delta V$ = 5.8e-4. The sentence "increases from
+about $1.99$ ... to about $2.18$ ... with side-averaged values of $2.00$ and
+$2.10$" becomes **1.98 → 2.14, side averages 1.99 and 2.07**.
+
+**The Si/SiO₂ contrast falls 0.0918 → 0.0829 eV, a 9.7% reduction.** The physical
+claim survives — the buried junction produces position-dependent screening that
+no homogeneous background reproduces — but its magnitude does not. This is the
+paper's headline result, so the change should be stated rather than absorbed
+silently.
+
+(For scale: the coarser `het3x` campaign shifts 1.6% RMS with a 16% contrast
+reduction, so the error is refinement-dependent as expected. Quote the `conv_l3`
+figures, which are what Fig 10 shows.)
+
+**(F) `:1333` — the symmetry check improves 36×**, from $2.5\times10^{-3}$ to
+**6.8e-5** (`het3x`: 4.33e-3 → 1.11e-4). The paper offers this as "an end-to-end
+check of the distributed assembly"; that number was largely reporting the missing
+edge correction rather than assembly error. The check is now far more convincing
+— this correction strengthens the paper's own argument.
 
 ---
 
