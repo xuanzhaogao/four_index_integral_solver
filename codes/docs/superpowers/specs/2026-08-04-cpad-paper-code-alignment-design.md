@@ -240,10 +240,16 @@ gate, so a failure in one does not strand the others:
   merges.
 - **Stage B — Fig. 5 and the paper.** Components 4-5. Gate: panel (b) reproduces
   the periodization threshold and panel (a) shows the plateau structure at all
-  four tolerances. Independent of Stage C.
-- **Stage C — Section 6.4 rerun.** Last, gated on Stage A, and launched only with
-  an explicit go-ahead. If the numbers move materially, that is a finding to
-  report about the previous `c_pad = 2` setting.
+  four tolerances.
+**No Stage C.** The Section 6.4 campaign is not rerun. The quoted numbers were
+produced at `far_pad_steps = 2`, and the new default is `c_pad = 5`, so in
+principle they correspond to a superseded configuration. In practice the change
+moves targets between two evaluators that already agree far below the quoted
+precision: `test/solver/lattice_batch.jl:88` asserts `< 1e-5` maximum relative
+difference between the near and far branches on a well-resolved source at
+`far_pad = 2h`, against §6.4's `U ≈ 2.0–2.2 eV` and symmetry residual `0.0043`.
+Revisit only if Stage A's tests reveal a discrepancy larger than that on a
+realistic lattice.
 
 ## Verification
 
@@ -274,21 +280,21 @@ Order matters; each step gates the next.
    below the threshold — not that the transition is exactly at 1. The caption
    wording must match what the data shows.
 
-### Section 6.4 rerun
+### Bounding the un-rerun Section 6.4 change
 
-Changing `far_pad_steps` 2 → `c_pad` 5 changes the incident potential in the
-production path, so the Section 6.4 numbers — the het3x campaign's converged
-onsite `U ≈ 2.0–2.2 eV` and symmetry residual `0.0043`, both quoted in the
-text — must be regenerated before they can stand. That campaign is ~3.9 h on
-10 nodes. It is the last step, gated on 1-3 passing, and it needs an explicit
-go-ahead at launch time rather than being kicked off automatically.
+Since §6.4 is not being regenerated, Stage A must produce evidence that the
+change is below its quoted precision rather than assuming it. Add a test that
+evaluates the same realistic lattice batch at `c_pad = 2` and `c_pad = 5` and
+records the maximum relative difference in `Φ`. If that number is not comfortably
+below `0.0043`-level significance, the no-rerun decision has to be revisited.
 
 ## Risks
 
-- **The rerun could move a quoted result.** `c_pad` 2 → 5 enlarges the near
-  region, moving targets from the FMM branch to the TKM branch. If §6.4's numbers
-  shift materially, that is a finding about the old `c_pad = 2` setting and needs
-  to be reported, not smoothed over.
+- **§6.4 stands on un-regenerated numbers.** `c_pad` 2 → 5 enlarges the near
+  region, moving targets from the FMM branch to the TKM branch, and `L` also
+  stops depending on batch composition. The argument that this is immaterial rests
+  on the two branches agreeing to `< 1e-5`; the bounding test above is what turns
+  that from an assumption into a measurement.
 - **The `VolumeSource` field addition is the widest blast radius.** Any
   constructor or transformation that rebuilds a `VolumeSource` without
   propagating `lattice_basis` silently reverts `h` to the fallback. The
