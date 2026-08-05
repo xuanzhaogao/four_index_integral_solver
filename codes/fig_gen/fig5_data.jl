@@ -1,25 +1,27 @@
 #=
-Data generation for Figure 5 (TKM volume-solver validation, Coulomb kernel).
+Data generation for Figure 5 (TKM/FMM hybrid incident-potential validation).
 
 We evaluate
     u(x) = (1 / 4 pi) int rho(y) / |x - y| dy
-for a normalized 3D Gaussian rho on the box B = [-1, 1]^3 by sampling rho on a
-uniform Cartesian grid and passing the samples to two competing methods:
-  - TKM   (truncated kernel method)        — `ltkm3dc` from TKM3D
-  - FMM   (direct discrete sum at eps tol) — `lfmm3d`  from FMM3D
+for a normalized 3D Gaussian rho on B = [-1, 1]^3, sampled on a cell-centered
+uniform Cartesian grid, and compare two evaluators at the SAME targets:
+  - the Section 3 hybrid: TKM inside B_pad, FMM outside (PrecomputedVolumeField)
+  - the pure particle sum of Eq. (3.13), at every target
 
-The analytic reference is
-    u_ref(x) = (1 / 4 pi) erf(|x| / (sqrt(2) s)) / |x|,
-with limit  (1 / 4 pi) sqrt(2 / pi) / s  at x = 0.
+The padding is h_n = c_pad * h with c_pad = 5, so both panels exercise the
+near/far switch. Targets span both regions and keep their classification for
+every n in the sweep:
+  near: 200 points in [-0.9, 0.9]^3   -- inside B_pad even at n = 64 (B_pad ~ 1.156)
+  far:  200 points with max|coord| in [2.5, 4] -- outside B_pad even at n = 8 (B_pad ~ 2.25)
+
+The analytic reference is u_ref(x) = (1 / 4 pi) erf(|x| / (sqrt(2) s)) / |x|,
+with limit (1 / 4 pi) sqrt(2 / pi) / s at x = 0, valid at every target.
 
 Panels:
-  (a) relative L2 error vs grid resolution n for several tolerances eps
-  (b) relative L2 error vs eta = min_alpha P_alpha / (l_alpha + L)
-      with n fixed; uses a small standalone TKM evaluator so we can drive eta
-      below 1 (production TKM enforces eta >= 1).
-
-All errors are measured on a fixed set of random off-grid targets in B, so
-the FMM has no self-interaction and the same targets are used at every n.
+  (a) relative L2 error vs grid resolution n, for several tolerances tau
+  (b) relative L2 error vs eta = min_alpha L_alpha / (l_alpha + h_n + L), n fixed.
+      Uses a standalone TKM+FMM evaluator with a tunable dk, because the
+      production path now sits exactly at eta = 1 and cannot be driven below it.
 =#
 
 using LinearAlgebra
@@ -27,41 +29,61 @@ using SpecialFunctions
 using Serialization
 using Printf
 using Random
-using FINUFFT
-using TKM3D
 using FMM3D
+using TKM3D
+using BoundaryIntegral
+const BI = BoundaryIntegral
 
 # ---------------------------------------------------------------------------
 # Problem setup
 # ---------------------------------------------------------------------------
-const s_gauss  = 0.10
-const y0       = (0.0, 0.0, 0.0)
+const s_gauss = 0.10
+const y0      = (0.0, 0.0, 0.0)
 
 const box_half = 1.0
 const l_box    = 2 * box_half
-const L_diag   = sqrt(3) * l_box
+const C_PAD    = 5.0
 
 const eps_list = (1e-3, 1e-6, 1e-9, 1e-12)
 const n_list   = collect(8:8:64)
 
 const n_for_eta = 64
-const eta_list  = collect(10 .^ range(log10(0.5), log10(2.5); length = 25))
-
-# Fixed off-grid target set (same across all n and methods).
-const N_targets = 200
-Random.seed!(42)
-let
-    global targets = Matrix{Float64}(undef, 3, N_targets)
-    for k in 1:N_targets
-        # uniform in [-0.9, 0.9]^3 (well inside B, avoids cell-center alignment)
-        targets[1, k] = 1.8 * (rand() - 0.5)
-        targets[2, k] = 1.8 * (rand() - 0.5)
-        targets[3, k] = 1.8 * (rand() - 0.5)
-    end
-end
+const eta_list  = collect(10 .^ range(log10(0.5), log10(1.6); length = 20))
 
 # ---------------------------------------------------------------------------
-# Density and analytic reference
+# Fixed target set: near + far, classification independent of n
+# ---------------------------------------------------------------------------
+const N_near = 200
+const N_far  = 200
+
+function build_targets()
+    Random.seed!(42)
+    t = Matrix{Float64}(undef, 3, N_near + N_far)
+    # near: uniform in [-0.9, 0.9]^3, inside B_pad for every n (B_pad >= 1.156)
+    for k in 1:N_near
+        t[1, k] = 1.8 * (rand() - 0.5)
+        t[2, k] = 1.8 * (rand() - 0.5)
+        t[3, k] = 1.8 * (rand() - 0.5)
+    end
+    # far: max|coord| in [2.5, 4], outside B_pad for every n (B_pad <= 2.25)
+    k = N_near
+    while k < N_near + N_far
+        p = 8.0 .* (rand(3) .- 0.5)          # uniform in [-4, 4]^3
+        m = maximum(abs, p)
+        (m >= 2.5 && m <= 4.0) || continue
+        k += 1
+        t[1, k] = p[1]; t[2, k] = p[2]; t[3, k] = p[3]
+    end
+    return t
+end
+
+const targets  = build_targets()
+const N_targets = size(targets, 2)
+const near_rng = 1:N_near
+const far_rng  = (N_near + 1):(N_near + N_far)
+
+# ---------------------------------------------------------------------------
+# Density, source construction, analytic reference
 # ---------------------------------------------------------------------------
 @inline function rho(y::NTuple{3,Float64})
     r2 = (y[1]-y0[1])^2 + (y[2]-y0[2])^2 + (y[3]-y0[3])^2
@@ -70,120 +92,129 @@ end
 
 @inline function u_ref(x::NTuple{3,Float64})
     r = sqrt((x[1]-y0[1])^2 + (x[2]-y0[2])^2 + (x[3]-y0[3])^2)
-    if r < 1e-14
-        return sqrt(2 / π) / s_gauss / (4π)
-    end
+    r < 1e-14 && return sqrt(2 / π) / s_gauss / (4π)
     return erf(r / (sqrt(2) * s_gauss)) / r / (4π)
 end
 
-function tail_mass(R::Float64, s::Float64)
-    a = R / (sqrt(2) * s)
-    return erfc(a) + sqrt(2/π) * (R/s) * exp(-R^2 / (2 * s^2))
-end
+tail_mass(R, s) = erfc(R / (sqrt(2)*s)) + sqrt(2/π) * (R/s) * exp(-R^2 / (2*s^2))
 
-const u_r_t = [u_ref((targets[1,k], targets[2,k], targets[3,k])) for k in 1:N_targets]
+const u_r_t    = [u_ref((targets[1,k], targets[2,k], targets[3,k])) for k in 1:N_targets]
 const u_r_norm = norm(u_r_t)
 
-# ---------------------------------------------------------------------------
-# Build cell-centered grid sources
-# ---------------------------------------------------------------------------
-function grid_sources(n::Int)
+relerr(u) = norm(u .- u_r_t) / u_r_norm
+relerr(u, rng) = norm(u[rng] .- u_r_t[rng]) / norm(u_r_t[rng])
+
+# Cell-centered grid on B = [-1,1]^3. The identity-basis grid constructor stores
+# A_rho = h * I, so BI.source_box returns exactly [-1,1]^3 and BI.lattice_spacing
+# returns exactly h.
+function grid_source(n::Int)
     h  = l_box / n
     xs = collect(-box_half + h/2 .+ h .* (0:n-1))
-    sources = Matrix{Float64}(undef, 3, n^3)
-    charges = Vector{Float64}(undef, n^3)
-    k = 0
-    @inbounds for kz in 1:n, ky in 1:n, kx in 1:n
-        k += 1
-        sources[1, k] = xs[kx]
-        sources[2, k] = xs[ky]
-        sources[3, k] = xs[kz]
-        charges[k]    = rho((xs[kx], xs[ky], xs[kz])) * h^3
+    weights = fill(h^3, n, n, n)
+    density = Array{Float64,3}(undef, n, n, n)
+    for k in 1:n, j in 1:n, i in 1:n
+        density[i,j,k] = rho((xs[i], xs[j], xs[k]))
     end
-    return sources, charges
+    return VolumeSource((xs, xs, xs), weights, density)
 end
 
 # ---------------------------------------------------------------------------
-# Standalone continuous-TKM evaluator with a user-controlled Δk.
-# eta = P / (l + L) where l = 2 (box side) and L = sqrt(3) * l.
-# eta = 1 is the tightest allowed real-space period; eta < 1 -> aliasing.
+# Standalone hybrid with a tunable Fourier spacing (panel b).
+# Mirrors BI.near_field_geometry, then scales dk by 1/eta so eta < 1 is reachable.
 # ---------------------------------------------------------------------------
-function tkm_eval_eta(sources::Matrix{Float64}, charges::Vector{Float64},
-                     targets::Matrix{Float64}, eta::Float64;
-                     eps::Float64 = 1e-12)
-    l_x = l_y = l_z = l_box
-    L   = L_diag
+function hybrid_eval_eta(vs::VolumeSource{Float64,3}, trg::Matrix{Float64},
+                        eta::Float64; eps::Float64)
+    g   = BI.near_field_geometry(vs; c_pad = C_PAD)
+    src, q = BI._volume_source_fmm_sources(vs)
+    km  = BI._estimate_tkm3dc_kmax(BI._estimate_source_spacing(vs))
+    dk  = ntuple(d -> 2π / (g.l[d] + g.hn + g.L) / eta, 3)
 
-    Δk = 2π / (l_x + L) / eta
+    kx = TKM3D.centered_mode_axis(dk[1], km)
+    ky = TKM3D.centered_mode_axis(dk[2], km)
+    kz = TKM3D.centered_mode_axis(dk[3], km)
 
-    kmax_use = Float64(estimate_kcut3dc(sources;
-                                        charges = charges,
-                                        tol = eps, eps = eps).kcut)
+    out  = Vector{Float64}(undef, size(trg, 2))
+    inb  = [BI.in_near_region(g, trg, i) for i in 1:size(trg, 2)]
+    bidx = findall(inb); oidx = findall(!, inb)
 
-    kx = TKM3D.centered_mode_axis(Δk, kmax_use)
-    ky = kx
-    kz = kx
-
-    srcx = Δk .* view(sources, 1, :)
-    srcy = Δk .* view(sources, 2, :)
-    srcz = Δk .* view(sources, 3, :)
-    trgx = Δk .* view(targets, 1, :)
-    trgy = Δk .* view(targets, 2, :)
-    trgz = Δk .* view(targets, 3, :)
-
-    coeff = nufft3d1(srcx, srcy, srcz, complex.(charges), -1, eps,
-                     length(kx), length(ky), length(kz))
-    if ndims(coeff) == 4 && size(coeff, 4) == 1
-        coeff = dropdims(coeff; dims = 4)
-    end
-
-    @inbounds for iz in eachindex(kz), iy in eachindex(ky), ix in eachindex(kx)
-        k = sqrt(kx[ix]^2 + ky[iy]^2 + kz[iz]^2)
-        if k <= kmax_use
-            coeff[ix, iy, iz] *= TKM3D.truncated_laplace3d_hat(k, L)
-        else
-            coeff[ix, iy, iz] = zero(eltype(coeff))
+    if !isempty(bidx)
+        srcx = dk[1] .* (vec(view(src,1,:)) .- g.center[1])
+        srcy = dk[2] .* (vec(view(src,2,:)) .- g.center[2])
+        srcz = dk[3] .* (vec(view(src,3,:)) .- g.center[3])
+        coeff0 = TKM3D.FINUFFT.nufft3d1(srcx, srcy, srcz, complex.(q), -1, eps,
+                                        length(kx), length(ky), length(kz))
+        coeff = ndims(coeff0) == 4 ? dropdims(coeff0; dims = 4) : coeff0
+        @inbounds for iz in eachindex(kz), iy in eachindex(ky), ix in eachindex(kx)
+            k = sqrt(kx[ix]^2 + ky[iy]^2 + kz[iz]^2)
+            coeff[ix,iy,iz] = k <= km ?
+                coeff[ix,iy,iz] * TKM3D.truncated_laplace3d_hat(k, g.L) :
+                zero(eltype(coeff))
+        end
+        txn = Float64[dk[1] * (trg[1,i] - g.center[1]) for i in bidx]
+        tyn = Float64[dk[2] * (trg[2,i] - g.center[2]) for i in bidx]
+        tzn = Float64[dk[3] * (trg[3,i] - g.center[3]) for i in bidx]
+        vals = TKM3D._finufft_type2_eval_3d(txn, tyn, tzn, 1, eps, coeff)
+        pref = dk[1] * dk[2] * dk[3] / (2π)^3
+        for (m, i) in enumerate(bidx)
+            out[i] = pref * real(vals[m])
         end
     end
-
-    prefactor = (Δk * Δk * Δk) / (2π)^3
-    pot = nufft3d2(trgx, trgy, trgz, 1, eps, coeff)
-    return prefactor .* real.(pot)
+    if !isempty(oidx)
+        vals = lfmm3d(eps, src; charges = q, targets = trg[:, oidx], pgt = 1)
+        for (m, i) in enumerate(oidx)
+            out[i] = vals.pottarg[m] / (4π)
+        end
+    end
+    return out
 end
 
 # ---------------------------------------------------------------------------
-# Panel (a): convergence vs n  —  TKM and FMM, several eps
+# Panel (a): convergence vs n — hybrid and pure particle sum, several tolerances
 # ---------------------------------------------------------------------------
-err_tkm_n = Dict{Float64,Vector{Float64}}()
-err_fmm_n = Dict{Float64,Vector{Float64}}()
+err_tkm_n  = Dict{Float64,Vector{Float64}}()
+err_fmm_n  = Dict{Float64,Vector{Float64}}()
+err_near_n = Dict{Float64,Vector{Float64}}()
+err_far_n  = Dict{Float64,Vector{Float64}}()
 for eps in eps_list
-    err_tkm_n[eps] = Float64[]
-    err_fmm_n[eps] = Float64[]
+    err_tkm_n[eps]  = Float64[]
+    err_fmm_n[eps]  = Float64[]
+    err_near_n[eps] = Float64[]
+    err_far_n[eps]  = Float64[]
 end
+hn_by_n = Float64[]
 
-@info "Panel (a) — convergence vs n"
+@info "Panel (a) — convergence vs n, c_pad = $C_PAD, $N_near near + $N_far far targets"
 for n in n_list
-    src, q = grid_sources(n)
+    vs = grid_source(n)
+    g  = BI.near_field_geometry(vs; c_pad = C_PAD)
+    push!(hn_by_n, g.hn)
+
+    # the target set must classify as designed at every n
+    nn = count(i -> BI.in_near_region(g, targets, i), 1:N_targets)
+    nn == N_near || error("n = $n: $nn targets classified near, expected $N_near " *
+                          "(B_pad upper corner = $(g.hi[1]))")
+
+    src, q = BI._volume_source_fmm_sources(vs)
     for eps in eps_list
-        # TKM
-        vals_tkm = ltkm3dc(eps, src; charges = q, targets = targets, pgt = 1)
-        u_tkm    = vals_tkm.pottarg
-        e_tkm    = norm(u_tkm .- u_r_t) / u_r_norm
-        push!(err_tkm_n[eps], e_tkm)
+        field = PrecomputedVolumeField(vs; tol = eps, c_pad = C_PAD, compute_grad = false)
+        u_h   = volume_field_potential(field, targets)
+        push!(err_tkm_n[eps],  relerr(u_h))
+        push!(err_near_n[eps], relerr(u_h, near_rng))
+        push!(err_far_n[eps],  relerr(u_h, far_rng))
 
-        # FMM (kernel convention: 1/|x-y|, so divide by 4π)
-        vals_fmm = lfmm3d(eps, src; charges = q, targets = targets, pgt = 1)
-        u_fmm    = vals_fmm.pottarg ./ (4π)
-        e_fmm    = norm(u_fmm .- u_r_t) / u_r_norm
-        push!(err_fmm_n[eps], e_fmm)
+        # pure particle sum at every target (Eq. 3.13); tau does not enter it,
+        # so the four curves coincide
+        u_p = lfmm3d(eps, src; charges = q, targets = targets, pgt = 1).pottarg ./ (4π)
+        push!(err_fmm_n[eps], relerr(u_p))
 
-        @info @sprintf("  n = %3d   eps = %.0e   E_TKM = %.3e   E_FMM = %.3e",
-                       n, eps, e_tkm, e_fmm)
+        @info @sprintf("  n = %3d  tau = %.0e  E_hyb = %.3e (near %.3e, far %.3e)  E_part = %.3e",
+                       n, eps, err_tkm_n[eps][end], err_near_n[eps][end],
+                       err_far_n[eps][end], err_fmm_n[eps][end])
     end
 end
 
 # ---------------------------------------------------------------------------
-# Panel (b): aliasing / padding test — vary eta at fixed n, several eps
+# Panel (b): periodization threshold — vary eta at fixed n
 # ---------------------------------------------------------------------------
 err_tkm_eta = Dict{Float64,Vector{Float64}}()
 for eps in eps_list
@@ -191,16 +222,25 @@ for eps in eps_list
 end
 
 @info "Panel (b) — eta sweep at n = $n_for_eta"
-src_c, q_c = grid_sources(n_for_eta)
+vs_c = grid_source(n_for_eta)
+
+# cross-check: at eta = 1 the standalone evaluator must reproduce the production path
+let g = BI.near_field_geometry(vs_c; c_pad = C_PAD)
+    f  = PrecomputedVolumeField(vs_c; tol = 1e-12, c_pad = C_PAD, compute_grad = false)
+    u_prod = volume_field_potential(f, targets)
+    u_std  = hybrid_eval_eta(vs_c, targets, 1.0; eps = 1e-12)
+    d = maximum(abs.(u_prod .- u_std)) / maximum(abs.(u_prod))
+    @info @sprintf("eta = 1 cross-check vs PrecomputedVolumeField: max rel diff = %.3e", d)
+    d < 1e-10 || error("standalone eta evaluator disagrees with the production path ($d)")
+end
+
 for eps in eps_list
     for eta in eta_list
-        u_t = tkm_eval_eta(src_c, q_c, targets, eta; eps = eps)
-        e   = norm(u_t .- u_r_t) / u_r_norm
-        push!(err_tkm_eta[eps], e)
+        u = hybrid_eval_eta(vs_c, targets, eta; eps = eps)
+        push!(err_tkm_eta[eps], relerr(u))
     end
-    @info @sprintf("  eps = %.0e :  E(eta=0.5) = %.3e  E(eta=1) ~ %.3e  E(eta=2.5) = %.3e",
-                   eps,
-                   err_tkm_eta[eps][1],
+    @info @sprintf("  tau = %.0e :  E(0.5) = %.3e   E(~1) = %.3e   E(1.6) = %.3e",
+                   eps, err_tkm_eta[eps][1],
                    err_tkm_eta[eps][argmin(abs.(eta_list .- 1.0))],
                    err_tkm_eta[eps][end])
 end
@@ -213,15 +253,20 @@ out = (
     y0          = y0,
     box_half    = box_half,
     l_box       = l_box,
-    L_diag      = L_diag,
+    c_pad       = C_PAD,
+    hn_by_n     = hn_by_n,
     eps_list    = collect(eps_list),
     n_list      = n_list,
     err_tkm_n   = err_tkm_n,
     err_fmm_n   = err_fmm_n,
+    err_near_n  = err_near_n,
+    err_far_n   = err_far_n,
     n_for_eta   = n_for_eta,
     eta_list    = eta_list,
     err_tkm_eta = err_tkm_eta,
     N_targets   = N_targets,
+    n_near      = N_near,
+    n_far       = N_far,
     tail_mass   = tail_mass(box_half, s_gauss),
 )
 
