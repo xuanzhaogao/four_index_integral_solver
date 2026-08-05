@@ -76,7 +76,7 @@ begin
                 # IntervalsBetween minor ticks land irregularly; keep only the y-minor grid.
                 xminorticksvisible = true, xminorgridvisible = true, xminorticks = IntervalsBetween(5),
                 yminorticksvisible = true, yminorgridvisible = true, yminorticks = IntervalsBetween(5),
-                xlabel = L"\eta = \min_{\alpha}\, P_\alpha / (l_\alpha + L)",
+                xlabel = L"\eta = \min_{\alpha}\, L_\alpha / (l_\alpha + h_n + L)",
                 ylabel = L"\mathcal{E}_u",
                 # xticks = ([0.5, 0.7, 1.0, 1.5, 2.0, 2.5],
                         #   ["0.5","0.7","1.0","1.5","2.0","2.5"]),
@@ -84,7 +84,7 @@ begin
                           [rich("10", superscript(string(e))) for e in (-13, -11, -9, -7, -5, -3, -1, 1)]))
 
     for eps in eps_list
-        scatterlines!(ax_b, eta_list[4:17], clip.(err_tkm_eta[eps])[4:17];
+        scatterlines!(ax_b, eta_list, clip.(err_tkm_eta[eps]);
                       color = eps_colors[eps], marker = eps_markers[eps],
                       markersize = MS, linewidth = LW_DATA,
                       label = eps_label(eps))
@@ -96,7 +96,7 @@ begin
           fontsize = FS_ANNOT, color = :black)
 
     axislegend(ax_b; position = :lb)
-    xlims!(ax_b, 0.55, 1.5)
+    xlims!(ax_b, 0.48, 1.62)
     ylims!(ax_b, 1e-13, 1e1)
 
     colgap!(fig.layout, 1, 30)
