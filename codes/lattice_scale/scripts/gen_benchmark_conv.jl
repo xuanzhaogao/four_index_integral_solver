@@ -9,7 +9,12 @@
 using TOML
 
 const LS    = normpath(joinpath(@__DIR__, ".."))
-const BENCH = joinpath(LS, "campaigns", "lattice_10x10_het3x.toml")
+# RERUN_BASE picks the campaign supplying templates/orbitals/dielectrics (so an eps=2.4 variant
+# inherits that slab permittivity); RERUN_TAG suffixes the generated campaign names.
+const BASE  = get(ENV, "RERUN_BASE", "lattice_10x10_het3x")
+const TAG   = get(ENV, "RERUN_TAG", "")
+const LEVELS = isempty(ARGS) ? [2, 3] : parse.(Int, ARGS)
+const BENCH = joinpath(LS, "campaigns", BASE * ".toml")
 const CEPH  = "/mnt/ceph/users/xgao1/four_index"
 const TOL   = 1e-5            # tied solver tolerances
 const SUPPORT_RTOL = 1e-4     # kept fixed (geometry-preserving)
@@ -53,11 +58,13 @@ function write_toml(name, level)
     println(io, "[batching]")
     println(io, "n_centers_per_batch = 1\n")
     println(io, "[eval]")
-    println(io, "far_pad_steps = 2.0")
+    println(io, "c_pad = 5.0")
     write(joinpath(LS, "campaigns", "$(name).toml"), String(take!(io)))
 end
 
-write_toml("lattice_conv_l2", 2)      # l_ec = 2.27 Å
-write_toml("lattice_conv_l3", 3)      # l_ec = 1.14 Å
-println("wrote campaigns/lattice_conv_l2.toml + lattice_conv_l3.toml : $(length(orbs)) orbitals, " *
-        "neighbor_cutoff=$(cutoff), all tol=$(TOL), l_ec levels {2,3}")
+for lv in LEVELS                      # level 2 -> l_ec = 2.27 A, level 3 -> l_ec = 1.14 A
+    nm = "lattice_conv_l$(lv)$(TAG)"
+    write_toml(nm, lv)
+    println("wrote campaigns/$(nm).toml")
+end
+println("base=$(BASE)  orbitals=$(length(orbs))  neighbor_cutoff=$(cutoff)  all tol=$(TOL)  levels=$(LEVELS)")

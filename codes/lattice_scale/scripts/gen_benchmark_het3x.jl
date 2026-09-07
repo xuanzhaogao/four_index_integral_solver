@@ -1,6 +1,6 @@
 # Generate the redesigned four-index benchmark campaign `lattice_10x10_het3x`
 # (spec: docs/superpowers/specs/2026-07-10-benchmark-het3x-and-geometry-viz-design.md):
-#   - ×3 converged heterojunction substrate (270³ Si|SiO₂ cubes + 270×270×9 ε=10 slab)
+#   - ×3 converged heterojunction substrate (270³ Si|SiO₂ cubes + graphene slab, ε = SLAB_EPS)
 #   - ~200 orbitals: REAL hexagonal graphene lattice (both sublattices) clipped to a SQUARE
 #     window centered on the junction (5.547, 10.318), z=7.5
 #   - neighbor_cutoff = 5.0 → four-index V_ijkl for pairs within 5 Å
@@ -18,6 +18,9 @@ const HALF = 11.5                                  # square half-width (side ~23
 const L = 270.0                                   # ×3 cube edge (substrate stays big → converged)
 const CZC = 3.0 - L / 2                            # cube center-z: top face at z=3
 const SLAB_LZ = 9.0                                # slab thickness (unchanged; contains z-support)
+const SLAB_EPS = 2.4                               # graphene effective ε from the cRPA article
+                                                   # (was 10.0, a generic system_fig1 demo value;
+                                                   # the ε=10 run is preserved as lattice_10x10_het3x[_v2])
 const MARGIN = 11.0                                # measured in-plane φ² support (~10) + buffer:
                                                    # slab Lx/Ly = block extent + 2·MARGIN so the
                                                    # orbital density is fully inside ε=10 (no leak)
@@ -64,7 +67,7 @@ function build_toml(name, root, orbs)
     println(io, "boxes = [")
     println(io, "  [$(XJUNC - L/2), $(YCEN), $(CZC), $(L), $(L), $(L), 11.9],")   # Si (−x)
     println(io, "  [$(XJUNC + L/2), $(YCEN), $(CZC), $(L), $(L), $(L), 3.9],")    # SiO₂ (+x)
-    println(io, "  [$(XJUNC), $(YCEN), 7.5, $(slab_lx), $(slab_ly), $(SLAB_LZ), 10.0],")  # ε=10 slab (wraps orbital density)
+    println(io, "  [$(XJUNC), $(YCEN), 7.5, $(slab_lx), $(slab_ly), $(SLAB_LZ), $(SLAB_EPS)],")  # graphene slab (wraps orbital density)
     println(io, "]\n")
     println(io, "[solve]")
     for (k, v) in ["n_quad"=>6, "edge_refine_level"=>2, "rhs_tol"=>1e-3, "lhs_tol"=>1e-5,
@@ -75,14 +78,14 @@ function build_toml(name, root, orbs)
     println(io, "\n[batching]")
     println(io, "n_centers_per_batch = 1\n")
     println(io, "[eval]")
-    println(io, "far_pad_steps = 2.0")
+    println(io, "c_pad = 5.0")
     return String(take!(io))
 end
 
 const OUTDIR = joinpath(@__DIR__, "..", "campaigns")
 const CEPH = "/mnt/ceph/users/xgao1/four_index"
 
-let orbs = orbitals_honeycomb_square(), nm = "lattice_10x10_het3x"
+let orbs = orbitals_honeycomb_square(), nm = "lattice_10x10_het3x_eps2.4"
     write(joinpath(OUTDIR, "$(nm).toml"), build_toml(nm, "$(CEPH)/$(nm)", orbs))
     nsi = count(o -> o[2] < XJUNC, orbs)
     xr = extrema(o[2] for o in orbs); yr = extrema(o[3] for o in orbs)
