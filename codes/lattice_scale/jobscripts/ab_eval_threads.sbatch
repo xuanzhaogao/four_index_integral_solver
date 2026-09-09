@@ -1,6 +1,6 @@
 #!/bin/bash
-# Follow-up to ab_eval_regression (job 7010961): is the campaign's eval cost set by the WORKER
-# THREAD COUNT rather than by K?
+# Follow-up to ab_eval_regression (job 7010961): is the campaign's eval cost set by OPENBLAS
+# THREADS INTERACTING WITH THE WORKER THREAD COUNT, rather than by K?
 #
 # The K sweep came back flat -- 9.90, 7.92, 8.06, 7.33, 7.58 s per source at K = 4, 8, 13, 17,
 # 24, against the Aug 30 production rate of 8.23. So current code at 96 Julia threads reproduces
@@ -39,16 +39,23 @@
 set -euo pipefail
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK   # as both campaign jobscripts set it
-export OPENBLAS_NUM_THREADS=1
+# OPENBLAS is set per-run in the loop below, not here.
 JULIA=/mnt/home/xgao1/.juliaup/bin/julia
 
 cd /mnt/home/xgao1/work/four_index_integral_solver/codes/lattice_scale
 mkdir -p logs
 
 echo "=== ab_eval_threads  $(date)  on $(hostname) ==="
-for T in 8 16 32 96; do
-    echo "--- julia -t $T ---"
-    KS=17,31 CAMP=lattice_conv_l3_eps2.4_kb31 BATCH_ID=1 SKIP_BLAS=1 \
-        $JULIA --project -t "$T" scripts/ab_eval_regression.jl
+# The decisive cell is 8 Julia threads x OPENBLAS 96 vs 1: 8 is what production workers get, and
+# OpenBLAS is the ONE environment variable that changed between the fast Aug 30 run (96) and the
+# slow kb31/k46 runs (1). At 96 Julia threads the pair is indistinguishable (7.73 vs 7.50 s per
+# source, job 7010961) because Julia's own threading already saturates the node -- which is why
+# the first A/B missed it.
+for T in 8 96; do
+    for B in 1 96; do
+        echo "--- julia -t $T   OPENBLAS_NUM_THREADS=$B ---"
+        OPENBLAS_NUM_THREADS=$B KS=31 CAMP=lattice_conv_l3_eps2.4_kb31 BATCH_ID=1 SKIP_BLAS=1 \
+            $JULIA --project -t "$T" scripts/ab_eval_regression.jl
+    done
 done
 echo "=== AB THREADS DONE  $(date) ==="
