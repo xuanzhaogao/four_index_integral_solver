@@ -34,25 +34,42 @@
 #SBATCH --nodes=1
 #SBATCH --exclusive
 #SBATCH --time=04:00:00
-#SBATCH --array=0-6
+#SBATCH --array=0-9
 #SBATCH --output=/mnt/home/xgao1/work/four_index_integral_solver/codes/numerical_results/exp66_multicube/logs/slurm_mc53_%A_%a.out
 #SBATCH --error=/mnt/home/xgao1/work/four_index_integral_solver/codes/numerical_results/exp66_multicube/logs/slurm_mc53_%A_%a.err
 
 set -uo pipefail
-CUTOFFS=(0.0 1.5 2.5 2.9 3.9 4.5 5.0)   # -> K = 1, 4, 10, 13, 19, 25, 31
+CUTOFFS=(0.0 1.5 2.5 2.9 3.9 4.5 5.0 5.5 6.0 6.5)   # -> K = 1, 4, 10, 13, 19, 25, 31, 37, 40, 46
+# K = 37/40/46 used to live in a separate extraK script, added when the K <= 31 sweep had
+# already run and the curve needed extending past the amortization peak. Kept apart they
+# were two scripts to hold in sync for one sweep; K = 46 is the last point that fits the
+# graphene neighbour shells below the node memory ceiling, so the list is complete here.
 export MULTICUBE_CUTOFF=${CUTOFFS[$SLURM_ARRAY_TASK_ID]}
 
 NR=/mnt/home/xgao1/work/four_index_integral_solver/codes/numerical_results
 J=/mnt/home/xgao1/.juliaup/bin/julia    # juliaup binary (never module load julia)
 source /mnt/home/xgao1/work/four_index_integral_solver/codes/rerun_2026_07/jobscripts/_provenance.sh
 
-export RERUN_TAG=_sec53
+# Overridable: `export` here would otherwise defeat --export=ALL,RERUN_TAG=... and send
+# every rerun to the same tree, silently overwriting earlier records under identical
+# filenames.
+export RERUN_TAG=${RERUN_TAG:-_sec53}
 export MULTICUBE_GEOM=sec53
+# COMBINED solve + evaluation measurement. MULTICUBE_EVAL=model evaluates the batch at the
+# FIXED target set of the Sec. 5.3 model (union of all 198 orbitals' quadrature points,
+# N_p = 7,168,390) after a real solve, so one record carries prepare, block solve AND the
+# evaluation the ERI assembly actually performs -- same interface, same accuracy, same job.
+# Previously the two were separate runs (an EVAL_ONLY=1 sweep at a different accuracy), so a
+# table combining them mixed discretizations.
+export MULTICUBE_EVAL=model
+export MULTICUBE_TARGET_CACHE=$NR/exp66_multicube/data_sec53evalpilot/targets_model.jls
 export PRECONDITION=1
 export CORRECT_EDGES=1
 export JULIA_NUM_THREADS=96
 export OMP_NUM_THREADS=96               # TKM3D caps FINUFFT at 16 internally
 provenance
+
+[ -f "$MULTICUBE_TARGET_CACHE" ] || { echo "FATAL: target cache missing: $MULTICUBE_TARGET_CACHE"; exit 1; }
 
 echo "=== array task $SLURM_ARRAY_TASK_ID  cutoff=$MULTICUBE_CUTOFF  $(date '+%F %T') ==="
 $J --project=$NR --startup-file=no $NR/exp66_multicube/scripts/run_multicube.jl

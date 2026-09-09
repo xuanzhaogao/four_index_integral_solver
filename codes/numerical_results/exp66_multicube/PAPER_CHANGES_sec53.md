@@ -6,6 +6,13 @@ figure) was benchmarked on a substrate the physics section does not use: two
 the **same system §5.3 reports** — the ×3 converged Si|SiO₂ heterojunction
 (270³, ε 11.9 | 3.9) with the graphene slab at its cRPA ε = 2.4.
 
+> **Provenance.** This note was revised as the measurements improved, and earlier revisions
+> stated things later runs refuted. Current as of 2026-09-09: the accuracy set is the lattice
+> campaign's own (edge_refine_level 3, all tolerances 1e-5, **max_order 64**), giving
+> N ~ 1.35e6, and the timing tables come from job 7006943 (all K sequentially on ONE node).
+> Sections marked WITHDRAWN or superseded describe claims that did not survive; they are kept
+> rather than deleted so the same conclusions are not re-derived.
+
 Every number below is measured. Jobs `6998896` (K sweep, K = 1..31), `6998897`
 (thread sweep, 8 tasks) and `6999183` (K sweep extension, K = 37, 40, 46), all on
 rocky8 genoa nodes, 2026-09-07. Data in `data_sec53/`; `data/` (submitted) and
@@ -25,137 +32,105 @@ points (K = 37, 40, 46) are new — see Table 3.
 |---|---|---|
 | cubes | 90³ | **270³** |
 | slab | 90×90×9, ε = 10 | **42.95×44.06×9, ε = 2.4** |
-| surface unknowns *N* | 1,617,264 | **2,751,264** |
+| surface unknowns *N* | 1,617,264 | **1,350,288** |
 | screening ratio `V_vac/V` | 8.3948 | **2.4437** |
 
-**The abstract's "1.6 million surface unknowns" must become 2.75 million.** That
-figure is this benchmark's *N* (it matches no §5.3 campaign — `conv_l3` runs at
-1,349,640 and `het3x` at 651,420), as already noted in
-`rerun_2026_07/PAPER_CHANGES.md`.
+**The abstract's "1.6 million surface unknowns" must become 1.35 million.**
 
-*N* = 2,751,264 at **every** K from 1 to 46 — the slab is sized from the largest
-cluster and held fixed, so the multi-RHS study is not confounded by a changing
-interface. This matters for the memory finding below: the growth in resident
-memory is entirely the K right-hand sides, not a growing discretization.
+That figure moved twice. At the submitted accuracy (`rhs_tol` 1e-3, edge_level 4) the sec53
+geometry gives N = 2,751,264, and an earlier revision of this note said 2.75 million. But §5.2
+was then running at an accuracy that matched neither the submitted §6.3 nor §5.3: a *finer*
+edge refinement (l_ec 0.568 vs 1.136 Å) with *looser* source tolerances (1e-3 vs 1e-5). Setting
+it to the lattice campaign's own accuracy gives **N = 1,350,288**, which matches `lec_single`
+level 3 (1,350,288) exactly — independent confirmation that the two sections now discretize the
+same interface.
+
+*N* varies by 0.05% across the sweep (1,349,856 at K = 1 to 1,350,504 at K = 46): at
+`rhs_tol` 1e-5 the interface refinement follows the source envelope, where at 1e-3 it was
+pinned. Immaterial for timings, but the tables should not claim a single N for all K.
 
 ---
 
 ## Table 2 — strong scaling (K = 1)
 
-Reconstructed as `t_precompute + t_RHS + t_1iter · niter_ref` with
-`niter_ref = 12` (was 14), per `plot_scripts/plot_scaling.jl`.
+`prepare` measured directly; `block BIE solve` reconstructed as
+`t_RHS + t_1iter · niter_ref` (niter_ref = 11); `evaluation` measured in the same run at the
+fixed lattice target set (N_p = 7,168,390).
 
-| threads | `_v2` total (s) | new total (s) | `_v2` speedup | new speedup | new efficiency |
-|---|---|---|---|---|---|
-| 1 | 1322.8 | 2474.5 | 1.00× | 1.00× | 100% |
-| 2 | 1039.9 | 1883.8 | 1.27× | 1.31× | 66% |
-| 4 | 684.2 | 1162.6 | 1.93× | 2.13× | 53% |
-| 8 | 378.0 | 735.8 | 3.50× | 3.36× | 42% |
-| 16 | 220.8 | 412.5 | 5.99× | 6.00× | 37% |
-| 32 | 126.0 | 251.1 | 10.50× | 9.85× | 31% |
-| 64 | 81.4 | 119.5 | 16.26× | 20.70× | 32% |
-| 96 | 66.0 | 97.7 | **20.04×** | **25.34×** | **26%** |
+| threads | prepare (s) | block solve (s) | evaluation (s) | total (s) | speedup | efficiency |
+|---|---|---|---|---|---|---|
+| 1 | 133.6 | 759 | 127 | 1020 | 1.0× | 100% |
+| 2 | 74.9 | 591 | 75 | 741 | 1.4× | 69% |
+| 4 | 40.2 | 381 | 47 | 469 | 2.2× | 54% |
+| 8 | 23.8 | 254 | 33 | 311 | 3.3× | 41% |
+| 16 | 14.4 | 146 | 22 | 183 | 5.6× | 35% |
+| 32 | 10.5 | 84 | 18 | 112 | 9.1× | 28% |
+| 64 | 8.7 | 50 | 15 | 74 | 13.9× | 22% |
+| 96 | 8.9 | 39 | 14 | **62** | **16.4×** | 17% |
 
-Absolute times roughly double (tracking *N*), but **the speedup improves,
-20.0× → 25.3×**, and parallel efficiency with it (21% → 26%). The mechanism is
-in the stage times: the DOF increase costs a consistent ~2.1× at 1–32 threads
-but only ~1.6× at 64 and 96. At N = 1.62M the high-thread end was
-overhead-bound; the larger problem has enough parallel work to amortize it. This
-is a claim the paper can make in its own favour, and it is the opposite of what
-a naive "bigger problem, worse scaling" reading would predict.
+End to end, 1020 s on one thread to 62 s on 96, **16.4×** at 17% parallel efficiency.
 
-**Unresolved: the 32/64 point.** Efficiency is non-monotone there (31% at 32
-threads on `worker7038`, 32% at 64 on `worker7105`), with a superlinear 2.16×
-step in per-iteration time; both the precompute and GMRES stages show it, and
-the kink is visible in panel (a). `rerun_2026_07/PAPER_CHANGES.md` documents this
-exact failure mode once already (the published 32-thread row, 31% slow on
-`worker7176`). Re-run those two points on different nodes before quoting them:
-
-```
-sbatch --reservation=rocky8 --array=5-6 slurm/run_multicube_threads_pinned_sec53.sbatch
-```
+The evaluation column scales monotonically to 96 threads (127 → 14 s) only because of the
+`pottrg` threading fix (BoundaryIntegral 471ce6e) and dropping `OPENBLAS_NUM_THREADS` from N to
+1. Before those, the evaluation at 96 threads took **99–155 s against 21.6 s at 64** — 96
+threads was the worst configuration on the node. See the threading section below.
 
 ---
 
-## Table 3 — K sweep (96 threads), extended to K = 46
+## Table 3 — K sweep, and two claims withdrawn
 
-| K | `_v2` niter | new niter | `_v2` total (s) | new total (s) | `_v2` amort | new amort | new RSS (GB) | % of node |
+Measured sequentially on ONE node (job 7006943) at the lattice campaign's own accuracy
+(edge_refine_level 3, all tolerances 1e-5, max_order 64, N ~ 1.35e6), evaluated at the fixed
+target set of the lattice model (N_p = 7,168,390):
+
+| K | 1 | 4 | 10 | 19 | 31 | 37 | 40 | 46 |
 |---|---|---|---|---|---|---|---|---|
-| 1 | 14 | 12 | 100.9 | 125.2 | 1.00× | 1.00× | 42.8 | 3% |
-| 4 | 13 | 11 | 168.3 | 232.8 | 2.67× | 2.32× | 118.7 | 8% |
-| 10 | 13 | 10 | 344.1 | 436.4 | 3.35× | 3.28× | 277.0 | 18% |
-| 13 | 12 | 10 | 415.4 | 536.5 | 3.69× | 3.50× | 354.7 | 24% |
-| 19 | 12 | 10 | 582.4 | 776.2 | 3.90× | 3.53× | 512.7 | 34% |
-| 25 | 12 | 10 | 743.7 | 991.4 | 4.00× | **3.66×** | 673.2 | 45% |
-| 31 | 12 | 10 | 920.0 | 1236.1 | 4.07× | **3.66×** | 829.5 | 55% |
-| 37 | — | 10 | — | 1491.5 | — | 3.65× | 987.0 | 66% |
-| 40 | — | 10 | — | 1742.5 | — | 3.33× | 1063.4 | 71% |
-| 46 | — | 10 | — | 2140.8 | — | **3.04×** | 1223.1 | **81%** |
+| prepare (s) | 10.0 | 11.0 | 12.3 | 10.8 | 12.1 | 12.0 | 11.1 | 11.1 |
+| block solve (s) | 49 | 88 | 175 | 317 | 508 | 552 | 588 | 675 |
+| evaluation (s) | 16 | 40 | 98 | 180 | 321 | 371 | 395 | 472 |
+| total (s) | 76 | 140 | 285 | 507 | 841 | 934 | 994 | 1158 |
+| peak RAM (GB) | 24 | 62 | 143 | 263 | 428 | 512 | 550 | 634 |
+| end-to-end speedup | -- | 2.2x | 2.6x | 2.8x | 2.8x | 3.0x | 3.0x | **3.0x** |
+| solve-only speedup | 1.28x | 3.04x | 4.04x | 4.38x | 4.51x | 4.96x | 5.05x | **5.07x** |
 
-Iteration counts fall on the lower contrast (14→12, 12→10) and are then **constant
-at 10 for every K ≥ 10**, so nothing below is a conditioning effect.
+### WITHDRAWN: the amortization turnover
 
-### The non-monotonicity is real, and it is a memory effect
+Earlier revisions of this note reported a peak near K = 25--37 followed by a decline (4.07x
+falling to 3.04x), and attributed it to memory pressure. **Both claims are withdrawn.**
 
-**Amortization peaks at 3.66× (K = 25–31), holds through K = 37, then declines to
-3.04× at K = 46.** The paper's original claim of a decline beyond the optimum was
-therefore correct in kind; the July fixes did not remove the turnover, they *moved
-it* from K ≈ 25 to K ≈ 37. Both earlier statements need revising: the submitted
-text put the peak too early, and the July note ("the crossover is pushed beyond
-the range measured here") was an artifact of the sweep stopping at K = 31.
+The per-K points had each been measured on a separate node, one sample each. Comparing two such
+runs at identical settings showed node-to-node differences of up to 26% in the block solve
+(K = 4: 87 s vs 110 s; K = 46: 785 s vs 662 s) -- larger than the 16% "decline" being read as
+signal, and in one run K = 46 came out CHEAPER than K = 40, which is impossible for strictly
+more work. Re-measuring all ten points sequentially on one node removes that variation and the
+curve is monotone: solve-only amortization rises to 5.07x at K = 46, end-to-end plateaus at
+3.0x. There is no turnover in the measured range.
 
-**The stated mechanism is wrong and must be replaced.** The paper attributes the
-decline to block-Arnoldi orthogonalization being O(K²N) per iteration. That term
-is negligible at these sizes: ~2 N K² m² is 0.5 TFLOP at K = 31 and 1.2 TFLOP at
-K = 46, i.e. seconds of BLAS-3 against a ~300 s excess. The cost that actually
-grows is the per-iteration block solve per RHS:
+The memory explanation had already failed independently: the same apparent turnover appeared at
+42% node occupancy as at 81%, so it tracked K rather than memory. And the O(K^2 N)
+orthogonalization the submitted text cites is ~1.2 TFLOP at K = 46, seconds against a solve of
+hundreds -- it cannot produce a turnover either.
 
-| K | 13 | 19 | 25 | 31 | 37 | 40 | 46 |
-|---|---|---|---|---|---|---|---|
-| block/K/niter (s) | 3.034 | 3.044 | 2.960 | 2.970 | 2.990 | **3.286** | **3.617** |
-| peak RSS (% of node) | 24% | 34% | 45% | 55% | 66% | 71% | 81% |
+For the paper: the submitted claim of a decline beyond an optimum is not supported by data at
+this accuracy, and neither is the July note's recast ("the crossover is pushed beyond the range
+measured here"). The defensible statement is that batching amortizes the fixed per-batch cost
+monotonically over the measured range, saturating near 3x end-to-end, and that the practical
+ceiling is the neighbour-shell structure (K = 46 is the last shell below K = 58), not memory --
+634 GB at K = 46 is 42% of the node.
 
-Flat to within 3% while resident memory stays below ~66% of the node, then +22% at
-71% and 81% occupancy. The onset tracks memory occupancy, not K.
+**Any single-node timing quoted from a per-node array run carries ~20% uncertainty.** Structure
+smaller than that is not resolvable without repeated or sequential measurement.
 
-Julia GC is *not* the mechanism either, and the records prove it: at K = 46 the
-live heap is **27.3 GB against 1223 GB resident**. Almost the entire footprint is
-native allocation inside FMM3D/TKM3D plus the sparse near-correction structures,
-so the GC has nothing to thrash on. What remains is memory-system pressure —
-bandwidth saturation and NUMA/first-touch locality degrading as the per-iteration
-working set grows with K on a nearly-full node. Bandwidth and NUMA have **not**
-been separated; claim it at that level and no finer.
+### Evaluation amortizes too
 
-Recommended framing: the batch size is bounded by memory, not by a compute
-crossover — a statement that is both true here and more useful to a reader sizing
-their own runs.
-
-### K = 46 is the last reachable point
-
-Peak RSS is linear at 26.2 GB per RHS (RSS ≈ 16.6 + 26.2 K GB; predicts 828.8 at
-K = 31 vs 829.5 measured, 1221 at K = 46 vs 1223 measured). The next graphene
-neighbour shell is K = 58 — the shells jump 46 → 58 with nothing between — needing
-~1536 GB against a 1538 GB node. 1538 GB is the largest memory tier in `ccm`, so
-K = 46 cannot be exceeded on hardware comparable to the rest of the curve.
-
-Evaluation per RHS creeps only mildly over the whole sweep (6.5 → 7.2 s) and is
-19% of the K = 46 wall time (333.1 s of 2140.8 s), continuing the trend §5.3's
-Table 4 already showed — the cost is no longer solve-dominated.
-
-Figure regenerated at `figs_sec53/fig66_multicube_scaling.pdf` with all ten K
-points. Both annotations are data-derived and update themselves (25.3×, 3.7×).
-
-**Two figure issues.** `xlims!(ax2, 0, 33)` was hard-coded and silently clipped
-every point past K = 31, including the turnover — **fixed**, now derived from the
-data. `ylims!(ax2, 0, 250)` is still hard-coded while the data spans 30.3–111.1;
-the turnover is a 6.3 s rise, which in a 250 s window is 2.5% of the panel height,
-so the headline result is nearly invisible. Deriving it (or clipping to ~0–120)
-would fix that; left alone pending a decision, since some panels use a
-deliberately fixed window.
+The noisy data hid this. Per-source evaluation cost falls 16.35 s at K = 1 to 9.5--10.3 s and
+then stays flat -- a ~1.65x gain saturating by K = 10. That is why the solve-only speedup
+(5.07x) exceeds the end-to-end figure (3.0x): the evaluation stops improving earlier, not
+because its cost is independent of K.
 
 ---
 
-## Evaluation cost: now tabulated, and it does not amortize
+## Evaluation cost: now tabulated (superseded in part -- see above)
 
 §5.2 previously timed Algorithm~(solve) only, excluding evaluation, with §5.3 timing the full
 pipeline. That understated the cost a reader actually pays: evaluation is 16% of the K = 46
@@ -171,7 +146,14 @@ Folding it in:
 now carries an `evaluation (s)` column and the end-to-end speedup; `EVAL_IN_TABLE=0` restores
 the solve-only columns.
 
-### Why evaluation cannot be batched here (measured, not argued)
+### Why evaluation cannot be batched OVER A SINGLE ORBITAL'S SUPPORT (superseded)
+
+**Superseded.** The conclusion below is correct for the target set it used -- one
+orbital's support, where there is no far field and no shared cost worth dividing --
+but not for the evaluation the pipeline actually performs. Measured at the lattice
+model's own target set (N_p = 7,168,390), per-source evaluation cost falls 16.35 s to
+~9.8 s, a 1.65x amortization saturating by K = 10. The original text follows.
+
 
 The obvious fix — reuse the multi-RHS machinery for the evaluation, i.e. call
 `BI.evaluate_batch_potential`, which shares one corrected `pottrg` map across all K columns and
@@ -200,6 +182,71 @@ sections are not in conflict.
 
 The default is `percolumn`, so the recorded timings and the tables are unchanged by this work;
 `both` is what produced the comparison above.
+
+---
+
+## §5.3: max_order = 8 silently under-resolved the near field
+
+`max_order` caps the near-pair upsampling order: p_up = ceil(-log(up_tol) / (2 log rho_min)),
+clamped to [n_quad, max_order]. When the clamp binds the correction is computed at a lower
+order than its own tolerance demands, there is **no adaptive fallback for non-touching pairs**
+(numerical_results/PLAN.md), and **no warning is emitted**.
+
+Both lattice campaign generators hardcoded `max_order = 8` with no comment. Measured on a real
+solved conv_l3_eps2.4 interface (37,520 panels, N = 1,350,720, up_tol 1e-5, n_quad 6):
+
+| max_order | upsample pairs | p_up median | at the cap |
+|---|---|---|---|
+| **8** | 12,208 | 8 | **11,296 (92.5%)** |
+| 16 | 12,208 | 16 | 9,136 (74.8%) |
+| 32 | 12,208 | 32 | 8,380 (68.6%) |
+| 64 | 12,208 | 64 | 6,700 (54.9%) |
+
+So **every published §5.3 campaign ran with 92.5% of its non-touching near corrections clamped
+below the order its stated 1e-5 tolerance required.** Corrections apply out to
+rho* = 2.61; p_up <= 8 holds only for rho_min >= 2.05, so the whole band 1 < rho_min < 2.05 --
+the CLOSEST pairs, which dominate the near error -- was under-resolved.
+
+**The l_ec self-convergence study cannot detect this.** It varies edge refinement; a systematic
+near-field under-resolution is present at every level, so the sweep converges cleanly to a
+slightly wrong answer. U flat to 4e-4 eV across seven levels is consistent with both
+"converged and correct" and "converged and biased".
+
+All campaigns and both generators now use 64. Effect on the tensor, conv_l3_eps2.4 at
+k_target = 31 (job 7006478) against the max_order = 8 reference: max relative difference
+4.7e-3 (474x gmres_rtol), rms 1.3e-5, on-site U mean 7.16798 -> 7.16281 eV, max |dU| 0.0348 eV.
+Concentrated in few entries, as a near-field quadrature fix should be.
+
+**Si/SiO2 contrast survives:** 0.15612 -> 0.15556 eV (0.36%). The position-dependent screening
+claim is unaffected.
+
+A residual gap remains: **55% of upsample pairs are still at the cap at max_order = 64.** Those
+have rho_min < 1.094 -- nearly coincident but not edge-adjacent, so the touching test routes
+them to upsampling where they would need p_up in the hundreds. Widening the touching criterion
+to send them to the adaptive quadtree is the real fix; raising max_order further is not.
+
+---
+
+## §5.3 Table 4 — new phase timings (85 batches, 10 nodes, max_order 64)
+
+| phase | time | share |
+|---|---|---|
+| prepare | 10 m 43 s | 5.6% |
+| solve | 1 h 06 m 01 s | 34.6% |
+| **eval** | **1 h 50 m 25 s** | **57.9%** |
+| consolidate | 3 m 05 s | 1.6% |
+| assemble | 37 s | 0.3% |
+| **total** | **3 h 10 m 51 s** | **31.8 node-hours** |
+
+Evaluation now dominates at 58% (was ~40%), and the campaign costs 31.8 node-hours against the
+July rerun's 14. The batching and triangle work did reduce the solve side (85 batches instead
+of 198, ~2x less evaluation work from symmetry), but `max_order = 64` more than absorbed it:
+the near corrections now actually resolve. This is accuracy bought with time, and §5.2 should
+say so rather than present it as a speedup.
+
+It also relocates where optimisation is worth doing: the evaluation, not the solve.
+
+Symmetry: 9.34e-6 over independently computed pairs, 3,399,588 of 6,880,129 entries mirrored.
 
 ---
 

@@ -48,8 +48,19 @@ NR=/mnt/home/xgao1/work/four_index_integral_solver/codes/numerical_results
 J=/mnt/home/xgao1/.juliaup/bin/julia    # juliaup binary (never module load julia)
 source /mnt/home/xgao1/work/four_index_integral_solver/codes/rerun_2026_07/jobscripts/_provenance.sh
 
-export RERUN_TAG=_sec53
+# Overridable: `export` here would otherwise defeat --export=ALL,RERUN_TAG=... and send
+# every rerun to the same tree, silently overwriting earlier records under identical
+# filenames.
+export RERUN_TAG=${RERUN_TAG:-_sec53}
 export MULTICUBE_GEOM=sec53
+# COMBINED solve + evaluation measurement. MULTICUBE_EVAL=model evaluates the batch at the
+# FIXED target set of the Sec. 5.3 model (union of all 198 orbitals' quadrature points,
+# N_p = 7,168,390) after a real solve, so one record carries prepare, block solve AND the
+# evaluation the ERI assembly actually performs -- same interface, same accuracy, same job.
+# Previously the two were separate runs (an EVAL_ONLY=1 sweep at a different accuracy), so a
+# table combining them mixed discretizations.
+export MULTICUBE_EVAL=model
+export MULTICUBE_TARGET_CACHE=$NR/exp66_multicube/data_sec53evalpilot/targets_model.jls
 export PRECONDITION=1
 export CORRECT_EDGES=1
 # pin + spread OpenMP threads across cores (=> across CCDs/sockets at low counts)
@@ -62,6 +73,8 @@ export MULTICUBE_CUTOFF=0.0             # K=1, same system as the K-sweep
 export MULTICUBE_GMRES_ITMAX=1          # timing-only single iteration (no JIT/warm-up tail)
 export MULTICUBE_RUNTAG=pin_nt${N}
 provenance
+
+[ -f "$MULTICUBE_TARGET_CACHE" ] || { echo "FATAL: target cache missing: $MULTICUBE_TARGET_CACHE"; exit 1; }
 
 echo "=== array task $SLURM_ARRAY_TASK_ID  nthreads=$N  $(date '+%F %T') ==="
 echo "OMP_PROC_BIND=$OMP_PROC_BIND  OMP_PLACES=$OMP_PLACES"

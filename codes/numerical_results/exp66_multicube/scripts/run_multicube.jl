@@ -128,10 +128,32 @@ const SLAB_LX, SLAB_LY = SEC53 ? (42.95357656, 44.06001031) : (L, L)
 const EPS1, EPS2, EPS_OUT = 11.9, 3.9, 1.0
 const EPS_SLAB = SEC53 ? 2.4 : 10.0
 
+# MULTICUBE_ACCURACY selects the discretization and tolerances.
+#
+#   "sec53" (default) -- IDENTICAL to the lattice campaign (campaigns/lattice_conv_l3_eps2.4
+#       .toml): edge_refine_level 3, rhs_tol = volume_tol = lhs_tol = gmres_rtol = 1e-5,
+#       max_order 64, max_depth 128. The two sections then benchmark the same system at the
+#       same accuracy, so their on-site U values are directly comparable.
+#   "published" -- what the submitted tables used: edge_level 4 (a FINER l_ec, 0.568 vs 1.136
+#       A) but rhs_tol = volume_tol = 1e-3 (a LOOSER source/interface refinement) and
+#       max_depth 12. Neither uniformly tighter nor looser than the lattice campaign, which is
+#       why the cross-validated on-site U differed by 0.17%.
+#
+# max_order is 64 in every set: p_up is clamped to it with no adaptive fallback for
+# non-touching pairs and no warning, and on a real conv_l3 interface max_order = 8 left 92.5%
+# of upsample pairs pinned at the cap.
+const ACC = get(ENV, "MULTICUBE_ACCURACY", "sec53")
+ACC in ("sec53", "published") ||
+    error("MULTICUBE_ACCURACY must be sec53|published, got $(ACC)")
+
 const P = SMOKE ?
     (n_quad = 6, edge_level = 2, rhs_tol = 1e-2, lhs_tol = 1e-3,
      gmres_atol = 1e-3, gmres_rtol = 1e-3, max_order = 64, max_depth = 12,
      support_rtol = 1e-3) :
+    ACC == "sec53" ?
+    (n_quad = 6, edge_level = 3, rhs_tol = 1e-5, lhs_tol = 1e-5,
+     gmres_atol = 1e-5, gmres_rtol = 1e-5, max_order = 64, max_depth = 128,
+     support_rtol = 1e-4) :
     (n_quad = 6, edge_level = 4, rhs_tol = 1e-3, lhs_tol = 1e-5,
      gmres_atol = 1e-5, gmres_rtol = 1e-5, max_order = 64, max_depth = 12,
      support_rtol = 1e-4)
@@ -482,8 +504,11 @@ end
 const ONE_CUTOFF = let v = get(ENV, "MULTICUBE_CUTOFF", ""); isempty(v) ? nothing : parse(Float64, v) end
 const SWEEP = ONE_CUTOFF === nothing ? CUTOFFS : [ONE_CUTOFF]
 
-@printf("threads = %d   correct_edges = %s   smoke = %s   eval = %s   cutoffs = %s\n",
-        Threads.nthreads(), CORRECT_EDGES, SMOKE, EVAL_MODE, SWEEP)
+@printf("threads = %d   correct_edges = %s   smoke = %s   eval = %s   accuracy = %s   cutoffs = %s\n",
+        Threads.nthreads(), CORRECT_EDGES, SMOKE, EVAL_MODE, ACC, SWEEP)
+@printf("accuracy set: n_quad %d  edge_level %d (l_ec %.4f)  rhs/volume_tol %.0e  lhs_tol %.0e  gmres_rtol %.0e  max_order %d  max_depth %d  support_rtol %.0e\n",
+        P.n_quad, P.edge_level, SLAB_THICK / 2.0^P.edge_level * 1.01, P.rhs_tol, P.lhs_tol,
+        P.gmres_rtol, P.max_order, P.max_depth, P.support_rtol)
 @printf("geom = %s   substrate: two %gx%gx%g cubes eps %g|%g, slab %gx%gx%g eps %g, eps_out %g\n",
         GEOM, L, L, L, EPS1, EPS2, SLAB_LX, SLAB_LY, SLAB_THICK, EPS_SLAB, EPS_OUT)
 flush(stdout)
@@ -520,6 +545,7 @@ for cutoff in SWEEP
     flush(stdout)
 
     out = (; smoke = SMOKE, correct_edges = CORRECT_EDGES, precondition = PRECONDITION, cutoff,
+           accuracy = ACC, params = P, l_ec_used = SLAB_THICK / 2.0^P.edge_level * 1.01,
            geom = GEOM, L, slab_thick = SLAB_THICK, slab_lx = SLAB_LX, slab_ly = SLAB_LY,
            eps1 = EPS1, eps2 = EPS2, eps_slab = EPS_SLAB, eps_out = EPS_OUT,
            K = res.K, pairs = res.pairs, n_points = res.n_points, n_src = res.n_src,

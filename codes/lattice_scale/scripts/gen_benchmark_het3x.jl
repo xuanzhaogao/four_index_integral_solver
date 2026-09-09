@@ -69,10 +69,13 @@ function build_toml(name, root, orbs)
     println(io, "  [$(XJUNC + L/2), $(YCEN), $(CZC), $(L), $(L), $(L), 3.9],")    # SiO₂ (+x)
     println(io, "  [$(XJUNC), $(YCEN), 7.5, $(slab_lx), $(slab_ly), $(SLAB_LZ), $(SLAB_EPS)],")  # graphene slab (wraps orbital density)
     println(io, "]\n")
+    # max_order 64, not 8: p_up is clamped to max_order with no adaptive fallback for
+    # non-touching pairs and no warning. Measured on a real conv_l3 interface, max_order = 8
+    # left 92.5% of upsample pairs pinned at the cap (under-resolved); 64 brings it to 55%.
     println(io, "[solve]")
     for (k, v) in ["n_quad"=>6, "edge_refine_level"=>2, "rhs_tol"=>1e-3, "lhs_tol"=>1e-5,
                    "gmres_rtol"=>1e-5, "support_rtol"=>1e-4, "volume_tol"=>1e-5,
-                   "max_order"=>8, "max_depth"=>128]
+                   "max_order"=>64, "max_depth"=>128]
         println(io, "$(k) = $(v)")
     end
     println(io, "\n[batching]")

@@ -53,7 +53,13 @@ function write_toml(name, level)
     println(io, "gmres_rtol = $(TOL)")
     println(io, "support_rtol = $(SUPPORT_RTOL)")
     println(io, "volume_tol = $(TOL)")
-    println(io, "max_order = 8")
+    # max_order 64, not 8. p_up is clamped to max_order with no adaptive fallback for
+    # non-touching pairs and no warning; measured on a real conv_l3 interface (37,520
+    # panels, up_tol 1e-5, n_quad 6), max_order = 8 left 92.5%% of the 12,208 upsample
+    # pairs pinned at the cap, i.e. under-resolved. At 64 that falls to 55%%. The
+    # remainder have rho_min < 1.094 -- nearly coincident but not edge-adjacent, so the
+    # touching test routes them to upsampling where they would need p_up in the hundreds.
+    println(io, "max_order = 64")
     println(io, "max_depth = 128\n")
     println(io, "[batching]")
     println(io, "n_centers_per_batch = 1\n")

@@ -1214,7 +1214,7 @@ lhs_tol = 1.0e-5
 gmres_rtol = 1.0e-5
 support_rtol = 0.0001
 volume_tol = 1.0e-5
-max_order = 8
+max_order = 64
 max_depth = 128
 
 [batching]

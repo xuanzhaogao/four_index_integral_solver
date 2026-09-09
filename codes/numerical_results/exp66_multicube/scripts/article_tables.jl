@@ -56,14 +56,23 @@ for f in readdir(RAW)
 end
 th = [deserialize(joinpath(RAWT, f)) for f in readdir(RAWT) if occursin(r"^multicube_pin_nt\d+\.jls$", f)]
 sort!(th; by = r -> r.nthreads)
+# Whether Table 2 carries an evaluation column is a property of the RECORDS (solve and eval
+# measured in one job => t_eval_model present), not of EVAL_TAG. Deciding it in one place keeps
+# the header, the column spec and the row format from disagreeing.
+has_eval_col(r) = hasproperty(r, :t_eval_model) && !isnan(r.t_eval_model)
+const T2_EVAL = !isempty(th) && all(has_eval_col, th) || !isempty(RAWE)
 
 miss = setdiff(ROWS, keys(ks));  isempty(miss) || error("no record for K = $(miss) in $RAW")
 haskey(ks, 1) || error("the K=1 record is required as the single-RHS baseline")
 
 solve_total(r) = r.t_precompute + r.t_solve_block      # Algorithm(solve) only
 eval_total(r)  = begin                                 # Algorithm(eval)
-    e = eval_model_t(["multicube_evK$(r.cutoff).jls"])  # fixed-target benchmark, when available
-    isnan(e) ? r.t_pottrg + r.t_eval : e
+    if hasproperty(r, :t_eval_model) && !isnan(r.t_eval_model)
+        r.t_eval_model                                  # measured in the same job as the solve
+    else
+        e = eval_model_t(["multicube_evK$(r.cutoff).jls"])
+        isnan(e) ? r.t_pottrg + r.t_eval : e
+    end
 end
 e2e_total(r)   = solve_total(r) + eval_total(r)
 # EVAL_IN_TABLE=0 restores the submitted table's solve-only columns.
@@ -85,19 +94,26 @@ println(io, "\\caption{Strong scaling of Algorithm~\\ref{alg:solve} at \$K=1\$ o
             "\$96\$-core node with threads pinned (\\texttt{OMP\\_PROC\\_BIND=spread}). Columns: " *
             "thread count; wall-clock time for the prepare stage and for the block solve, and " *
             "their total; and the speedup and parallel efficiency relative to a single thread. " *
-            "The evaluation stage of Algorithm~\\ref{alg:eval} is not included.}")
+            "The evaluation of Algorithm~\\ref{alg:eval} is included, measured in the same run " *
+            "at the fixed target set of the lattice model (\$N_p = 7\\,168\\,390\$ points). " *
+            "The block-solve column is reconstructed from a single-iteration timing as " *
+            "\$t_{\\mathrm{RHS}} + t_{1\\mathrm{iter}} N_{\\mathrm{iter}}\$.}")
 println(io, "\\label{tab:strongscaling}")
-println(io, isempty(RAWE) ? "\\begin{tabular}{cccccc}" : "\\begin{tabular}{ccccccc}")
+println(io, T2_EVAL ? "\\begin{tabular}{ccccccc}" : "\\begin{tabular}{cccccc}")
 println(io, "\\hline")
-println(io, isempty(RAWE) ?
-    "\$N_{\\mathrm{threads}}\$ & prepare (s) & block BIE solve (s) & total (s) & speedup & parallel efficiency \\\\" :
-    "\$N_{\\mathrm{threads}}\$ & prepare (s) & block BIE solve (s) & evaluation (s) & total (s) & speedup & parallel efficiency \\\\")
+println(io, T2_EVAL ?
+    "\$N_{\\mathrm{threads}}\$ & prepare (s) & block BIE solve (s) & evaluation (s) & total (s) & speedup & parallel efficiency \\\\" :
+    "\$N_{\\mathrm{threads}}\$ & prepare (s) & block BIE solve (s) & total (s) & speedup & parallel efficiency \\\\")
 println(io, "\\hline")
 let t1 = 0.0
     for r in th
         blk = stage_t(r, RHS_LBL) + stage_t(r, "block GMRES") * NITER_REF
         n = r.nthreads
-        evl = eval_model_t(["multicube_evnt$(n)_nopin.jls", "multicube_evnt$(n).jls"])
+        # solve and evaluation are measured in the SAME job now, so the eval time is in this
+        # record (t_eval = the fixed-target model eval). EVAL_TAG remains as a fallback for the
+        # older trees where the two were separate sweeps at different accuracies.
+        evl = hasproperty(r, :t_eval_model) && !isnan(r.t_eval_model) ? r.t_eval_model :
+              eval_model_t(["multicube_evnt$(n)_nopin.jls", "multicube_evnt$(n).jls"])
         tot = r.t_precompute + blk + (isnan(evl) ? 0.0 : evl)
         n == 1 && (t1 = tot)
         if isnan(evl)
@@ -129,11 +145,13 @@ println(io, "\\caption{Block (multiple-right-hand-side) BIE solve on the graphen
             "their total; peak resident memory; and the speedup, computed from the total time, " *
             "relative to \$K\$ independent solves. The evaluation of Algorithm~\\ref{alg:eval} is " *
             (WITH_EVAL ?
-              "included. Evaluation is the central ERI row \$V[\\rho_{11},\\rho_{1j}]\$ over the \$K\$ " *
-              "batch members. The speedup peaks near \$K=25\$--\$31\$ and then falls as the resident " *
-              "set approaches the node's \$1.5\$~TB capacity; the solve alone amortizes further " *
-              "(\$3.7\\times\$) than the total, because the evaluation cost per source is " *
-              "essentially independent of \$K\$.}" :
+              "included: each batch is evaluated at the fixed target set of the lattice model " *
+              "(the union of all \$198\$ orbitals' quadrature points, \$N_p = 7\\,168\\,390\$ " *
+              "points), the same evaluation the distributed assembly performs. All rows were " *
+              "measured sequentially on one node, so the comparison is free of node-to-node " *
+              "variation, which reaches \$20\\%\$ between nodes. The speedup rises " *
+              "monotonically and plateaus; the solve alone amortizes further than the total " *
+              "because the evaluation saturates earlier, by \$K \\approx 10\$.}" :
               "excluded. The speedup peaks near \$K=31\$--\$37\$ and then falls as the resident set " *
               "approaches the node's \$1.5\$~TB capacity.}"))
 println(io, "\\label{tab:multirhs}")
