@@ -178,7 +178,15 @@ live_gb() = gb(Base.gc_live_bytes())
 
 # K pair densities rho = phi_center * phi_neighbor for the central A orbital (id 1) and
 # every A/B orbital within `cutoff` of it. Identical to exp65. Returns (LatticeBatch, pairs).
-function build_geometry(cutoff::Float64; nrange::Int = 3)
+# nrange bounds the lattice-index search for neighbours. A fixed 3 silently TRUNCATES once the
+# cutoff exceeds ~7.0 A: at cutoff 7.4 it finds 66 sites where the true count is 67, at 7.7
+# it finds 70 of 73, at 8.0 it finds 74 of 79. The dropped sites are real neighbours, so both K
+# and the physical cluster would be wrong with no error raised. Derive it from the cutoff
+# instead (|A1| = |A2| = 2.465 A, plus margin for the non-orthogonal basis). Identical for every
+# cutoff <= 7.0, where nrange = 3 was already sufficient -- so no existing point moves.
+_nrange_for(cutoff) = max(3, ceil(Int, cutoff / 2.465) + 3)
+
+function build_geometry(cutoff::Float64; nrange::Int = _nrange_for(cutoff))
     center = CENTROID[1]                          # sublattice A, cell (0,0)
     sites = Tuple{Int, NTuple{3, Float64}}[(1, center)]
     for t in 1:2, n1 in -nrange:nrange, n2 in -nrange:nrange
