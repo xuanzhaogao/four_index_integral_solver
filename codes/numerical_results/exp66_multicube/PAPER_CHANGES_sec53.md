@@ -539,3 +539,60 @@ If it holds, ~1.6 h of the k46 run's 1.9 h evaluation was waste, the campaign dr
 setting rather than a property of the algorithm** -- that sentence must come out. It also means
 k_target was chosen against a badly distorted cost structure and should be re-derived afterwards,
 which now matters for accuracy and not only for speed.
+
+---
+
+## Resolved: the eval cost was the symmetry restriction's contraction (BI b41ee80)
+
+Every hypothesis in the section above was wrong, and each was killed by measurement:
+
+| candidate | verdict |
+|---|---|
+| K | K sweep flat: 9.90, 7.92, 8.06, 7.33, 7.58, 7.57 s per source at K = 4..31 vs Aug 30's 8.23 |
+| OpenBLAS threads | 1 vs 96 identical (7.73 / 7.50); and 8x96 vs 8x1 identical (231.9 / 234.7 s) |
+| worker Julia threads | -t 8 and -t 96 identical -- all four cells 232-240 s |
+| max_order | reaches `solve_batch_core` only |
+| I/O from ceph | `t_setup` is 1% of eval (7-10 s per batch) |
+| load imbalance | both parallel phases run at 96% utilisation |
+| BI version | 2aac4ac..e95f8af touches four files; the only hot-path one is gated behind an empty neighbour list |
+
+The A/B had been timing `evaluate_batch_potential`, but production records `t_phi` for all of
+`eval_batch_core`. For kb31 batch 1 (K = 31, full target set): 235 s standalone against a
+production `t_phi` of 1896 s. The 1661 s between them is what the symmetry restriction added.
+
+Owning a subset of rows means owning a subset of the shared target set, so the contraction had
+to remap every global target index into that subset -- a `Dict` of up to 7.3M entries built per
+batch, probed once per target per row, inside a serial loop. The removed function's docstring
+had asserted "the saving is NOT in the contractions -- those are cheap dot products." It was
+never measured.
+
+The trade it was making: **-2.4 node-hours of potential evaluation, +14 node-hours of
+contraction.** Across the phase the potential evaluation is 3.2 of kb31's 18.1 node-hours.
+
+Every row is now evaluated (BI b41ee80). Consequences:
+
+* **eval work becomes `n_pairs x n_targets`, independent of the batching** -- 2623 x 7.33M =
+  19.2 G source-points, ~5.5 node-hours, plus ~1.0 for the contraction at Aug 30's direct-index
+  rate. Against kb31's 18.1 that is **2.8x**, and a campaign drops ~3 h 05 m to **~2 h**.
+* `max_rel_asym` regains its meaning. Nothing is mirrored, so every off-diagonal entry is
+  computed twice by different batches from different interfaces -- an end-to-end check rather
+  than the tautology it had become. The pipeline test's 1e-8 symmetry assertion was measuring
+  the mirror, not the solver.
+* One accuracy mechanism is removed: batches no longer refine their interfaces
+  (`_refine_interface_for_targets`) against different target sets, so an entry's quadrature no
+  longer depends on which batch owned it. The solve-side envelope dependence remains.
+
+### What this does to the k_target choice
+
+With eval batching-independent, only prepare and solve still respond to K, and they barely do:
+
+| | batches | prepare | solve |
+|---|---|---|---|
+| Aug 30, K ~ 13 | 198 | 9.1 min | 68.9 min |
+| kb31, K = 31 | 85 | 10.7 | 66.0 |
+| k46, K = 46 | 57 | 14.6 | 64.5 |
+
+Solve improves 6% from K = 13 to K = 46 and prepare gets 5.5 min worse, so the whole K-balanced
+batching idea is worth about **4 minutes in 185** -- while costing 0.55% on the on-site U, the
+quantity Sec. 5.3 reports. That is a bad trade, and it now points the same way accuracy does:
+**k_target should go back down.** K = 31 already beats K = 46 on total time once eval is fixed.
