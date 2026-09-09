@@ -24,7 +24,11 @@ TOML=${1:?usage: sbatch --nodes=<M> jobscripts/run_all.sbatch <campaign.toml>}
 
 # pin BOTH thread pools (unpinned threads silently corrupt timings — known footgun)
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
+# OpenBLAS gets ONE thread, not $SLURM_CPUS_PER_TASK. The pipeline's hot stages are FMM3D and
+# FINUFFT, both with their own pools and almost no BLAS; an OpenBLAS pool of the same size
+# oversubscribes the node against them. Measured on the Sec. 5.2 evaluation benchmark:
+# 2.95x slower at 64 threads and 1.56x at 96 with OPENBLAS_NUM_THREADS=N vs 1.
+export OPENBLAS_NUM_THREADS=1
 export JULIA_GLUE_THREADS=8
 JULIA=/mnt/home/xgao1/.juliaup/bin/julia      # juliaup launcher (Julia 1.12 = juliaup release default)
 

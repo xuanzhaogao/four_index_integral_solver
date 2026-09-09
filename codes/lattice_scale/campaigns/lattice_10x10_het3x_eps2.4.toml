@@ -1219,6 +1219,10 @@ max_depth = 128.0
 
 [batching]
 n_centers_per_batch = 1
+# Partition the pairs into spatially-compact batches of ~k_target pairs instead of one
+# batch per anchor: 85 batches at K = 30-31 rather than 198 at K = 1-17, so 57% fewer
+# interface builds / LHS operators / pottrg maps. 31 is the Sec. 5.2 throughput optimum.
+k_target = 31
 
 [eval]
 c_pad = 5.0
