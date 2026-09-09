@@ -53,10 +53,12 @@ case "$VARIANT" in
 esac
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-# OpenBLAS gets ONE thread, not $SLURM_CPUS_PER_TASK. The hot stages are FMM3D and FINUFFT,
-# both with their own pools and almost no BLAS; an equally sized OpenBLAS pool oversubscribes
-# the node against them. Measured on the Sec. 5.2 evaluation benchmark: 2.95x slower at 64
-# threads and 1.56x at 96 with OPENBLAS_NUM_THREADS=N vs 1.
+# OpenBLAS gets ONE thread. The 2.95x-at-64-threads figure this once cited comes from the
+# Sec. 5.2 benchmark -- a SINGLE process at -t 64/96, where an equally sized BLAS pool
+# oversubscribes the node against FMM3D and FINUFFT. It does NOT describe this pipeline: job
+# 7012357 timed the campaign's own evaluation at 8 and 96 Julia threads crossed with OPENBLAS
+# 1 and 96, and all four cells landed within 3% (231.9-239.6 s). Keeping 1 because it is
+# right for the single-process case and measured harmless here.
 export OPENBLAS_NUM_THREADS=1
 export TKM3D_FINUFFT_NTHREADS=16              # cap: see header
 JULIA=/mnt/home/xgao1/.juliaup/bin/julia      # juliaup launcher (never `module load julia`)
