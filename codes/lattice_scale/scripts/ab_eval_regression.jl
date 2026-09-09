@@ -75,6 +75,12 @@ for K in filter(<=(Kmax), KS)
     flush(stdout)
 end
 
+# stderr is fully buffered when redirected to a file on Julia 1.12, so the library's own @info
+# ("num of sources", "num of hcub calculations") would otherwise appear only at exit.
+flush(stderr)
+
+get(ENV, "SKIP_BLAS", "") == "1" && exit(0)
+
 # OpenBLAS: the other thing that differed between the two eras.
 K = min(Kmax, maximum(KS))
 println("\nOpenBLAS thread sensitivity at K = $K:")
