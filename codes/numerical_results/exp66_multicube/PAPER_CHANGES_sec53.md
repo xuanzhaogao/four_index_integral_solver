@@ -91,7 +91,7 @@ target set of the lattice model (N_p = 7,168,390):
 | total (s) | 76 | 140 | 285 | 507 | 841 | 934 | 994 | 1158 |
 | peak RAM (GB) | 24 | 62 | 143 | 263 | 428 | 512 | 550 | 634 |
 | end-to-end speedup | -- | 2.2x | 2.6x | 2.8x | 2.8x | 3.0x | 3.0x | **3.0x** |
-| solve-only speedup | 1.28x | 3.04x | 4.04x | 4.38x | 4.51x | 4.96x | 5.05x | **5.07x** |
+| solve-only speedup | 1.00x | 2.39x | 3.17x | 3.44x | 3.53x | 3.89x | 3.96x | **3.97x** |
 
 ### WITHDRAWN: the amortization turnover
 
@@ -103,7 +103,7 @@ runs at identical settings showed node-to-node differences of up to 26% in the b
 (K = 4: 87 s vs 110 s; K = 46: 785 s vs 662 s) -- larger than the 16% "decline" being read as
 signal, and in one run K = 46 came out CHEAPER than K = 40, which is impossible for strictly
 more work. Re-measuring all ten points sequentially on one node removes that variation and the
-curve is monotone: solve-only amortization rises to 5.07x at K = 46, end-to-end plateaus at
+curve is monotone: solve-only amortization rises to 3.97x at K = 46, end-to-end plateaus at
 3.0x. There is no turnover in the measured range.
 
 The memory explanation had already failed independently: the same apparent turnover appeared at
@@ -125,10 +125,46 @@ smaller than that is not resolvable without repeated or sequential measurement.
 
 The noisy data hid this. Per-source evaluation cost falls 16.35 s at K = 1 to 9.5--10.3 s and
 then stays flat -- a ~1.65x gain saturating by K = 10. That is why the solve-only speedup
-(5.07x) exceeds the end-to-end figure (3.0x): the evaluation stops improving earlier, not
+(3.97x) exceeds the end-to-end figure (3.0x): the evaluation stops improving earlier, not
 because its cost is independent of K.
 
 ---
+
+### Extension to K = 79, and a possible decline
+
+`nrange` had to be fixed first: it was pinned at 3, which silently truncates the neighbour
+search past cutoff ~7.0 A (66 sites found where 67 exist at 7.4, 74 of 79 at 8.0), so extending
+the sweep would have run a wrong cluster with no error raised (BoundaryIntegral-side commit
+2045f00 in this repo's tree).
+
+Four new shells, one node each (job 7008840), against the sequential K = 46 point:
+
+| K | 46 (seq) | 58 | 67 | 73 | 79 |
+|---|---|---|---|---|---|
+| block solve (s) | 675.0 | 846.1 | 1022.2 | 1130.1 | 1258.4 |
+| eval (s) | 472.3 | 593.3 | 683.4 | 741.6 | 829.5 |
+| total (s) | 1435.7 | 1849.2 | 2187.1 | 2343.8 | 2631.9 |
+| peak RSS (GB) | 634 | 783 | 904 | 982 | 1064 |
+| % of node | 42% | 52% | 60% | 65% | 71% |
+| solve/RHS (s) | 14.9 | 14.8 | 15.5 | 15.7 | 16.1 |
+| solve amortization | 3.97x | **3.99x** | 3.82x | 3.78x | **3.67x** |
+| e2e amortization | 3.00x | **3.02x** | 2.94x | 2.93x | **2.84x** |
+
+Solve-only amortization peaks at K = 58 and declines monotonically to 3.67x at K = 79, 8% off
+peak. It is entirely in the solve: per-RHS-per-iteration cost rises 1.621 -> 1.770 s (+9%) at
+constant N_iter = 9, while per-source evaluation stays flat at 10.2--10.5 s.
+
+**NOT ESTABLISHED.** The four points are on four different nodes and the 8% decline is smaller
+than the 20--26% node-to-node spread measured earlier -- the same confound that manufactured a
+phantom turnover at K ~ 37. Four monotone points weigh more than one outlier, and the onset
+tracking occupancy (52% -> 71%) is at least consistent with memory pressure, unlike the phantom
+which appeared at 42% and 81% indifferently. Settling it needs the five points measured
+sequentially on one node (~2.5 h).
+
+**The memory model is confirmed to 0.7%** out to K = 79: RSS ~ 10.6 + 13.4 K GB predicts
+788/908/989/1069 against 783/904/982/1064 measured. K = 79 is the practical ceiling -- the next
+shell, K = 103, projects to 1391 GB (93% of the node). What occupies 13.4 GB per RHS
+(~1240 doubles per unknown) is still unaccounted for.
 
 ## Evaluation cost: now tabulated (superseded in part -- see above)
 

@@ -183,10 +183,16 @@ println("% wrote $(joinpath(FIGS, "table_multirhs.tex"))")
 
 # Every measured K, so the prose can quote points the table omits without disagreeing with it.
 println("\n% --- all measured K (for the prose) ---")
+# Two amortizations, each against ITS OWN baseline. Mixing them (a solve-only per-RHS against
+# an eval-inclusive K=1 total) inflates the solve-only figure -- it read 5.07x at K = 46 where
+# the consistent value is 3.97x.
+const BASE_SOLVE = solve_total(ks[1]) / 1
+const BASE_E2E   = e2e_total(ks[1]) / 1
 for k in sort(collect(keys(ks)))
-    r = ks[k]; tot = solve_total(r)
-    @printf("%%   K=%-2d  N_iter %2d  prepare %5.1f  block %6.0f  total %6.0f  per-RHS %6.1f  speedup %.2fx  RAM %4.0f GB (%.0f%% of node)%s\n",
-            k, r.niter, r.t_precompute, r.t_solve_block, tot, tot / k,
-            BASE_PER_RHS / (tot / k), r.rss_peak_gb, 100 * r.rss_peak_gb / 1502,
+    r = ks[k]; sv = solve_total(r); e2 = e2e_total(r)
+    @printf("%%   K=%-2d  N_iter %2d  prepare %5.1f  block %6.0f  eval %6.0f  solve/RHS %6.1f (%.2fx)  e2e/RHS %6.1f (%.2fx)  RAM %4.0f GB (%.0f%%)%s\n",
+            k, r.niter, r.t_precompute, r.t_solve_block, eval_total(r),
+            sv / k, BASE_SOLVE / (sv / k), e2 / k, BASE_E2E / (e2 / k),
+            r.rss_peak_gb, 100 * r.rss_peak_gb / 1502,
             k in ROWS ? "" : "   [not tabulated]")
 end
