@@ -365,6 +365,60 @@ solver must change the campaign name**, or it silently re-emits the old numbers.
 
 Hence `lattice_conv_l3_eps2.4_k46` and `RERUN_TAG=_eps2.4_mo64` below, both fresh.
 
+### Result: the l_ec sweep at max_order = 64 (job 7009683, 34 min, 1 node)
+
+| level | l_ec (A) | dof | U (mo8) | U (mo64) | dU (eV) | t8 | t64 |
+|---|---|---|---|---|---|---|---|
+| 1 | 4.5450 | 308,952 | 7.1890899 | 7.1894404 | +3.50e-04 | 25 | 31 |
+| 2 | 2.2725 | 653,040 | 7.1891741 | 7.1893268 | +1.53e-04 | 26 | 38 |
+| 3 | 1.1362 | 1,350,288 | 7.1890041 | 7.1890427 | +3.86e-05 | 61 | 64 |
+| 4 | 0.5681 | 2,752,560 | 7.1888593 | 7.1888963 | +3.70e-05 | 104 | 122 |
+| 5 | 0.2841 | 5,564,880 | 7.1887807 | 7.1888119 | +3.12e-05 | 209 | 232 |
+| 6 | 0.1420 | 11,197,296 | 7.1887508 | 7.1887704 | +1.96e-05 | 418 | 461 |
+| 7 | 0.0710 | 22,469,904 | 7.1887323 | 7.1887446 | +1.23e-05 | 875 | 976 |
+
+**Convergence in l_ec survives**, and U is unchanged for reporting purposes: at level 4, the
+value Sec. 5.3 quotes, the near-field fix moves U by +3.7e-05 eV (5e-06 relative). The bias
+decays monotonically with refinement, 3.5e-04 at level 1 to 1.2e-05 at level 7 -- refinement
+raises rho_min and unclamps the corrections, so edge refinement was already absorbing most of
+the max_order = 8 error. Resolving the near field costs 11-24% more time per level.
+
+So **the l_ec figure's numbers stand.** That is worth stating plainly: the max_order finding
+invalidated the near-field accuracy those campaigns *claimed*, and for this observable it turns
+out not to have moved the answer.
+
+### But the single-orbital sweep is not a proxy for the campaign
+
+For the SAME orbital (idx 104, the one the sweep picks) at the SAME level 3:
+
+| | U at mo8 | U at mo64 | shift |
+|---|---|---|---|
+| campaign `conv_l3` (orbital in a 31-pair batch) | 7.1547889 | 7.1501961 | **-4.59e-03 eV** |
+| l_ec sweep (that orbital alone, neighbor_cutoff = 0) | 7.1890041 | 7.1890427 | **+3.86e-05 eV** |
+
+The values differ by 0.034 eV (0.48%) and the near-field sensitivity by 124x, opposite in sign.
+Orbital 104 is typical of the campaign, not an outlier -- 82nd of 198 by |shift|, against a mean
+of -5.18e-03 and a median of -3.68e-03 eV.
+
+**This is a second and independent reason the l_ec study cannot certify the campaign's
+accuracy.** The first (above) is that a bias present at every refinement level is invisible to a
+refinement sweep. This one is that the sweep does not even carry the same bias: it is a
+different configuration whose near-field error is ~100x smaller. Whatever it establishes, it
+establishes for one isolated orbital.
+
+Mechanism NOT established. Two candidates were eliminated by measurement:
+
+* *interface size* -- the campaign's per-batch interface is 1,350,504-1,352,556 unknowns against
+  the sweep's 1,350,288, identical to 0.1%, so the campaign is not coarser overall;
+* *support_rtol truncation* -- applied in `solve_batch_core` (tasks.jl:188) to the batch support
+  at solve time, and the sweep's `onsite_U` contracts over that same truncated support, so both
+  paths truncate identically.
+
+Still open: refinement *placement* (equal panel count says nothing about where the panels go --
+the campaign refines one shared interface toward the joint envelope of 31 pairs, the sweep
+toward one orbital's support), and the far larger set of near panel-target corrections in the
+campaign's `pottrg` map, which spans all 198 orbitals' supports rather than one.
+
 ### Queued
 
     # production tensor at K = 46, ~3 h on 10 nodes (~30 node-hours)
@@ -376,3 +430,7 @@ Hence `lattice_conv_l3_eps2.4_k46` and `RERUN_TAG=_eps2.4_mo64` below, both fres
 The l_ec rerun is the one with scientific content: it says whether U's flatness to 4e-4 eV
 across seven levels survives a resolved near field, and it re-anchors the §5.2/§5.3
 cross-validation, whose §5.3 side (7.1889 eV at level 4) is a `max_order = 8` number.
+
+**Done** (job 7009683, results above): flatness survives, U moves 3.7e-05 eV at level 4, and the
+cross-validation's §5.3 side is unchanged to five figures. The K = 46 campaign (7009682) is
+still running.

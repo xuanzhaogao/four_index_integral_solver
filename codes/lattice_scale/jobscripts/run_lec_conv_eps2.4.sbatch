@@ -59,4 +59,4 @@ mkdir -p logs
 
 echo "=== lec sweep (eps=2.4) levels: $LEVELS   $(date) ==="
 $JULIA --project -t 8 scripts/lec_conv_single.jl $LEVELS
-echo "=== SWEEP DONE  $(date)  ->  figs/lec_single_conv_eps2.4.tsv ==="
+echo "=== SWEEP DONE  $(date)  ->  figs/lec_single_conv${RERUN_TAG}.tsv ==="
