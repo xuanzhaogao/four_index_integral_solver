@@ -434,3 +434,108 @@ cross-validation, whose §5.3 side (7.1889 eV at level 4) is a `max_order = 8` n
 **Done** (job 7009683, results above): flatness survives, U moves 3.7e-05 eV at level 4, and the
 cross-validation's §5.3 side is unchanged to five figures. The K = 46 campaign (7009682) is
 still running.
+
+---
+
+## The K = 46 rerun (job 7009682): k_target is not a performance knob
+
+Finished 2026-09-09, 3 h 05 m on 10 nodes against kb31's 3 h 11 m -- **2.8% faster, not the 6%
+projected.** prepare rose 10.7 -> 14.6 min (RCB plus wider envelopes), eating half the gain that
+solve (66.0 -> 64.5) and eval (110.4 -> 102.3) delivered.
+
+### The tensor is NOT batching-invariant
+
+kb31 and k46 differ in `name`, `root` and `k_target` alone, so V was expected to reproduce to
+solver tolerance. It does not:
+
+| | |
+|---|---|
+| max relative difference | **1.555e-03** (155x gmres_rtol) |
+| rms relative difference | 9.058e-06 |
+| on-site U mean | 7.16281 -> 7.15933 eV |
+| max abs on-site shift | 1.138e-02 eV |
+
+The difference is **entirely in the on-site entries** -- all 200 worst entries are onsite-onsite,
+1% of the matrix; the median entry agrees to 2.2e-08 and 99% to 3.3e-05. That is precisely the
+quantity Sec. 5.3 reports.
+
+The cause is structural, not a bug: each batch refines ONE shared interface on the envelope of
+its K pair sources. Same panel count (1,350,504-1,352,556, within 0.1% of the single-orbital
+1,350,288) but a different placement -- and the on-site integral, the most peaked and
+near-field-sensitive entry, is what notices. On-site U for orbital 104, all at level 3 and
+max_order 64:
+
+| batching | U (eV) |
+|---|---|
+| K -> 1 (isolated, `neighbor_cutoff = 0` -- the l_ec sweep) | 7.18904 |
+| K = 31 | 7.15020 |
+| K = 46 | 7.14974 |
+
+Monotone and saturating: -3.9e-02 eV from K=1 to 31, then -4.6e-04 to K=46. **The campaign sits
+0.55% below the K -> 1 limit**, and that is where the 0.48% discrepancy reported earlier between
+the campaign and the single-orbital sweep comes from. The mechanism I first proposed (refinement
+placement) and then wrongly dismissed on the grounds of equal panel count is the surviving one:
+equal N says nothing about where the panels go.
+
+### The error hierarchy is inverted from what the paper claims
+
+For on-site U at level 3, largest first:
+
+| source | size |
+|---|---|
+| batching, K = 1 -> 31 | **3.9e-02 eV** (0.55%) |
+| max_order 8 -> 64 | 5.2e-03 eV (mean) |
+| batching, K = 31 -> 46 | 3.5e-03 eV (mean) |
+| **l_ec self-convergence at level 3** | **3.4e-04 eV** (4.7e-05 rel) |
+
+Sec. 5.3 quotes the l_ec sweep as its accuracy evidence, and it is the SMALLEST term by two
+orders of magnitude. This is the third and strongest reason that sweep cannot certify the
+campaign: it runs at K = 1 by construction, so it is blind to the dominant error by design.
+
+### The physics survives
+
+| | Si (eps 11.9) | SiO2 (eps 3.9) | contrast |
+|---|---|---|---|
+| max_order 8, K ~ 13 | 7.08992 | 7.24604 | 0.15612 eV |
+| max_order 64, K = 31 | 7.08502 | 7.24059 | 0.15556 |
+| max_order 64, K = 46 | 7.08180 | 7.23686 | 0.15506 |
+
+Both sides move down together, so the contrast -- a small difference of two large numbers -- takes
+a ~0.3% relative hit per perturbation while the absolute values move 0.05%. Position-dependent
+screening is unaffected qualitatively and stable to under 1% across every perturbation tried.
+**What must change is the error bar, not the claim.**
+
+---
+
+## The eval phase is 8x slower in the campaign than standalone (job 7010961)
+
+The K sweep on ONE batch (kb31 batch 1, full 7.33M target set, current BI, single process at
+-t 96), against the Aug 30 production rate of 8.23 s per source:
+
+| K | 4 | 8 | 13 | 17 | 24 | 31 |
+|---|---|---|---|---|---|---|
+| s per source | 9.90 | 7.92 | 8.06 | 7.33 | 7.58 | 7.57 |
+| vs Aug 30 | 1.20x | 0.96x | 0.98x | 0.89x | 0.92x | 0.92x |
+
+Flat. **K does not explain the eval slowdown**, and neither does OpenBLAS (7.73 s per source at
+1 thread vs 7.57). The same batch, same sigma, same targets, same K, same BI:
+
+| | s per source |
+|---|---|
+| kb31 production | **61.4** |
+| this A/B, standalone | **7.57** |
+
+**8.1x.** So the eval cost is set by how the campaign runs evaluation, not by the mathematics.
+The one known environment difference: `run_phase` launches workers with `-t $JULIA_GLUE_THREADS`
+and both campaign jobscripts hardcode **8**, so every worker evaluates with 8 Julia threads on a
+96-core node, while this A/B and the Sec. 5.2 benchmark -- both fast -- use 96.
+
+NOT yet established, and one observation resists it: Aug 30 also ran 8-thread workers and was
+fast at K <= 17. Only a thread ceiling that binds once K exceeds it fits both.
+`jobscripts/ab_eval_threads.sbatch` tests 8/16/32/96 at K = 17 and 31.
+
+If it holds, ~1.6 h of the k46 run's 1.9 h evaluation was waste, the campaign drops from ~3 h to
+~1.3 h, and **"evaluation dominates at 58%, so optimise there" is an artefact of the thread
+setting rather than a property of the algorithm** -- that sentence must come out. It also means
+k_target was chosen against a badly distorted cost structure and should be re-derived afterwards,
+which now matters for accuracy and not only for speed.
