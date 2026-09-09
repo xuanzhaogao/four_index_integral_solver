@@ -596,3 +596,63 @@ Solve improves 6% from K = 13 to K = 46 and prepare gets 5.5 min worse, so the w
 batching idea is worth about **4 minutes in 185** -- while costing 0.55% on the on-site U, the
 quantity Sec. 5.3 reports. That is a bad trade, and it now points the same way accuracy does:
 **k_target should go back down.** K = 31 already beats K = 46 on total time once eval is fixed.
+
+---
+
+## Confirmed: full-matrix evaluation, benchmarked (job 7012551)
+
+Eval + assemble re-run on the finished k46 solve, BI b41ee80:
+
+| | symmetry-restricted | full matrix | |
+|---|---|---|---|
+| eval work | 16.39 node-hours | **7.11** | 2.31x |
+| eval wall, 10 nodes | 102.2 min | **46.2 min** | **2.21x** |
+| utilisation | 96% | 92% | |
+| per-batch `t_phi` | 1902 -> 143 s | 390 / 414 / 556 (min/median/max) | |
+| **spread** | **13.3x** | **1.43x** | |
+
+**The ramp is gone**, which is the diagnosis confirming itself: it was the shrinking row count,
+not anything physical. The residual 1.43x matches the node-to-node variation measured earlier.
+
+Campaign total: prepare 14.6 + solve 64.5 + consolidate 3.5 + eval 46.2 + assemble 0.7 =
+**2 h 10 m, 21.6 node-hours** against 3 h 05 m and 30.9.
+
+Prediction was 39 min / 22,279 s, so I under-predicted by 15-18%. The potential-evaluation term
+was fitted from six measured points and is solid; the contraction term was back-derived as a
+residual of a residual from the Aug 30 run, and it is the part that missed -- 6,016 s actual
+against 2,705 s predicted, 2.2x. That was the flagged weak link, and the flag was right about
+which term would fail while understating by how much.
+
+### Validation
+
+    entries filled by symmetry: 0 of 6,880,129
+    max rel asymmetry:          3.032e-05        (over every off-diagonal entry)
+
+Against the tensor the symmetry-restricted run produced from the same sigmas and interfaces:
+
+| | |
+|---|---|
+| max relative difference | 3.029e-05 |
+| rms relative difference | 6.839e-07 |
+| on-site U, max abs change | 2.99e-10 eV |
+
+Three things fall out, and each is a check rather than a coincidence:
+
+* **The max difference equals the asymmetry** (3.029e-05 vs 3.032e-05). It must: the entire
+  difference is that the previously mirrored half is now computed independently, so its size is
+  exactly the V[i,j] / V[j,i] disagreement. Not zero (the new code really is not mirroring), not
+  larger (nothing else changed).
+* **On-site U is unchanged to 3e-10 eV.** Diagonal entries are their own transpose and were
+  never mirrored, so they had better not move. They do not.
+* **`max_rel_asym` is now a real end-to-end error indicator.** The 1.71e-05 the previous run
+  reported covered only entries two batches happened to share; 3.03e-05 covers all 6.88M
+  off-diagonal entries, each computed twice from different interfaces and sigmas. At ~3x the
+  solver tolerance this is the number Sec. 5.3 should quote as its pipeline-level accuracy --
+  it is the only figure in this whole investigation that is a genuine independent check of the
+  full chain.
+
+### Still open
+
+`k_target` should come down: with eval now batching-independent, K buys ~4 minutes in 185 and
+costs 0.55% on the on-site U (see the section above). The k46 tensor stands as the current
+production result, but it is not the most accurate one obtainable.
