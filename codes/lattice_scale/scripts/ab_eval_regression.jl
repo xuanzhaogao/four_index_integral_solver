@@ -1,44 +1,83 @@
-# A/B for the eval-phase regression: the campaign's per-FMM-application cost went 8.8 s
-# (Aug 30, job 6965032) to 61 s (kb31, job 7006478) at an IDENTICAL problem size --
-# 1.37M refined sources against the full 7.3M-point target set, K sources per batch.
+# Why did the campaign's eval phase go from 39 min (Aug 30, job 6965032) to 110 min (kb31,
+# job 7006478)?  Normalized by the work actually done -- sources x target POINTS, read from each
+# V file's n_targets_used -- cost per source-point went 1.21 us to 5.91 us, i.e. per source
+# against the full target set, 8.23 s (Aug 30 fit over K = 1..17) to 61.4 s (kb31, K = 31).
 #
-# Already excluded, each by measurement rather than argument:
-#   max_order        -- reaches solve_batch_core only; eval never passes it
-#   the triangle     -- the regression is present at FULL target sets (kb31 batch 1)
-#   target scatter   -- `keep` is sorted, `tgt` is a contiguous materialized copy
-#   hcubature near   -- "num of hcub calculations" never logged: the list is empty
-#   the BI kernels   -- Sec. 5.2 on current BI runs at 10.4 s, close to Aug 30's 8.8 s
+# Excluded by measurement, each rather than by argument:
+#   max_order 8->64   reaches solve_batch_core only; eval never passes it, and the refined
+#                     source count is unchanged (1.373M Aug 30 vs 1.371M kb31)
+#   the triangle      the gap is at FULL target sets, where the triangle does nothing
+#   target scatter    `keep` is sorted, `tgt` a contiguous materialized copy
+#   hcubature near    "num of hcub calculations" absent from all logs: the list is empty, so
+#                     the ONLY functions 471ce6e/e95f8af touched in this path never run
+#   the BI version    reflog: HEAD was 2aac4ac from Aug 5 to Sep 8, and 2aac4ac..e95f8af is
+#                     four files, none of them executing code in this path
+#   FINUFFT cap       neither campaign jobscript sets TKM3D_FINUFFT_NTHREADS; same both eras
 #
-# So it is in evaluate_batch_potential as the campaign calls it, between BI 2aac4ac (Aug 5,
-# what the Aug 30 run used) and e95f8af. This script times ONE batch's evaluation so the two
-# BI checkouts can be compared directly. Run it once per checkout via --project.
+# What is NOT excluded, because nobody has measured it: the K range 17 < K < 31. The Aug 30
+# slope is fitted over K = 1..17 and extrapolated; the kb31/k46 rate rests on two points
+# (61.4 s at K = 31, 61.8 s at K = 46). A jump anywhere in that gap would explain everything
+# with no regression at all. This sweeps it on ONE batch at the full target set.
 #
-#   BATCH_ID=85 CAMP=lattice_conv_l3_eps2.4_kb31 julia --project -t 96 scripts/ab_eval_regression.jl
+# Second variable: OPENBLAS_NUM_THREADS was 96 on Aug 30 (run_conv_l3_eps2.4.sbatch) and 1 for
+# kb31 (run_all.sbatch). Sec. 5.2 measured 1 as much FASTER for its evaluation, but that was a
+# different code path, so it is re-tested here in-process at the top K.
 #
-# Batch 85 is the cheap end (n_targets_used 443,892, 143 s in production); batch 1 is the full
-# target set. Time BOTH: if only the full-target case regresses, the cause scales with target
-# count, which points somewhere different than if both do.
-using BoundaryIntegral, Serialization, Printf
+#   CAMP=lattice_conv_l3_eps2.4_kb31 BATCH_ID=1 KS=4,8,13,17,24,31 \
+#     julia --project -t 96 scripts/ab_eval_regression.jl
+using BoundaryIntegral, Serialization, Printf, LinearAlgebra
 const BI = BoundaryIntegral
-const CEPH = "/mnt/ceph/users/xgao1/four_index"
+
 const CAMP = get(ENV, "CAMP", "lattice_conv_l3_eps2.4_kb31")
-const BID  = parse(Int, get(ENV, "BATCH_ID", "85"))
+const BID  = parse(Int, get(ENV, "BATCH_ID", "1"))
+const KS   = parse.(Int, split(get(ENV, "KS", "4,8,13,17,24,31"), ','))
 
 c       = load_campaign(joinpath(@__DIR__, "..", "campaigns", CAMP * ".toml"))
 targets = open(deserialize, BI.targets_path(c))
-store   = open(deserialize, BI.rho_store_path(c))
 br      = BI.load_batch_result(BI.batch_path(c, BID))
 dg      = BI.load_templates!(c)[1][2]
 
-println("BI at ", read(`git -C $(pkgdir(BI)) rev-parse --short HEAD`, String) |> strip,
-        "   campaign $(CAMP)  batch $(BID)  K = $(length(br.pair_ids))")
-println("threads = ", Threads.nthreads(), "  OPENBLAS = ", get(ENV, "OPENBLAS_NUM_THREADS", "unset"))
+pos = BI.grid_positions(dg, br.gidx)
+At, Bt, Ct = BI.true_cell_vectors(dg)
+lb = ((At[1]/dg.nx, At[2]/dg.nx, At[3]/dg.nx), (Bt[1]/dg.ny, Bt[2]/dg.ny, Bt[3]/dg.ny),
+      (Ct[1]/dg.nz, Ct[2]/dg.nz, Ct[3]/dg.nz))
+mksrc(K) = [BI.VolumeSource(copy(pos), copy(br.weights), br.densities[:, k]; lattice_basis = lb)
+            for k in 1:K]
 
-for tri in (true, false)
+tgt   = targets.positions                      # FULL target set, as Aug 30's batches used
+ntgt  = size(tgt, 2)
+Kmax  = length(br.pair_ids)
+
+println("BI ", strip(read(`git -C $(pkgdir(BI)) rev-parse --short HEAD`, String)),
+        "  campaign $(CAMP) batch $(BID)  K_avail = $Kmax  n_targets = $ntgt")
+println("julia threads = ", Threads.nthreads(), "  BLAS = ", BLAS.get_num_threads(),
+        "  OPENBLAS_NUM_THREADS = ", get(ENV, "OPENBLAS_NUM_THREADS", "unset"))
+println("\nreference: Aug 30 fit t = 7.1 + 8.23*K  ->  8.23 s per source at the full target set\n")
+
+run1(K) = begin
+    srcs = mksrc(K)
     t0 = time()
-    _, _, rows, ntgt = BI.eval_batch_core(br, targets, store, dg, c; triangle = tri)
-    dt = time() - t0
-    @printf("triangle=%-5s  rows %5d  n_targets %8d  t %8.1f s  -> %.1f s per source, %.2f us per source-point\n",
-            tri, length(rows), ntgt, dt, dt / length(br.pair_ids),
-            1e6 * dt / (length(br.pair_ids) * ntgt))
+    BI.evaluate_batch_potential(br.interface, br.sigma, srcs, tgt;
+        lhs_tol = c.solve["lhs_tol"], volume_tol = c.solve["volume_tol"], c_pad = c.c_pad,
+        screen_boxes = c.boxes, screen_epses = c.epses, screen_eps_out = c.eps_out)
+    time() - t0
+end
+
+println("K sweep at the full target set:")
+@printf("%4s  %10s  %12s  %14s  %s\n", "K", "t (s)", "s/source", "us/src-point", "vs Aug 30")
+for K in filter(<=(Kmax), KS)
+    dt = run1(K)
+    @printf("%4d  %10.1f  %12.2f  %14.3f  %6.2fx\n",
+            K, dt, dt/K, 1e6*dt/(K*ntgt), (dt/K)/8.23)
+    flush(stdout)
+end
+
+# OpenBLAS: the other thing that differed between the two eras.
+K = min(Kmax, maximum(KS))
+println("\nOpenBLAS thread sensitivity at K = $K:")
+for nb in (1, 96)
+    BLAS.set_num_threads(nb)
+    dt = run1(K)
+    @printf("  BLAS threads %3d ->  %8.1f s   (%.2f s per source)\n", nb, dt, dt/K)
+    flush(stdout)
 end
