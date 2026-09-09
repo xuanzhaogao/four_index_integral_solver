@@ -3,10 +3,18 @@
 \centering
 \caption{Strong scaling of Algorithm~\ref{alg:solve} at $K=1$ on the graphene/heterojunction benchmark ($N\approx1.35\times10^{6}$ unknowns), on one $96$-core node with threads pinned (\texttt{OMP\_PROC\_BIND=spread}). Columns: thread count; wall-clock time for the prepare stage and for the block solve, and their total; and the speedup and parallel efficiency relative to a single thread. The evaluation of Algorithm~\ref{alg:eval} is included, measured in the same run at the fixed target set of the lattice model ($N_p = 7\,168\,390$ points). The block-solve column is reconstructed from a single-iteration timing as $t_{\mathrm{RHS}} + t_{1\mathrm{iter}} N_{\mathrm{iter}}$.}
 \label{tab:strongscaling}
-\begin{tabular}{cccccc}
+\begin{tabular}{ccccccc}
 \hline
-$N_{\mathrm{threads}}$ & prepare (s) & block BIE solve (s) & total (s) & speedup & parallel efficiency \\
+$N_{\mathrm{threads}}$ & prepare (s) & block BIE solve (s) & evaluation (s) & total (s) & speedup & parallel efficiency \\
 \hline
+$1$ & $133.6$ & $759$ & $127$ & $1020$ & $1.0\times$ & $100\%$ \\
+$2$ & $74.9$ & $591$ & $75$ & $741$ & $1.4\times$ & $69\%$ \\
+$4$ & $40.2$ & $381$ & $47$ & $469$ & $2.2\times$ & $54\%$ \\
+$8$ & $23.8$ & $254$ & $33$ & $311$ & $3.3\times$ & $41\%$ \\
+$16$ & $14.4$ & $146$ & $22$ & $183$ & $5.6\times$ & $35\%$ \\
+$32$ & $10.5$ & $84$ & $18$ & $112$ & $9.1\times$ & $28\%$ \\
+$64$ & $8.7$ & $50$ & $15$ & $74$ & $13.9\times$ & $22\%$ \\
+$96$ & $8.9$ & $39$ & $14$ & $62$ & $16.4\times$ & $17\%$ \\
 \hline
 \end{tabular}
 \end{table}
