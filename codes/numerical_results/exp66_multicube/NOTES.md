@@ -1,7 +1,7 @@
 # Experiment 6.6 — multi-cube heterojunction, multi-RHS with the graphene p_z orbital
 
 The exp65 **multi-RHS** pipeline run on a multi-dielectric **heterojunction substrate**:
-two 90×90×90 substrate cubes with different permittivities sharing the internal face
+two L×L×L substrate cubes with different permittivities sharing the internal face
 x = c_x, with a material slab on top, and the **real graphene Wannier p_z orbital**
 (sublattice A, k_323201, from exp65) as the source. The central orbital plus its lattice
 neighbours within a cutoff form K pair densities ρ = φ_center·φ_neighbour, block-solved on
@@ -13,14 +13,34 @@ K grows with the cutoff, one K per Slurm-array task (exactly the exp65 array str
 Substrate boxes are anchored on the central orbital's density centroid
 `c ≈ (0.25, 0, 7.5)` (slab center = orbital centroid; junction directly beneath):
 
+Two substrate variants, selected with `MULTICUBE_GEOM` (**default `sec53`**):
+
+| | `sec53` (default) | `published` |
+|---|---|---|
+| Ω₁ (cube 1) | 270×270×270, ε = 11.9 | 90×90×90, ε = 11.9 |
+| Ω₂ (cube 2) | 270×270×270, ε = 3.9 | 90×90×90, ε = 3.9 |
+| slab | 42.95×44.06×9, **ε = 2.4** | 90×90×9, **ε = 10** |
+| output tree | `data_sec53/` | `data/` (published), `data_v2/` (July rerun) |
+
+`sec53` is the **same system the article's lattice section (Sec. 5.3) reports**
+(`lattice_scale/campaigns/lattice_conv_l3_eps2.4.toml`): the ×3 converged Si|SiO₂
+heterojunction and the graphene slab at its cRPA ε = 2.4. `published` reproduces the
+geometry behind the submitted Tables 2/3, where ε_slab = 10 was a generic demo value and
+L = 90 leaves a finite-size boundary artifact in the on-site U (lattice_scale measured a
+bowl at 90 Å; ×3 is converged). Common to both:
+
 | | value | notes |
 |---|---|---|
-| Ω₁ (cube 1) | 90×90×90, **ε = 11.9** | x ∈ [c_x−90, c_x] (Si) |
-| Ω₂ (cube 2) | 90×90×90, **ε = 3.9** | x ∈ [c_x, c_x+90] (SiO₂) |
-| slab | 90×90×9, **ε = 10** | centered on the orbital, z ∈ [c_z−4.5, c_z+4.5] |
+| slab thickness | 9 | the graphene z-support, **not** L/10 — those coincided only at L = 90 |
+| anchoring | slab center = orbital centroid ≈ (0, 0, 7.5); junction directly beneath | Sec. 5.3's system translated (cube tops at z = 3, slab z ∈ [3, 12]) |
 | outside | vacuum, ε = 1 | |
 | sources | graphene p_z orbital + neighbours → K pair densities ρ = φ₁φⱼ | all in the slab |
 | eval | central row V[ρ_11, ρ_1j]; V[11] = onsite self-energy | target = ρ_11 = φ₁² core |
+
+The `sec53` slab reuses Sec. 5.3's exact lateral dimensions rather than re-deriving them: the
+largest cluster here (cutoff 5 Å) has a 5 Å position half-extent, so with the ~10 Å in-plane
+φ² support it sits well inside the 21.5 Å half-width. The lateral size is **fixed across K**
+on purpose — an interface that grew with K would confound the multi-RHS scaling study.
 
 Cutoffs `0, 1.5, 2.5, 2.9, 3.9` bohr → **K = 1, 4, 10, 13, 19** (same as exp65). The φ²
 support lies fully inside the slab; neighbours spread laterally over both cubes (the
@@ -30,7 +50,7 @@ face, two slab–cube contact faces, triple-junction lines.
 **Multi-region screening.** The interface spans 3 ε regions, so exp65's interface-based
 `screened_volume_source` (uniform `eps_in` only) does not apply. Each source is screened
 **box-based** (`screened_volume_source(boxes, epses, eps_out, …)`, by which box it sits in
-— all orbitals → slab ε=10) in both the RHS assembly and the eval. This is the only change
+— all orbitals → the slab) in both the RHS assembly and the eval. This is the only change
 from exp65's pipeline; the batched LHS operator + block GMRES + corrected `pottrg` eval are
 identical. RHS is assembled per-source (the batched path loops anyway for distinct-position
 sources). Runs at 96 threads (TKM3D's in-function FINUFFT nthreads cap = 16 avoids the FFTW
@@ -57,9 +77,26 @@ sbatch exp66_multicube/slurm/run_multicube_array.sbatch
 ```
 
 ENV: `MULTICUBE_CUTOFF` (single cutoff per task, the array sets it), `MULTICUBE_SMOKE`,
-`MULTICUBE_CUTOFFS` (comma list override), `CORRECT_EDGES` (default 1),
-`MULTICUBE_GEOM_ONLY` (print K per cutoff, no solve). Geometry/ε constants (L=90,
-eps 11.9/3.9/10) are at the top of `run_multicube.jl`.
+`MULTICUBE_CUTOFFS` (comma list override), `MULTICUBE_GEOM` (`sec53` default / `published`),
+`RERUN_TAG` (output-tree suffix), `CORRECT_EDGES` (default 1), `PRECONDITION` (default 1),
+`MULTICUBE_GEOM_ONLY` (print K per cutoff, no solve). Geometry/ε constants are at the top of
+`run_multicube.jl`.
+
+Paper-facing consequences of the `sec53` switch (measured Tables 2/3 deltas, the abstract's
+*N*, and the new §5.2/§5.3 cross-validation) are in **`PAPER_CHANGES_sec53.md`**.
+
+The Sec. 5.3-system campaigns (write `data_sec53/`, leaving `data/` and `data_v2/` untouched):
+
+```
+sbatch exp66_multicube/slurm/run_multicube_array_sec53.sbatch            # K sweep, 7 tasks
+sbatch exp66_multicube/slurm/run_multicube_threads_pinned_sec53.sbatch   # thread sweep, 8 tasks
+RERUN_TAG=_sec53 julia --project=. plot_scripts/plot_scaling.jl          # -> figs_sec53/
+```
+
+Run the K sweep **before** the thread sweep: `plot_scaling.jl` reconstructs the low-thread
+block-solve time as `t_RHS + t_1iter * niter_ref`, and `niter_ref` comes from the converged
+K=1 record. GMRES needs fewer iterations at ε_slab = 2.4 than at 10, so the `_v2` reference
+is stale for this tree.
 
 Outputs: per cutoff `data/raw/multicube_K<K>_cut<cutoff>.jls` (K, n_points, n_src, niter,
 block_resid, v11_raw, v11_vac, screen_ratio, Vrow, per-stage timings, peak RSS). In a

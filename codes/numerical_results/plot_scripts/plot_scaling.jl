@@ -193,14 +193,22 @@ begin
     scatterlines!(ax2, K, per_rhs; color = QUAL.green, marker = QUAL_MK.green,
         linewidth = LW_DATA, markersize = MS)
 
-    xlims!(ax2, 0, 33)
-    ylims!(ax2, 0, 250)
+    # Derived, not hard-coded: the K sweep was extended to K = 46 (cutoff 6.5) and a fixed
+    # upper limit of 33 clipped every point past K = 31 -- including the amortization turnover.
+    xlims!(ax2, 0, maximum(K) + 2)
+    # Derived, not pinned. The old fixed 0-250 window was sized when the sweep stopped at
+    # K = 31 and the data topped out at 91 s; it left the panel less than half full, which
+    # mattered once the sweep reached K = 46: the amortization TURNOVER (30.3 -> 36.6 s per
+    # RHS beyond K = 37) is a 6.3 s feature and was rendering at 2.5% of the panel height.
+    # Anchored at 0 because this axis is a runtime, so the origin is meaningful.
+    ylims!(ax2, 0, 1.08 * max(maximum(per_rhs), naive_per_rhs[1]))
 
-    # single annotation: the amortization minimum over the highlighted band
-    # amortization maximum, derived from the data rather than hard-coded.
-    text!(ax2, 19.5, 120;
+    # amortization maximum, derived from the data rather than hard-coded. Positioned off the
+    # arrow's midpoint rather than at fixed coordinates -- the old (19.5, 120) with a +16px
+    # offset sat above the new axis top and clipped.
+    text!(ax2, 22, (minimum(per_rhs) + naive_per_rhs[1]) / 2;
         text = latexstring(string(round(naive_per_rhs[1] / minimum(per_rhs); digits = 1), " \\times")),
-        align = (:center, :bottom), offset = (0, 16), fontsize = FS_ANNOT + 2, color = :black)
+        align = (:right, :center), offset = (-8, 0), fontsize = FS_ANNOT + 2, color = :black)
 
     annotation!(ax2, 22, per_rhs[argmin(per_rhs)], 22, naive_per_rhs[1];
         # text = L"3.6 \times",

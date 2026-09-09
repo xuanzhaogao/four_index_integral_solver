@@ -3,8 +3,11 @@
 # paired into K densities rho = phi_center * phi_neighbor, solved on ONE shared interface.
 # K grows with the neighbor cutoff (onsite -> nn -> nnn shells). The SUBSTRATE is the
 # multicube: two L x L x L cubes (eps1 | eps2, Si/SiO2) sharing the buried face x = c_x,
-# with an L x L x (L/10) slab (eps_slab) on top, anchored on the central orbital
-# (slab center = orbital centroid, junction directly beneath it).
+# with a slab (eps_slab, 9 A thick) on top, anchored on the central orbital
+# (slab center = orbital centroid, junction directly beneath it). By default this is the
+# SAME system the article's lattice section (Sec. 5.3) reports: L = 270 and eps_slab = 2.4
+# (see MULTICUBE_GEOM below; MULTICUBE_GEOM=published recovers the L = 90, eps_slab = 10
+# geometry behind the submitted tables).
 #
 # Mirrors exp65/run_multi_rhs.jl exactly (build_geometry, batched LHS, block GMRES, eval
 # of the central row V[rho_11, rho_b]); only the boxes/epses differ (multicube vs single
@@ -15,6 +18,11 @@
 #   MULTICUBE_CUTOFF     single cutoff per process -> one Slurm-array task per K
 #   MULTICUBE_SMOKE=1    coarse tolerances + reduced cutoff list
 #   MULTICUBE_CUTOFFS    comma-separated cutoff override, e.g. "0.0,1.5,2.5"
+#   MULTICUBE_GEOM       substrate variant: "sec53" (default, = article Sec. 5.3) or
+#                          "published" (L = 90, eps_slab = 10; the submitted tables)
+#   MULTICUBE_EVAL       evaluation path: "both" (default; times the multi-RHS batched eval
+#                          AND the original per-column loop on the same sigma, and checks they
+#                          agree), "batched", or "percolumn"
 #   CORRECT_EDGES=0      disable edge correction (default on, production)
 #   MULTICUBE_GEOM_ONLY=1  print K per cutoff and exit (no solve)
 #   MULTICUBE_GMRES_ITMAX  cap block-GMRES iterations (default 500 = converges). Set to 1
@@ -41,6 +49,7 @@ using Krylov
 using LinearAlgebra
 using Printf
 using Serialization
+using Random
 
 const SMOKE = get(ENV, "MULTICUBE_SMOKE", "0") == "1"
 const CORRECT_EDGES = get(ENV, "CORRECT_EDGES", "1") == "1"
@@ -55,6 +64,24 @@ const GEOM_ONLY = get(ENV, "MULTICUBE_GEOM_ONLY", "0") == "1"
 # the full block-solve time cheaply at low thread counts. RUNTAG tags the output
 # filename so a thread sweep does not collide with the K-sweep records.
 const GMRES_ITMAX = parse(Int, get(ENV, "MULTICUBE_GMRES_ITMAX", "500"))
+# Evaluation path: "percolumn" (default), "batched" (multi-RHS), or "both" (run each on
+# identical sigma and compare). See the eval block below for why percolumn is the default:
+# this benchmark's targets are ALL in the near region, so the batched path has no far field
+# to batch and is measurably slower.
+# MULTICUBE_EVAL_ONLY=1 benchmarks the EVALUATION alone: the interface is still built (pottrg
+# and the near corrections need it, and N sets the matvec cost), but the corrected LHS operator,
+# the RHS assembly and block GMRES are all skipped and sigma is filled with a fixed-seed random
+# field. Evaluation cost depends on sigma's SHAPE, not its values, so the timing is exact while
+# the expensive solve is not paid for. Every physics output of such a record (V, screen_ratio,
+# niter) is meaningless and is written as NaN.
+const EVAL_ONLY = get(ENV, "MULTICUBE_EVAL_ONLY", "0") == "1"
+const EVAL_MODE = get(ENV, "MULTICUBE_EVAL", "block")
+EVAL_MODE in ("batched", "percolumn", "both", "block", "model") ||
+    error("MULTICUBE_EVAL must be model|block|batched|percolumn|both, got $(EVAL_MODE)")
+# "model" mode reads its FIXED target set (the union of all 198 Sec. 5.3 orbitals' quadrature
+# points) from this cache, built by scripts/prep_model_targets.jl.
+const TARGET_CACHE = get(ENV, "MULTICUBE_TARGET_CACHE",
+                         joinpath(@__DIR__, "..", "data" * get(ENV, "RERUN_TAG", ""), "targets_model.jls"))
 const RUNTAG = get(ENV, "MULTICUBE_RUNTAG", "")
 
 # RERUN_TAG: appends a suffix to this experiment's output directory so a rerun
@@ -73,9 +100,33 @@ const A1 = (2.465, 0.0, 0.0)
 const A2 = (-1.2325, 2.1347526, 0.0)
 
 # multicube substrate: two L x L x L cubes (eps1 | eps2) sharing x = c_x, slab on top.
-const L = 90.0
-const SLAB_THICK = L / 10            # 9: thick enough to fully contain the orbital plane (cf. smoke)
-const EPS1, EPS2, EPS_SLAB, EPS_OUT = 11.9, 3.9, 10.0, 1.0
+#
+# MULTICUBE_GEOM selects the substrate (default "sec53"):
+#   "sec53"     -- the SAME system the article's lattice section (Sec. 5.3) reports:
+#                  x3 converged Si|SiO2 cubes (L = 270) and the graphene slab at its cRPA
+#                  eps = 2.4, slab lateral extent as in campaigns/lattice_conv_l3_eps2.4.toml.
+#                  The eps = 10 slab of the published tables was a generic demo value, and
+#                  L = 90 leaves a finite-size boundary artifact in the on-site U
+#                  (see lattice_scale: 90 A gives a bowl, x3 is converged).
+#   "published" -- L = 90, eps_slab = 10: the geometry behind the submitted Tables 2/3.
+# Only the substrate boxes/epses change; the pipeline, discretization (n_quad, edge_level,
+# tolerances) and the K sweep are untouched, so the timings stay comparable.
+const GEOM = get(ENV, "MULTICUBE_GEOM", "sec53")
+GEOM in ("sec53", "published") || error("MULTICUBE_GEOM must be \"sec53\" or \"published\", got $(GEOM)")
+const SEC53 = GEOM == "sec53"
+const L = SEC53 ? 270.0 : 90.0
+# Slab thickness is a property of the graphene sheet's z-support, NOT of the cube edge: the
+# published `L / 10` happened to equal 9 only because L was 90. Sec. 5.3 fixes it at 9 (the
+# slab spans z in [3, 12] with the orbital plane at 7.5), so it is a constant here.
+const SLAB_THICK = 9.0
+# Slab lateral extent. Sec. 5.3 sizes it as (orbital-block extent + 2 x 11 A margin) so the
+# phi^2 support is fully inside the slab; those exact dimensions are reused here. The largest
+# cluster below (cutoff 5 A) has a 5 A position half-extent, so with the ~10 A in-plane phi^2
+# support it sits well inside this slab's 21.5 A half-width. Fixed across K on purpose: an
+# interface that grew with K would confound the multi-RHS scaling study.
+const SLAB_LX, SLAB_LY = SEC53 ? (42.95357656, 44.06001031) : (L, L)
+const EPS1, EPS2, EPS_OUT = 11.9, 3.9, 1.0
+const EPS_SLAB = SEC53 ? 2.4 : 10.0
 
 const P = SMOKE ?
     (n_quad = 6, edge_level = 2, rhs_tol = 1e-2, lhs_tol = 1e-3,
@@ -130,7 +181,11 @@ function multicube_boxes()
     boxes = BI.BoxGeom[
         (center = (cx - h, cy, czi), Lx = L, Ly = L, Lz = L),   # Omega_1, x in [cx-L, cx]  (eps1)
         (center = (cx + h, cy, czi), Lx = L, Ly = L, Lz = L),   # Omega_2, x in [cx, cx+L]  (eps2)
-        (center = (cx, cy, cz),      Lx = L, Ly = L, Lz = tz)]  # slab over the junction    (eps_slab)
+        # slab over the junction (eps_slab). Sec. 5.3 anchors the same system on the junction
+        # at absolute (5.547, 10.318); here it stays anchored on the central orbital, which is
+        # the same configuration translated (junction directly beneath the orbital, cube tops
+        # at the slab bottom z = cz - 4.5 = 3, slab z in [3, 12] as there).
+        (center = (cx, cy, cz),      Lx = SLAB_LX, Ly = SLAB_LY, Lz = tz)]
     return boxes, Float64[EPS1, EPS2, EPS_SLAB], tz
 end
 
@@ -158,40 +213,56 @@ function run_pipeline(b, pairs, stages::Vector; record::Bool)
         eps_out = EPS_OUT, max_depth = P.max_depth, tkm_kmax = kmax)
     note("interface build (envelope)", t)
     local op
-    t = @elapsed op = BI.batched_lhs_dielectric_box3d_fmm3d_corrected(
-        interface, P.lhs_tol, P.lhs_tol, P.max_order; correct_edges = CORRECT_EDGES)
-    note("batched LHS operator", t)
+    if !EVAL_ONLY
+        t = @elapsed op = BI.batched_lhs_dielectric_box3d_fmm3d_corrected(
+            interface, P.lhs_tol, P.lhs_tol, P.max_order; correct_edges = CORRECT_EDGES)
+        note("batched LHS operator", t)
+    else
+        note("batched LHS operator", 0.0)     # skipped: EVAL_ONLY
+    end
 
     sources = BI.batch_volume_sources(b)
     # Box-based multi-region screening: the interface spans 3 eps regions, so the
     # interface-based screened_volume_source exp65 used (uniform eps_in only) can't apply
     # here — screen each source by which box it sits in (all orbitals lie in the slab).
-    screened = [BI.screened_volume_source(boxes, epses, EPS_OUT, sources[k], BI.SharpScreening()) for k in 1:K]
+    # Only the RHS assembly and the per-column eval consume these; evaluate_batch_potential
+    # screens internally. Under EVAL_ONLY both are skipped, so screening K sources here would
+    # be pure overhead charged to a benchmark that is not measuring it.
+    screened = EVAL_ONLY ? BI.VolumeSource{Float64, 3}[] :
+        [BI.screened_volume_source(boxes, epses, EPS_OUT, sources[k], BI.SharpScreening()) for k in 1:K]
 
     # --- solve (scales with K) ---
     # RHS per source (the batched rhs_dielectric_box3d_fmm3d re-screens via the interface;
     # for >1 distinct-position source it loops the single-source path anyway, so we loop the
     # 4-arg single-source form with eps_src=1 on the already-screened sources).
     local F
-    t = @elapsed begin
-        F = Matrix{Float64}(undef, BI.num_points(interface), K)
-        for k in 1:K
-            F[:, k] = BI.rhs_dielectric_box3d_fmm3d(interface, screened[k], 1.0, P.rhs_tol)
-        end
-    end
-    note("RHS assembly (per-source, multi-region)", t)
     local sigma_block, bstats
-    t = @elapsed begin
-        Nprec = PRECONDITION ?
-            Diagonal(BI.dielectric_diagonal_scaling(interface)) :
-            LinearAlgebra.I
-        sigma_block, bstats = Krylov.block_gmres(op, F; N = Nprec,
-            rtol = P.gmres_rtol, atol = P.gmres_atol, itmax = GMRES_ITMAX)
+    if EVAL_ONLY
+        note("RHS assembly (per-source, multi-region)", 0.0)   # skipped: EVAL_ONLY
+        # Fixed seed so the benchmark is reproducible; values are irrelevant to the timing.
+        sigma_block = randn(Random.MersenneTwister(20260908), BI.num_points(interface), K)
+        bstats = (; niter = 0)
+        note("block GMRES", 0.0)                               # skipped: EVAL_ONLY
+    else
+        t = @elapsed begin
+            F = Matrix{Float64}(undef, BI.num_points(interface), K)
+            for k in 1:K
+                F[:, k] = BI.rhs_dielectric_box3d_fmm3d(interface, screened[k], 1.0, P.rhs_tol)
+            end
+        end
+        note("RHS assembly (per-source, multi-region)", t)
+        t = @elapsed begin
+            Nprec = PRECONDITION ?
+                Diagonal(BI.dielectric_diagonal_scaling(interface)) :
+                LinearAlgebra.I
+            sigma_block, bstats = Krylov.block_gmres(op, F; N = Nprec,
+                rtol = P.gmres_rtol, atol = P.gmres_atol, itmax = GMRES_ITMAX)
+        end
+        note("block GMRES", t)
     end
-    note("block GMRES", t)
     # itmax=1 runs are timing-only (see GMRES_ITMAX doc above): the residual is not
     # meaningful, so skip the (also costly) matvec used only for the printed diagnostic.
-    block_resid = GMRES_ITMAX <= 1 ? NaN :
+    block_resid = (EVAL_ONLY || GMRES_ITMAX <= 1) ? NaN :
         norm(op * sigma_block - F) / max(norm(F), eps(Float64))
 
     # --- eval: central row V[rho_11, rho_b], target = onsite rho_11 = phi_1^2 (exp65 protocol).
@@ -199,31 +270,201 @@ function run_pipeline(b, pairs, stages::Vector; record::Bool)
     nz = findall(>=(P.support_rtol * maximum(abs, onsite.density)), abs.(onsite.density))
     tgt = Matrix{Float64}(onsite.positions[:, nz])
     tw = onsite.weights[nz] .* onsite.density[nz]
-    # eval-side precompute: corrected layer-potential map over the fixed rho_11 targets.
-    local pottrg
-    t = @elapsed pottrg = BI.laplace3d_pottrg_fmm3d_corrected_hcubature(interface, tgt, P.lhs_tol, P.lhs_tol, 5.0)
-    note("eval pottrg build", t)
-    local Vrow
-    t = @elapsed begin
-        Vrow = Vector{Float64}(undef, K)
-        for bcol in 1:K
-            sb = screened[bcol]                      # box-based multi-region screened source
-            vals = BI.TKM3D.ltkm3dc(VOLUME_TOL, sb.positions; charges = sb.weights .* sb.density,
-                                    targets = tgt, pgt = 1, kmax = BI._estimate_tkm3dc_kmax(sb))
-            Vrow[bcol] = dot(tw, real.(vals.pottarg) .+ (pottrg * sigma_block[:, bcol]))
-        end
+
+    # Two evaluation paths, selected by MULTICUBE_EVAL:
+    #
+    #  "batched"   -- BI.evaluate_batch_potential: the MULTI-RHS eval. One corrected pottrg map
+    #                 shared by all K columns, the Section-3 near/far split applied once, and
+    #                 ALL far targets collapsed into a single nd=K point-charge FMM
+    #                 (lattice_batch.jl). This is the path the distributed pipeline of the
+    #                 article's lattice section runs.
+    #
+    #                 MEASURED: it does NOT help here, and cannot. Every pair density rho_1j
+    #                 lies within ~6.5 A of the others with ~10 A support, so with c_pad = 5
+    #                 every orbital's support is inside every other's near region: over the
+    #                 whole K = 46 K x K block, 0 of 703 million (target, source) point pairs
+    #                 are far-field, in all 2116 (target set, source) combinations. far_idx is
+    #                 empty, the nd=K FMM never runs, and the path degenerates to K per-column
+    #                 PrecomputedVolumeField builds -- 4% SLOWER than the loop below, from the
+    #                 extra bookkeeping and from losing ltkm3dc's own kmax tuning. Batched eval
+    #                 would only pay for well-separated pairs, which a localized Wannier basis
+    #                 within one neighbour cutoff does not contain.
+    #  "percolumn" -- the original loop: one ltkm3dc per column over the whole target set, no
+    #                 near/far split, no batching. Retained because it produced the submitted
+    #                 evaluation timings.
+    #  "both"      -- run both on the SAME interface and sigma, time each, and report the
+    #                 largest relative difference in Vrow. Comparing across separate jobs would
+    #                 confound the eval comparison with run-to-run variation in the solve, so
+    #                 the amortization claim for the eval stage is measured this way.
+    #
+    # t_pottrg/t_eval below always report the SELECTED path, so the tables keep their meaning;
+    # t_eval_batched / t_eval_percolumn carry both when "both" ran. Note that in "both" mode the
+    # wall-clock t_total necessarily includes the discarded pass.
+    run_model     = EVAL_MODE == "model"
+    run_block     = EVAL_MODE == "block"
+
+    # ---- "model": K sources evaluated at a FIXED target set -- the union of the quadrature
+    # points of ALL orbitals of the Sec. 5.3 model (N_p, independent of K).
+    #
+    # This is the benchmark that answers "what does one source cost to evaluate?". The K x N_p
+    # potential matrix is what the ERI assembly needs: every V[rho_a, rho_b] for any target
+    # pair a in the model is a contraction of a column of Phi against rho_a, so Phi IS the
+    # evaluation work and t_eval/K is its per-source cost.
+    #
+    # With N_p FIXED, t_eval/K isolates the amortization: the corrected pottrg map over the
+    # N_p targets is one K-independent cost shared by all K columns, so per-source time should
+    # fall roughly as pottrg/K + (per-source field evaluation) and flatten to a floor. The
+    # earlier "block" mode used the batch's own grid, which grows with K, so its flat per-source
+    # time was two effects cancelling and measured nothing.
+    local Phi_model
+    t_eval_model = NaN
+    n_tgt_model = 0
+    if run_model
+        isfile(TARGET_CACHE) || error("no target cache at $(TARGET_CACHE); run scripts/prep_model_targets.jl first")
+        tc = deserialize(TARGET_CACHE)
+        @printf("    model targets: N_p = %d from %d orbitals (%s)%s\n",
+                size(tc.positions, 2), tc.n_orbitals, basename(tc.campaign),
+                record ? "" : "  [warm-up: using the batch grid instead]")
+        flush(stdout)
+        # The warm-up pass exists only to force JIT; it compiles the identical method on the
+        # batch's own (much smaller) grid. Paying the full N_p there would cost ~93 s at 96
+        # threads and ~38 min at 1 thread, per task, measuring nothing.
+        warm_tgt = record ? tc.positions : sources[1].positions
+        t = @elapsed Phi_model = BI.evaluate_batch_potential(interface, sigma_block, sources,
+                warm_tgt; lhs_tol = P.lhs_tol, volume_tol = VOLUME_TOL, c_pad = 5.0,
+                screen_boxes = boxes, screen_epses = epses, screen_eps_out = EPS_OUT)
+        n_tgt_model = size(warm_tgt, 2)
+        t_eval_model = t
+        note("eval model (K columns at fixed N_p targets)", t)
+        @printf("    model eval: K = %d sources at N_p = %d targets in %.1f s  ->  %.2f s PER SOURCE  (%.3f us per K*N_p value)\n",
+                K, n_tgt_model, t, t / K, 1e6 * t / (K * n_tgt_model))
+        flush(stdout)
     end
-    note("eval (onsite-row, K field evals)", t)
+    run_batched   = !EVAL_ONLY && EVAL_MODE in ("batched", "both")
+    # model mode also runs the cheap central row, so v11_raw / screen_ratio stay comparable
+    # with every other record in the sweep -- pointless under EVAL_ONLY, where sigma is random.
+    run_percolumn = !EVAL_ONLY && EVAL_MODE in ("percolumn", "both", "model")
+
+    # ---- "block": the FULL K x K tensor block on the union of all orbital quadrature points.
+    #
+    # This is the protocol the lattice section uses (lec_conv_single.jl passes the batch grid
+    # as both source positions and targets), and it is where the multi-RHS evaluation actually
+    # pays. Targets are the batch's shared grid -- the union of every orbital's quad points --
+    # so ONE evaluate_batch_potential call gives Phi[g, b] for all K columns, and every
+    # V[a,b] = sum_g w_g rho_a(g) Phi_b(g) then falls out as a single K x K matrix product.
+    #
+    # Cost: one pottrg build + K field evaluations + K matvecs for K^2 tensor entries, i.e.
+    # O(K) work per O(K^2) entries -- the evaluation analogue of sharing one interface across
+    # K right-hand sides. The per-column path below instead pays one field evaluation PER
+    # ENTRY, because it evaluates only over rho_11's support and so cannot reuse a field.
+    #
+    # It is also more accurate: the row protocol truncates its target set at support_rtol,
+    # which biases the contraction low. Here every grid point is a target, as in Sec. 5.3.
+    local Vblock
+    t_eval_block = NaN
+    n_tgt_block = 0
+    if run_block
+        grid = sources[1].positions          # shared-positions contract: the union grid
+        t = @elapsed begin
+            Phi = BI.evaluate_batch_potential(interface, sigma_block, sources, grid;
+                lhs_tol = P.lhs_tol, volume_tol = VOLUME_TOL, c_pad = 5.0,
+                screen_boxes = boxes, screen_epses = epses, screen_eps_out = EPS_OUT)
+            # target-side densities are UNSCREENED (evaluate_batch_potential screens the
+            # sources internally), matching lattice_scale's onsite_U convention.
+            Wrho = Matrix{Float64}(undef, size(Phi, 1), K)
+            for a in 1:K
+                Wrho[:, a] .= sources[a].weights .* sources[a].density
+            end
+            Vblock = Wrho' * Phi                       # V[a, b], the full K x K block
+            n_tgt_block = size(Phi, 1)
+        end
+        t_eval_block = t
+        note("eval block (K x K on union grid)", t)
+        @printf("    block eval: %d x %d = %d tensor entries in %.1f s  (%.4f s/entry, %d targets)\n",
+                K, K, K * K, t, t / K^2, n_tgt_block)
+        # Exchange symmetry V[a,b] = V[b,a] is free once the whole block is in hand, and is the
+        # same end-to-end check the lattice section quotes for the distributed assembly.
+        if K > 1
+            asym = maximum(abs.(Vblock .- transpose(Vblock))) / maximum(abs, Vblock)
+            @printf("    block eval: max relative exchange asymmetry %.3e\n", asym)
+        end
+        flush(stdout)
+    end
+
+    local Vrow_b, Vrow_p, t_pot_p
+    t_eval_b = t_eval_p = t_pot_p = NaN
+
+    if run_batched
+        t = @elapsed begin
+            # NOTE: pass the UNSCREENED sources -- evaluate_batch_potential screens internally
+            # (box-based, via screen_boxes) exactly as the RHS assembly above does.
+            Phi = BI.evaluate_batch_potential(interface, sigma_block, sources, tgt;
+                lhs_tol = P.lhs_tol, volume_tol = VOLUME_TOL, c_pad = 5.0,
+                screen_boxes = boxes, screen_epses = epses, screen_eps_out = EPS_OUT)
+            Vrow_b = [dot(tw, view(Phi, :, bcol)) for bcol in 1:K]
+        end
+        t_eval_b = t
+        note("eval batched (shared pottrg + nd=K far FMM)", t)
+    end
+
+    if run_percolumn
+        local pottrg
+        t = @elapsed pottrg = BI.laplace3d_pottrg_fmm3d_corrected_hcubature(interface, tgt, P.lhs_tol, P.lhs_tol, 5.0)
+        t_pot_p = t
+        note("eval pottrg build (per-column path)", t)
+        t = @elapsed begin
+            Vrow_p = Vector{Float64}(undef, K)
+            for bcol in 1:K
+                sb = screened[bcol]                      # box-based multi-region screened source
+                vals = BI.TKM3D.ltkm3dc(VOLUME_TOL, sb.positions; charges = sb.weights .* sb.density,
+                                        targets = tgt, pgt = 1, kmax = BI._estimate_tkm3dc_kmax(sb))
+                Vrow_p[bcol] = dot(tw, real.(vals.pottarg) .+ (pottrg * sigma_block[:, bcol]))
+            end
+        end
+        t_eval_p = t
+        note("eval per-column (K x ltkm3dc)", t)
+    end
+
+    # The two paths must agree: same operator, same sigma, different near/far bookkeeping.
+    eval_rel_diff = NaN
+    if run_batched && run_percolumn
+        eval_rel_diff = maximum(abs.(Vrow_b .- Vrow_p) ./ max.(abs.(Vrow_p), eps(Float64)))
+        @printf("    eval paths agree to %.3e (max rel. diff over K=%d entries)   speedup %.2fx\n",
+                eval_rel_diff, K, (t_pot_p + t_eval_p) / t_eval_b)
+        flush(stdout)
+    end
+
+    # under EVAL_ONLY none of the row paths ran, so there is no Vrow to select
+    Vrow      = EVAL_ONLY ? Float64[] :
+                run_block ? Vblock[1, :] : (run_percolumn ? Vrow_p : Vrow_b)
+    t_pottrg  = run_percolumn ? t_pot_p : 0.0                # the others build pottrg internally
+    t_eval_sel = run_model ? t_eval_model :
+                 run_block ? t_eval_block :
+                 (EVAL_MODE == "percolumn" ? t_eval_p : t_eval_b)
 
     # bare (interface-free) onsite self-energy reference: int rho_11 * TKM[rho_11 unscreened]
-    q1 = onsite.weights .* onsite.density
-    vac = BI.TKM3D.ltkm3dc(VOLUME_TOL, onsite.positions; charges = q1, targets = tgt,
-                           pgt = 1, kmax = BI._estimate_tkm3dc_kmax(onsite))
-    v11_vac = dot(tw, real.(vac.pottarg))
+    v11_vac = NaN
+    if !EVAL_ONLY
+        q1 = onsite.weights .* onsite.density
+        vac = BI.TKM3D.ltkm3dc(VOLUME_TOL, onsite.positions; charges = q1, targets = tgt,
+                               pgt = 1, kmax = BI._estimate_tkm3dc_kmax(onsite))
+        v11_vac = dot(tw, real.(vac.pottarg))
+    end
 
     return (; K, n_points = BI.num_points(interface), n_src = size(b.densities, 1),
             niter = bstats.niter, block_resid,
-            v11_raw = Vrow[1], v11_vac, screen_ratio = v11_vac / Vrow[1], Vrow, pairs)
+            v11_raw = EVAL_ONLY ? NaN : Vrow[1], v11_vac,
+            screen_ratio = EVAL_ONLY ? NaN : v11_vac / Vrow[1],
+            Vrow = EVAL_ONLY ? Float64[] : Vrow, pairs, eval_only = EVAL_ONLY,
+            # eval timings are returned rather than looked up by stage label, because which
+            # stages exist now depends on EVAL_MODE
+            eval_mode = EVAL_MODE, t_pottrg = t_pottrg, t_eval = t_eval_sel,
+            t_eval_batched = t_eval_b, t_eval_percolumn = t_eval_p,
+            t_eval_block = t_eval_block, t_eval_model = t_eval_model,
+            n_tgt_model = n_tgt_model,
+            n_entries = run_model ? K * n_tgt_model : (run_block ? K * K : K),
+            Vblock = run_block ? Vblock : nothing,
+            t_pottrg_percolumn = t_pot_p, eval_rel_diff)
 end
 
 if GEOM_ONLY
@@ -241,10 +482,10 @@ end
 const ONE_CUTOFF = let v = get(ENV, "MULTICUBE_CUTOFF", ""); isempty(v) ? nothing : parse(Float64, v) end
 const SWEEP = ONE_CUTOFF === nothing ? CUTOFFS : [ONE_CUTOFF]
 
-@printf("threads = %d   correct_edges = %s   smoke = %s   cutoffs = %s\n",
-        Threads.nthreads(), CORRECT_EDGES, SMOKE, SWEEP)
-@printf("substrate: two %gx%gx%g cubes eps %g|%g, slab %gx%gx%g eps %g, eps_out %g\n",
-        L, L, L, EPS1, EPS2, L, L, SLAB_THICK, EPS_SLAB, EPS_OUT)
+@printf("threads = %d   correct_edges = %s   smoke = %s   eval = %s   cutoffs = %s\n",
+        Threads.nthreads(), CORRECT_EDGES, SMOKE, EVAL_MODE, SWEEP)
+@printf("geom = %s   substrate: two %gx%gx%g cubes eps %g|%g, slab %gx%gx%g eps %g, eps_out %g\n",
+        GEOM, L, L, L, EPS1, EPS2, SLAB_LX, SLAB_LY, SLAB_THICK, EPS_SLAB, EPS_OUT)
 flush(stdout)
 
 # warm-up: compile every stage on the smallest (K=1) real batch, un-recorded.
@@ -267,8 +508,8 @@ for cutoff in SWEEP
     t_precompute = tof("envelope + tkm kmax") + tof("interface build (envelope)") +
                    tof("batched LHS operator")
     t_solve_block = tof("RHS assembly (per-source, multi-region)") + tof("block GMRES")
-    t_pottrg = tof("eval pottrg build")
-    t_eval = tof("eval (onsite-row, K field evals)")
+    t_pottrg = res.t_pottrg
+    t_eval = res.t_eval
 
     @printf("  K=%d  interface points %d  src %d  niter %d  block_resid %.2e\n",
             res.K, res.n_points, res.n_src, res.niter, res.block_resid)
@@ -279,10 +520,16 @@ for cutoff in SWEEP
     flush(stdout)
 
     out = (; smoke = SMOKE, correct_edges = CORRECT_EDGES, precondition = PRECONDITION, cutoff,
-           L, slab_thick = SLAB_THICK, eps1 = EPS1, eps2 = EPS2, eps_slab = EPS_SLAB, eps_out = EPS_OUT,
+           geom = GEOM, L, slab_thick = SLAB_THICK, slab_lx = SLAB_LX, slab_ly = SLAB_LY,
+           eps1 = EPS1, eps2 = EPS2, eps_slab = EPS_SLAB, eps_out = EPS_OUT,
            K = res.K, pairs = res.pairs, n_points = res.n_points, n_src = res.n_src,
            niter = res.niter, block_resid = res.block_resid,
            v11_raw = res.v11_raw, v11_vac = res.v11_vac, screen_ratio = res.screen_ratio, Vrow = res.Vrow,
+           eval_only = res.eval_only, eval_mode = res.eval_mode, t_eval_batched = res.t_eval_batched,
+           t_eval_percolumn = res.t_eval_percolumn, t_pottrg_percolumn = res.t_pottrg_percolumn,
+           t_eval_block = res.t_eval_block, t_eval_model = res.t_eval_model,
+           n_tgt_model = res.n_tgt_model, n_entries = res.n_entries, Vblock = res.Vblock,
+           eval_rel_diff = res.eval_rel_diff,
            t_precompute, t_pottrg, t_solve_block, t_eval, t_total,
            stages = copy(stages), rss_baseline_gb = RSS_BASELINE, rss_peak_gb = rss_gb(),
            nthreads = Threads.nthreads(), gmres_itmax = GMRES_ITMAX, hostname = gethostname())
@@ -311,12 +558,12 @@ if ONE_CUTOFF === nothing
     end
     println("=" ^ 72)
     open(joinpath(DATA, "multicube.csv"), "w") do io
-        println(io, join(["hostname", "nthreads", "smoke", "correct_edges", "cutoff",
+        println(io, join(["hostname", "nthreads", "smoke", "correct_edges", "geom", "eps_slab", "cutoff",
             "K", "n_points", "n_src", "niter", "block_resid", "v11_raw", "v11_vac", "screen_ratio",
             "t_precompute", "t_pottrg", "t_solve_block", "t_eval", "t_total", "rss_peak_gb"], ","))
         for r in RESULTS
             println(io, join(string.([r.hostname, r.nthreads, r.smoke, r.correct_edges,
-                r.cutoff, r.K, r.n_points, r.n_src, r.niter, r.block_resid,
+                r.geom, r.eps_slab, r.cutoff, r.K, r.n_points, r.n_src, r.niter, r.block_resid,
                 r.v11_raw, r.v11_vac, r.screen_ratio,
                 r.t_precompute, r.t_pottrg, r.t_solve_block, r.t_eval, r.t_total, r.rss_peak_gb]), ","))
         end

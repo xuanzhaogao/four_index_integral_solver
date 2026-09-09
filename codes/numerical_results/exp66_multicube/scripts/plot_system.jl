@@ -1,4 +1,4 @@
-# 6.6 system figure: the multicube geometry (two 90^3 substrate cubes + slab) together with
+# 6.6 system figure: the multicube geometry (two L^3 substrate cubes + slab) together with
 # the graphene p_z orbital source, rendered with BI.jl's Makie extension (viz_3d). Builds a
 # COARSE interface (visualization only) so it is fast and the panel wireframe is legible.
 #
@@ -11,16 +11,23 @@ const REF_DIR = "/mnt/ceph/users/mroesner/Graphene/cRPA4RSGW/graphene/monolayer/
 const ORB_DG = BI.read_xsf(joinpath(REF_DIR, "graphene_00001.xsf"))[2]
 const ORB_CENTROID = ntuple(d -> Float64(BI.density_centroid(ORB_DG)[d]), 3)
 
-const L = 90.0
-const SLAB_THICK = L / 10
-const EPS1, EPS2, EPS_SLAB, EPS_OUT = 11.9, 3.9, 10.0, 1.0
+# Geometry mirrors run_multicube.jl (MULTICUBE_GEOM): "sec53" (default) is the article
+# Sec. 5.3 system -- x3 cubes, graphene slab at its cRPA eps = 2.4; "published" is the
+# L = 90, eps_slab = 10 geometry behind the submitted tables.
+const GEOM = get(ENV, "MULTICUBE_GEOM", "sec53")
+const SEC53 = GEOM == "sec53"
+const L = SEC53 ? 270.0 : 90.0
+const SLAB_THICK = 9.0                       # graphene z-support, not L/10 (see run_multicube.jl)
+const SLAB_LX, SLAB_LY = SEC53 ? (42.95357656, 44.06001031) : (L, L)
+const EPS1, EPS2, EPS_OUT = 11.9, 3.9, 1.0
+const EPS_SLAB = SEC53 ? 2.4 : 10.0
 
 cx, cy, cz = ORB_CENTROID
 h = L / 2; tz = SLAB_THICK; czi = cz - tz / 2 - h
 boxes = BI.BoxGeom[
     (center = (cx - h, cy, czi), Lx = L, Ly = L, Lz = L),    # Omega_1 (eps1, Si)
     (center = (cx + h, cy, czi), Lx = L, Ly = L, Lz = L),    # Omega_2 (eps2, SiO2)
-    (center = (cx, cy, cz),      Lx = L, Ly = L, Lz = tz)]   # slab (eps_slab)
+    (center = (cx, cy, cz),      Lx = SLAB_LX, Ly = SLAB_LY, Lz = tz)]   # slab (eps_slab)
 epses = Float64[EPS1, EPS2, EPS_SLAB]
 
 # central onsite orbital density rho = phi^2 (coarser support for a lighter figure)
@@ -44,8 +51,8 @@ fig = BI.viz_3d(; interfaces = interface, sources = orbital,
 ax = fig.content[1]
 ax.azimuth[] = 1.15π
 ax.elevation[] = 0.16π
-ax.xlabel = "x (bohr)"; ax.ylabel = "y (bohr)"; ax.zlabel = "z (bohr)"
-ax.title = "exp66: two 90³ cubes (ε 11.9 | 3.9) + slab (ε 10), graphene p_z orbital source"
+ax.xlabel = "x (Å)"; ax.ylabel = "y (Å)"; ax.zlabel = "z (Å)"
+ax.title = "exp66 ($(GEOM)): two $(Int(L))³ cubes (ε $(EPS1) | $(EPS2)) + slab (ε $(EPS_SLAB)), graphene p_z orbital source"
 
 mkpath(joinpath(@__DIR__, "..", "figs"))
 save(joinpath(@__DIR__, "..", "figs", "fig66_system.png"), fig)
