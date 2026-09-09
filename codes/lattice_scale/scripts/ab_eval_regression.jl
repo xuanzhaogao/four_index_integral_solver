@@ -54,10 +54,13 @@ println("julia threads = ", Threads.nthreads(), "  BLAS = ", BLAS.get_num_thread
         "  OPENBLAS_NUM_THREADS = ", get(ENV, "OPENBLAS_NUM_THREADS", "unset"))
 println("\nreference: Aug 30 fit t = 7.1 + 8.23*K  ->  8.23 s per source at the full target set\n")
 
+# Sigma carries one column per source, so it must be sliced with the sources -- otherwise
+# evaluate_batch_potential raises "Sigma columns != number of sources".
 run1(K) = begin
     srcs = mksrc(K)
+    sig  = br.sigma[:, 1:K]
     t0 = time()
-    BI.evaluate_batch_potential(br.interface, br.sigma, srcs, tgt;
+    BI.evaluate_batch_potential(br.interface, sig, srcs, tgt;
         lhs_tol = c.solve["lhs_tol"], volume_tol = c.solve["volume_tol"], c_pad = c.c_pad,
         screen_boxes = c.boxes, screen_epses = c.epses, screen_eps_out = c.eps_out)
     time() - t0
