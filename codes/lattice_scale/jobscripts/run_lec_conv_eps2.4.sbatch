@@ -23,6 +23,9 @@
 #   sbatch jobscripts/run_lec_conv_eps2.4.sbatch
 # Pass a subset of levels as arguments if resuming, e.g. `... run_lec_conv_eps2.4.sbatch 4 5`
 # (the script merges new rows into any existing TSV, keyed by level).
+#   sbatch --export=ALL,RERUN_TAG=_eps2.4_mo64 jobscripts/run_lec_conv_eps2.4.sbatch 1 2 3 4 5 6 7
+# is the max_order = 64 rerun: fresh roots, fresh TSV, the ε=2.4 max_order=8 sweep left intact
+# beside it for comparison.
 #
 #SBATCH --partition=ccm
 #SBATCH --constraint=genoa
@@ -38,9 +41,16 @@ set -euo pipefail
 LEVELS=${@:-1 2 3 4 5}
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
+# OpenBLAS gets ONE thread, not $SLURM_CPUS_PER_TASK. The hot stages are FMM3D and FINUFFT,
+# both with their own pools and almost no BLAS; an equally sized OpenBLAS pool oversubscribes
+# the node against them. Measured on the Sec. 5.2 evaluation benchmark: 2.95x slower at 64
+# threads and 1.56x at 96 with OPENBLAS_NUM_THREADS=N vs 1.
+export OPENBLAS_NUM_THREADS=1
 export TKM3D_FINUFFT_NTHREADS=16              # cap: see header
-export RERUN_TAG=_eps2.4                      # names campaigns + figs/lec_single_conv_eps2.4.tsv
+# RERUN_TAG names the campaigns, their ceph roots AND the output TSV -- and it MUST change for
+# any rerun that changes the solver, because solve_batch() skips a batch whose result file
+# already exists. Reusing a tag after an accuracy change silently re-emits the OLD numbers.
+export RERUN_TAG=${RERUN_TAG:-_eps2.4}        # e.g. _eps2.4_mo64 for the max_order = 64 rerun
 export RERUN_BASE=lattice_10x10_het3x_eps2.4  # inherit the ε = 2.4 dielectric boxes
 JULIA=/mnt/home/xgao1/.juliaup/bin/julia      # juliaup launcher (never `module load julia`)
 

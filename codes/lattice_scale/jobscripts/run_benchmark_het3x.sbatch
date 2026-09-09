@@ -32,7 +32,11 @@ TOML=${1:-campaigns/lattice_10x10_het3x.toml}
 
 # pin BOTH thread pools to the whole node (unpinned threads silently corrupt timings)
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
+# OpenBLAS gets ONE thread, not $SLURM_CPUS_PER_TASK. The hot stages are FMM3D and FINUFFT,
+# both with their own pools and almost no BLAS; an equally sized OpenBLAS pool oversubscribes
+# the node against them. Measured on the Sec. 5.2 evaluation benchmark: 2.95x slower at 64
+# threads and 1.56x at 96 with OPENBLAS_NUM_THREADS=N vs 1.
+export OPENBLAS_NUM_THREADS=1
 export JULIA_GLUE_THREADS=8
 # cap TKM3D's internal FINUFFT off the 96-way FFTW-plan pathology (eval uses TKM3D; FMM3D keeps 96).
 # TKM3D already defaults this to 16, but set it explicitly for safety.

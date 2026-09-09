@@ -311,3 +311,68 @@ difference is not.
 Worth noting for §5.3 independently: at ε = 2.4 the single-orbital *U* is flat to
 4e-4 eV across all seven refinement levels (7.18873–7.18917), far tighter
 convergence than the ε = 10 sweep showed.
+
+---
+
+## §5.3 rerun: proper K, and the accuracy findings applied (2026-09-09)
+
+Three of the findings above were only half-applied to §5.3. The production tensor was rerun
+(job 7006478, `lattice_conv_l3_eps2.4_kb31`) with `max_order = 64`, K-balanced batching, the
+symmetry-restricted evaluation and `OPENBLAS_NUM_THREADS = 1`. Not yet applied:
+
+1. **K was 31, not the measured optimum.** `k_target = 31` was chosen when the K sweep still
+   showed a turnover near 37 -- the phantom that was later withdrawn. The sequential sweep puts
+   the cost floor flat over K = 37-58.
+2. **The l_ec self-convergence sweep still ran at `max_order = 8`.** `scripts/lec_conv_single.jl`
+   hardcoded it; only the two full-campaign generators had been fixed. So §5.3's convergence
+   figure (`figs/lec_single_conv_eps2.4.tsv`, 7 levels) rests on the under-resolved near field,
+   and, as noted above, the sweep is structurally unable to see that.
+3. **Only `run_all.sbatch` had the OpenBLAS fix.** The other ten jobscripts still exported
+   `OPENBLAS_NUM_THREADS = $SLURM_CPUS_PER_TASK`, including the two that run these campaigns.
+
+All three are now fixed in the repo. `k_target` is also emitted by both generators (it had been
+hand-added to the TOMLs, so any regeneration silently dropped it back to per-anchor batching).
+
+### Why K = 46
+
+Re-partitioning the campaign's actual 2623-pair list at each candidate:
+
+| k_target | batches | K spread | envelope median | rounds on 10 nodes |
+|---|---|---|---|---|
+| 31 | 85 | 30-31 | 7.9 A | 9 |
+| 37 | 71 | 36-37 | 8.1 A | 8 |
+| **46** | **57** | **46-47** | **8.9 A** | **6** |
+| 58 | 45 | 58-59 | 9.3 A | 5 |
+
+46 sits on the cost floor (25.2 s per pair against 27.1 s at K = 31), quantises best against 10
+nodes, inflates the source envelope only 12%, and stays clear of the possible K > 58 decline.
+Peak RSS is 634 GB, 42% of the node, against 428 GB at K = 31.
+
+**Expect only ~6% off the wall clock, not the 7.5% the per-pair cost implies.** Scaling the
+measured kb31 phases: solve 66 -> ~59 min (K amortizes), evaluation 110 -> ~107 min (per-source
+cost is flat past K = 10, so its total work is fixed by the pair count, not by K), prepare and
+consolidate unchanged. ~3 h 00 m against 3 h 11 m. The tensor should be unchanged -- the two
+campaigns differ in `name`, `root` and `k_target` and nothing else -- which makes the run a
+K-independence check on V as well as a timing measurement.
+
+### The resume trap
+
+`solve_batch` skips any batch whose result file already exists, so **a rerun that changes the
+solver must change the campaign name**, or it silently re-emits the old numbers. Roots holding
+`max_order = 8` results, none of which may be resumed:
+
+    lattice_conv_l3_eps2.4          lattice_10x10_het3x_eps2.4      lec_single_l{1..7}_eps2.4
+
+Hence `lattice_conv_l3_eps2.4_k46` and `RERUN_TAG=_eps2.4_mo64` below, both fresh.
+
+### Queued
+
+    # production tensor at K = 46, ~3 h on 10 nodes (~30 node-hours)
+    sbatch --nodes=10 jobscripts/run_all.sbatch campaigns/lattice_conv_l3_eps2.4_k46.toml
+
+    # l_ec sweep at max_order = 64, 7 levels, ~1 h on 1 node
+    sbatch --export=ALL,RERUN_TAG=_eps2.4_mo64 jobscripts/run_lec_conv_eps2.4.sbatch 1 2 3 4 5 6 7
+
+The l_ec rerun is the one with scientific content: it says whether U's flatness to 4e-4 eV
+across seven levels survives a resolved near field, and it re-anchors the §5.2/§5.3
+cross-validation, whose §5.3 side (7.1889 eV at level 4) is a `max_order = 8` number.

@@ -41,7 +41,12 @@ function write_toml(level)
     println(io, "[solve]"); println(io, "n_quad = 6"); println(io, "edge_refine_level = $level")
     println(io, "rhs_tol = 1e-5"); println(io, "lhs_tol = 1e-5"); println(io, "gmres_rtol = 1e-5")
     println(io, "support_rtol = 1e-4"); println(io, "volume_tol = 1e-5")
-    println(io, "max_order = 8"); println(io, "max_depth = 128\n")
+    # max_order 64, not 8 -- the same fix the full-campaign generators took. p_up is clamped to
+    # max_order with no adaptive fallback for non-touching pairs and no warning, and at 8 it left
+    # 92.5% of a real conv_l3 interface's 12,208 upsample pairs pinned at the cap. The l_ec sweep
+    # CANNOT detect that on its own: the bias is present at every refinement level, so U converges
+    # cleanly to a slightly wrong value. Its flatness is only evidence of l_ec convergence.
+    println(io, "max_order = 64"); println(io, "max_depth = 128\n")
     println(io, "[batching]"); println(io, "n_centers_per_batch = 1\n")
     println(io, "[eval]"); println(io, "c_pad = 5.0")
     path = joinpath(LS, "campaigns", "$nm.toml"); write(path, String(take!(io))); return path

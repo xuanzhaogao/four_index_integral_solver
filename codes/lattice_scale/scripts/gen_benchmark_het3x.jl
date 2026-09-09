@@ -19,6 +19,7 @@ const L = 270.0                                   # ×3 cube edge (substrate sta
 const CZC = 3.0 - L / 2                            # cube center-z: top face at z=3
 const SLAB_LZ = 9.0                                # slab thickness (unchanged; contains z-support)
 const SLAB_EPS = 2.4                               # graphene effective ε from the cRPA article
+const K_TARGET = parse(Int, get(ENV, "K_TARGET", "46"))   # pairs per batch; see build_toml
                                                    # (was 10.0, a generic system_fig1 demo value;
                                                    # the ε=10 run is preserved as lattice_10x10_het3x[_v2])
 const MARGIN = 11.0                                # measured in-plane φ² support (~10) + buffer:
@@ -79,7 +80,15 @@ function build_toml(name, root, orbs)
         println(io, "$(k) = $(v)")
     end
     println(io, "\n[batching]")
-    println(io, "n_centers_per_batch = 1\n")
+    println(io, "n_centers_per_batch = 1")
+    # Partition the pairs into spatially compact batches of ~k_target pairs (RCB on the pair
+    # midpoints) instead of one batch per anchor: 2623 pairs become ~57 batches at K = 46 rather
+    # than 198 at K = 1-17, so ~3.5x fewer interface builds / LHS operators / pottrg maps.
+    # K = 46 is the cost floor of the Sec. 5.2 sequential single-node sweep: total time per pair
+    # is 27.1 s at K = 31 and 25.2 s flat over K = 37-58, and 46 quantises best against 10 nodes
+    # (6 rounds of 57 batches vs 9 rounds of 85 at K = 31). Peak RSS 634 GB = 42% of the node.
+    # Do not raise it past 58: the K = 67-79 points decline ~8%, and 103 projects to 93% of RAM.
+    println(io, "k_target = $(K_TARGET)\n")
     println(io, "[eval]")
     println(io, "c_pad = 5.0")
     return String(take!(io))

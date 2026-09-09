@@ -31,7 +31,11 @@ EPS=${epses[$SLURM_ARRAY_TASK_ID]}
 
 # pin BOTH thread pools to the full node (known footgun: unpinned threads corrupt timings)
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export OPENBLAS_NUM_THREADS=$SLURM_CPUS_PER_TASK
+# OpenBLAS gets ONE thread, not $SLURM_CPUS_PER_TASK. The hot stages are FMM3D and FINUFFT,
+# both with their own pools and almost no BLAS; an equally sized OpenBLAS pool oversubscribes
+# the node against them. Measured on the Sec. 5.2 evaluation benchmark: 2.95x slower at 64
+# threads and 1.56x at 96 with OPENBLAS_NUM_THREADS=N vs 1.
+export OPENBLAS_NUM_THREADS=1
 # cap TKM3D's internal FINUFFT away from the 96-way FFTW plan pathology (FMM3D still uses 96)
 export TKM3D_FINUFFT_NTHREADS=16
 JULIA=/mnt/home/xgao1/.juliaup/bin/julia

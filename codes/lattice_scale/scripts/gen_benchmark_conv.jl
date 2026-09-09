@@ -18,6 +18,7 @@ const BENCH = joinpath(LS, "campaigns", BASE * ".toml")
 const CEPH  = "/mnt/ceph/users/xgao1/four_index"
 const TOL   = 1e-5            # tied solver tolerances
 const SUPPORT_RTOL = 1e-4     # kept fixed (geometry-preserving)
+const K_TARGET = parse(Int, get(ENV, "K_TARGET", "46"))   # pairs per batch; see write_toml
 
 d = TOML.parsefile(BENCH)
 orbs = d["orbital"]                                   # ALL 198 orbitals
@@ -62,7 +63,15 @@ function write_toml(name, level)
     println(io, "max_order = 64")
     println(io, "max_depth = 128\n")
     println(io, "[batching]")
-    println(io, "n_centers_per_batch = 1\n")
+    println(io, "n_centers_per_batch = 1")
+    # Partition the pairs into spatially compact batches of ~k_target pairs (RCB on the pair
+    # midpoints) instead of one batch per anchor: 2623 pairs become ~57 batches at K = 46 rather
+    # than 198 at K = 1-17, so ~3.5x fewer interface builds / LHS operators / pottrg maps.
+    # K = 46 is the cost floor of the Sec. 5.2 sequential single-node sweep: total time per pair
+    # is 27.1 s at K = 31 and 25.2 s flat over K = 37-58, and 46 quantises best against 10 nodes
+    # (6 rounds of 57 batches vs 9 rounds of 85 at K = 31). Peak RSS 634 GB = 42% of the node.
+    # Do not raise it past 58: the K = 67-79 points decline ~8%, and 103 projects to 93% of RAM.
+    println(io, "k_target = $(K_TARGET)\n")
     println(io, "[eval]")
     println(io, "c_pad = 5.0")
     write(joinpath(LS, "campaigns", "$(name).toml"), String(take!(io)))
