@@ -1,15 +1,26 @@
-# Validation: does the k_target = 31 / symmetry-restricted pipeline reproduce the tensor?
+# Validation: does a pipeline change reproduce the tensor?
 #
-# The batching change alters which pairs share an interface, the triangle change alters which
-# entries are evaluated rather than mirrored, and the pottrg fix alters only threading. None of
-# them touch the mathematics, so V_full_eV must agree with the reference to solver tolerance
+# Batching alters which pairs share an interface, the triangle change alters which entries are
+# evaluated rather than mirrored, and the pottrg fix alters only threading. None of them touch
+# the mathematics, so V_full_eV must agree with the reference to solver tolerance
 # (gmres_rtol = 1e-5 here). A larger difference is a bug, not a tolerance effect.
 #
-# Run: julia --project=codes/lattice_scale scripts/compare_kb31.jl
+# max_order is the exception: it changes the near-field quadrature, so a comparison ACROSS a
+# max_order change is measuring a real accuracy shift, not checking an invariance. Read the
+# verdict accordingly -- it only means "the two agree", which is the wrong question there.
+#
+# Run: julia --project=codes/lattice_scale scripts/compare_kb31.jl [ref_root] [new_root]
+#   K-independence of the max_order = 64 tensor:
+#     ... compare_kb31.jl lattice_conv_l3_eps2.4_kb31 lattice_conv_l3_eps2.4_k46
+#   effect of the max_order fix (default):
+#     ... compare_kb31.jl
 using Serialization, Printf, Statistics, LinearAlgebra
 const CEPH = "/mnt/ceph/users/xgao1/four_index"
-ref = deserialize(joinpath(CEPH, "lattice_conv_l3_eps2.4", "V_full_eV.jls"))
-new = deserialize(joinpath(CEPH, "lattice_conv_l3_eps2.4_kb31", "V_full_eV.jls"))
+const REF_ROOT = length(ARGS) >= 1 ? ARGS[1] : "lattice_conv_l3_eps2.4"
+const NEW_ROOT = length(ARGS) >= 2 ? ARGS[2] : "lattice_conv_l3_eps2.4_kb31"
+println("ref = $(REF_ROOT)\nnew = $(NEW_ROOT)\n")
+ref = deserialize(joinpath(CEPH, REF_ROOT, "V_full_eV.jls"))
+new = deserialize(joinpath(CEPH, NEW_ROOT, "V_full_eV.jls"))
 
 # The two campaigns hold the SAME pairs in a different order: consolidate writes pair_ids in
 # manifest batch order, and k_target batching partitions the pairs differently from the old
