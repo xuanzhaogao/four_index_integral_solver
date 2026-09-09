@@ -14,13 +14,21 @@
 #     ... compare_kb31.jl lattice_conv_l3_eps2.4_kb31 lattice_conv_l3_eps2.4_k46
 #   effect of the max_order fix (default):
 #     ... compare_kb31.jl
+#   full-matrix vs symmetry-restricted evaluation, same root:
+#     ... compare_kb31.jl lattice_conv_l3_eps2.4_k46/V_full_eV_triangle.jls \
+#         lattice_conv_l3_eps2.4_k46/V_full_eV.jls
 using Serialization, Printf, Statistics, LinearAlgebra
 const CEPH = "/mnt/ceph/users/xgao1/four_index"
 const REF_ROOT = length(ARGS) >= 1 ? ARGS[1] : "lattice_conv_l3_eps2.4"
 const NEW_ROOT = length(ARGS) >= 2 ? ARGS[2] : "lattice_conv_l3_eps2.4_kb31"
 println("ref = $(REF_ROOT)\nnew = $(NEW_ROOT)\n")
-ref = deserialize(joinpath(CEPH, REF_ROOT, "V_full_eV.jls"))
-new = deserialize(joinpath(CEPH, NEW_ROOT, "V_full_eV.jls"))
+# An argument may be a campaign root name (whose V_full_eV.jls is used) or a path to a .jls
+# directly -- the latter is needed to compare two tensors sitting in the SAME root, e.g.
+# V_full_eV.jls against a V_full_eV_triangle.jls kept from a previous evaluation.
+_resolve(a) = endswith(a, ".jls") ? (isabspath(a) ? a : joinpath(CEPH, a)) :
+                                    joinpath(CEPH, a, "V_full_eV.jls")
+ref = deserialize(_resolve(REF_ROOT))
+new = deserialize(_resolve(NEW_ROOT))
 
 # The two campaigns hold the SAME pairs in a different order: consolidate writes pair_ids in
 # manifest batch order, and k_target batching partitions the pairs differently from the old
