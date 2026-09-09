@@ -28,8 +28,16 @@ const SRC = Dict(
     # (The earlier lattice_10x10_het3x_eps2.4 tree is level 2 with rhs_tol=1e-3; superseded.)
     "eps2.4" => (camp = "lattice_conv_l3_eps2.4",     vroot = "lattice_conv_l3_eps2.4",
                  tsv  = "lec_single_conv_eps2.4.tsv", out   = "fig_63_eps2.4.pdf", conv_eps = 2.4),
+    # Both eps2.4 inputs above are max_order = 8, which clamped 92.5% of the non-touching near
+    # corrections below their own tolerance. This variant is the resolved pair: the K = 46
+    # campaign (job 7009682) and the max_order = 64 l_ec sweep (job 7009683). Panels (a),(b),(d)
+    # come from V, panel (c) from the TSV, so BOTH had to be rerun for the figure to be
+    # internally consistent at one accuracy.
+    "eps2.4_mo64" => (camp = "lattice_conv_l3_eps2.4_k46", vroot = "lattice_conv_l3_eps2.4_k46",
+                 tsv  = "lec_single_conv_eps2.4_mo64.tsv", out = "fig_63_eps2.4_mo64.pdf",
+                 conv_eps = 2.4),
 )[VARIANT]
-const SLAB_EPS = VARIANT == "eps2.4" ? 2.4 : 10.0
+const SLAB_EPS = startswith(VARIANT, "eps2.4") ? 2.4 : 10.0
 if SLAB_EPS != SRC.conv_eps
     @warn("panel (c) convergence series is from a DIFFERENT slab permittivity",
           figure_eps = SLAB_EPS, convergence_eps = SRC.conv_eps, tsv = SRC.tsv)
