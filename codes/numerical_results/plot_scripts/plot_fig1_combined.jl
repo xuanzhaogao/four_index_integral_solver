@@ -82,9 +82,10 @@ begin
         yminorticksvisible = true, yminorgridvisible = true, yminorticks = IntervalsBetween(5),
         xlabel = L"N", ylabel = L"\mathcal{E}_{r}")
     # ---- (c) GMRES iterations vs N: right ---------------------------------
+    # N_iter is an integer: major ticks every 2, minor ticks only at the integers between
     ax2 = Axis(fig[1, 3]; xscale = log10,
         xminorticksvisible = true, xminorgridvisible = true, xminorticks = IntervalsBetween(5),
-        yminorticksvisible = true, yminorgridvisible = true, yminorticks = IntervalsBetween(5),
+        yticks = 0:2:100, yminorticksvisible = true, yminorgridvisible = true, yminorticks = 1:2:99,
         xlabel = L"N", ylabel = L"N_\mathrm{iter}")
 
     # Accumulate every plotted value so the axis limits below are derived from the
