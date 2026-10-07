@@ -1,13 +1,10 @@
-# §6.3 figure (2×2), style matching numerical_results/fig_gen (fig_style.jl):
+# §5.3 figure (1×2), style matching numerical_results/fig_gen (fig_style.jl):
 #   (a) |V[ρ_ij,ρ_kl]| heatmap (eV, log), l_ec = 1.14 (level 3);
-#   (b) on-site U top-down map (Δx to the buried junction), l_ec = 1.14;
-#   (c) single-orbital on-site U convergence vs number of unknowns N (l_ec sweep), with the
-#       Richardson-extrapolated U∞ as a dashed guide;
-#   (d) non-local density-density interaction U_ij = V_iijj vs |r_i - r_j|, for a representative
-#       i on each side of the buried junction (Si, ε=11.9 vs SiO₂, ε=3.9).  The two sides separate
-#       because the environment screening differs across the junction; the dashed 1/r guide shows
-#       that these terms stay long-ranged (cf. the local Hund's / pair-hopping terms V_ijij).
-# Panel tags (a)/(b)/(c)/(d) sit OUTSIDE, at the top-left corner of each panel.
+#   (b) single-orbital on-site U relative error vs number of unknowns N (l_ec sweep), against the
+#       Richardson-extrapolated U∞, with a least-squares power-law guide.
+# The former on-site U and U_ij colour maps (2×2 version) were replaced by the junction line plots
+# of scripts/plot_junction_analysis.jl; the 2×2 output is kept as figs/fig_63_eps2.4_mo64_4panel.pdf.
+# Panel tags (a)/(b) sit OUTSIDE, at the top-left corner of each panel.
 # Run: julia --project=codes/lattice_scale scripts/plot_fig_63.jl
 using BoundaryIntegral, Serialization, Printf, CairoMakie
 const BI = BoundaryIntegral
@@ -77,7 +74,7 @@ begin
     # Height, not gap size, is what closes the axis->colourbar distance: every panel is square
     # (DataAspect, or aspect=1 for (d)), so too short a figure leaves the axis boxes narrower
     # than their columns and the slack shows up between axis and colourbar.
-    fig = Figure(size = (FIG_W, 820), fontsize = FS_BASE)
+    fig = Figure(size = (FIG_W, 430), fontsize = FS_BASE)
 
     # ---- (a) |V| heatmap ----
     ga = fig[1, 1] = GridLayout()
@@ -87,34 +84,8 @@ begin
     hma = heatmap!(axa, 1:n, 1:n, LA; colormap = Reverse(:viridis), colorrange = (log10(Aflo), maximum(LA)), rasterize = 4)
     Colorbar(ga[1, 2], hma; label = L"\log_{10}|V|\ (\mathrm{eV})", width = 8)
 
-    # ---- (b) top-down on-site U ----
-    gb = fig[1, 2] = GridLayout()
-    axb = Axis(gb[1, 1]; xlabel = L"\Delta x\ (\text{\AA})", ylabel = L"y\ (\text{\AA})", aspect = DataAspect())
-    vlines!(axb, [0.0]; color = :black, linestyle = :dash, linewidth = LW_GUIDE)
-    sc = scatter!(axb, px .- XJ, py; color = U, colormap = :viridis, markersize = 11,
-                colorrange = (minimum(U), maximum(U)))
-    Colorbar(gb[1, 2], sc; label = L"U\ (\mathrm{eV})", width = 8)
-
-    # ---- (c) non-local U_ij = V_iijj from a central atom, mapped like (b) ----
-    gc = fig[2, 1] = GridLayout()
-    # row of the diagonal pair (i,i) for each orbital i; 0 if that pair was not retained
-    drow = zeros(Int, norb)
-    for (a, p) in enumerate(d3.pair_ids); p[1] == p[2] && (drow[p[1]] = a); end
-    # i is fixed at the atom nearest the centre of the lattice
-    cx = sum(px) / norb; cy = sum(py) / norb
-    i0 = argmin([drow[k] == 0 ? Inf : hypot(px[k] - cx, py[k] - cy) for k in 1:norb])
-    js = [j for j in 1:norb if j != i0 && drow[j] > 0]
-    Uij = [abs(d3.V[drow[i0], drow[j]]) for j in js]
-    axc = Axis(gc[1, 1]; xlabel = L"\Delta x\ (\text{\AA})", ylabel = L"y\ (\text{\AA})",
-            aspect = DataAspect())
-    vlines!(axc, [0.0]; color = :black, linestyle = :dash, linewidth = LW_GUIDE)
-    scm = scatter!(axc, px[js] .- XJ, py[js]; color = Uij, colormap = :viridis,
-            colorrange = (minimum(Uij), maximum(Uij)), markersize = 11)
-    scatter!(axc, [px[i0] - XJ], [py[i0]]; color = :red, markersize = 11)   # the fixed orbital i
-    Colorbar(gc[1, 2], scm; label = L"U_{ij}\ (\mathrm{eV})", width = 8)
-
-    # ---- (d) on-site U convergence vs DOF (relative error, log-log) ----
-    gd = fig[2, 2] = GridLayout()
+    # ---- (b) on-site U convergence vs DOF (relative error, log-log) ----
+    gd = fig[1, 2] = GridLayout()
     Er = abs.(UU .- Uinf) ./ abs(Uinf)     # relative error vs Richardson U∞
     lx = log10.(NN); ly = log10.(Er)       # least-squares power-law fit E_r ~ N^b
     b = (length(lx) * sum(lx .* ly) - sum(lx) * sum(ly)) / (length(lx) * sum(lx .^ 2) - sum(lx)^2)
@@ -159,14 +130,14 @@ begin
     xlims!(axd, xlo, xhi); ylims!(axd, ylo, yhi)
 
     # ---- panel tags OUTSIDE, top-left corner of each panel ----
-    for (g, lab) in ((ga, "(a)"), (gb, "(b)"), (gc, "(c)"), (gd, "(d)"))
+    for (g, lab) in ((ga, "(a)"), (gd, "(b)"))
         Label(g[1, 1, TopLeft()], lab; font = :bold, fontsize = FS_BASE,
             halign = :right, padding = (0, 8, 4, 0))
     end
-    # tighten each panel against its own colourbar, then the panels against each other.
+    # tighten (a) against its colourbar, then the panels against each other.
     # gd has a single column (no colourbar), so it has no column gap to set.
-    for g in (ga, gb, gc); colgap!(g, 5); end
-    colgap!(fig.layout, 6); rowgap!(fig.layout, 6)
+    colgap!(ga, 5)
+    colgap!(fig.layout, 30)
 
     fig
 end
@@ -174,12 +145,3 @@ end
 out = joinpath(@__DIR__, "..", "figs", SRC.out)
 save(out, fig; px_per_unit = PX_PER_UNIT)
 @printf("wrote %s   max|V|=%.3f eV, U∞=%.4f eV (r=%.3f)\n", out, maximum(abs.(V3)), Uinf, r)
-# panel (c) numbers for the text: the fixed central orbital and the U_ij range it sees
-let rr = [hypot(px[j] - px[i0], py[j] - py[i0]) for j in js],
-    lx = log10.(rr), ly = log10.(Uij), m = length(rr)
-    sd = (m * sum(lx .* ly) - sum(lx) * sum(ly)) / (m * sum(lx .^ 2) - sum(lx)^2)
-    @printf("  (c) i=%d at (x=%.2f, y=%.2f) A, dx_from_junction=%+.2f A\n",
-            i0, px[i0], py[i0], px[i0] - XJ)
-    @printf("      U_ii=%.3f eV;  U_ij over %d neighbours: %.3f .. %.3f eV;  U_ij ~ r^%.2f\n",
-            d3.V[drow[i0], drow[i0]], length(js), minimum(Uij), maximum(Uij), sd)
-end
