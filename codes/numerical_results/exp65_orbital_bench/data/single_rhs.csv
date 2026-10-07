@@ -1,2 +1,0 @@
-hostname,nthreads,smoke,correct_edges,n_points,n_src,niter,residual,t_load,t_precompute,t_solve,t_eval,rss_baseline_gb,rss_peak_gb,u_total_ev
-worker7018,96,false,true,960768,355862,8,7.117157662441308e-6,3.182804725,218.666085845,25.303050377,48.637828579,1.8878097534179688,17.191925048828125,9.884899743334431
